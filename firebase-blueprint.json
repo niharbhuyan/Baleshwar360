@@ -1,0 +1,294 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Registered user profile in Balasore 360",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "Firebase Auth UID" },
+        "displayName": { "type": "string", "description": "Full name or display name" },
+        "email": { "type": "string", "format": "email", "description": "User email address" },
+        "photoUrl": { "type": "string", "description": "User avatar profile image URL" },
+        "bio": { "type": "string", "description": "Short bio or community status" },
+        "locality": { "type": "string", "description": "Locality or block in Balasore" },
+        "phoneNumber": { "type": "string", "description": "Contact phone number" },
+        "createdAt": { "type": "integer", "description": "Profile creation timestamp" },
+        "updatedAt": { "type": "integer", "description": "Profile last update timestamp" }
+      },
+      "required": ["userId", "displayName", "email", "createdAt", "updatedAt"]
+    },
+    "WeatherPreferences": {
+      "title": "WeatherPreferences",
+      "description": "User custom weather warning and coastal alert preferences",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "Firebase Auth UID" },
+        "notifyCyclone": { "type": "boolean", "description": "Receive IMD/NDRF cyclone alerts" },
+        "notifyHighTide": { "type": "boolean", "description": "Receive Chandipur tidal alerts" },
+        "notifySevereHeat": { "type": "boolean", "description": "Receive extreme summer heat alerts" },
+        "notifyRainfall": { "type": "boolean", "description": "Receive heavy flood & downpour alerts" },
+        "notifyLocalEvents": { "type": "boolean", "description": "Receive local civic and cultural event alerts" },
+        "notifyTempleFestivals": { "type": "boolean", "description": "Receive temple festival notifications" },
+        "notifyBreakingNews": { "type": "boolean", "description": "Receive breaking district news alerts" },
+        "notifyTourismHotspots": { "type": "boolean", "description": "Receive tourism hotspot advisories" },
+        "notifyDefenseAdvisories": { "type": "boolean", "description": "Receive ITR Chandipur defense range advisories" },
+        "notifyFloodAlerts": { "type": "boolean", "description": "Receive Subarnarekha & Budhabalanga flood alerts" },
+        "notifyKuldihaSafari": { "type": "boolean", "description": "Receive Kuldiha wildlife sanctuary updates" },
+        "notifyPanchalingeswar": { "type": "boolean", "description": "Receive Panchalingeswar hill shrine alerts" },
+        "notifySafeTideWindow": { "type": "boolean", "description": "Receive Chandipur safe beach walk window alerts" },
+        "highTideAlertHoursBefore": { "type": "integer", "description": "Advance warning hours before high tide" },
+        "minTempThreshold": { "type": "integer", "description": "Minimum temperature threshold" },
+        "maxTempThreshold": { "type": "integer", "description": "Maximum temperature threshold" },
+        "preferredNewsCategories": { "type": "array", "description": "List of preferred news categories" },
+        "updatedAt": { "type": "integer", "description": "Last updated epoch timestamp" }
+      },
+      "required": ["userId", "notifyCyclone", "notifyHighTide", "notifySevereHeat", "notifyRainfall", "updatedAt"]
+    },
+    "UserGeneralPreferences": {
+      "title": "UserGeneralPreferences",
+      "description": "User general app language and locality preferences",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "Firebase Auth UID" },
+        "language": { "type": "string", "description": "Selected app language" },
+        "weatherAlertsEnabled": { "type": "boolean", "description": "Whether weather alerts are enabled" },
+        "breakingNewsEnabled": { "type": "boolean", "description": "Whether breaking news alerts are enabled" },
+        "locality": { "type": "string", "description": "User locality in Balasore" },
+        "lastSyncedAt": { "type": "integer", "description": "Last synced epoch timestamp" }
+      },
+      "required": ["userId", "language", "weatherAlertsEnabled", "breakingNewsEnabled", "locality", "lastSyncedAt"]
+    },
+    "GroundedQueryLog": {
+      "title": "GroundedQueryLog",
+      "description": "User grounded search query log entry",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "Firebase Auth UID" },
+        "query": { "type": "string", "description": "Search query text" },
+        "groundingType": { "type": "string", "description": "Grounding category" },
+        "timestamp": { "type": "integer", "description": "Query timestamp in ms" }
+      },
+      "required": ["userId", "query", "groundingType", "timestamp"]
+    },
+    "FavoriteNews": {
+      "title": "FavoriteNews",
+      "description": "Saved favorite local Balasore news article",
+      "type": "object",
+      "properties": {
+        "newsId": { "type": "string", "description": "Unique news article ID" },
+        "userId": { "type": "string", "description": "Firebase Auth UID" },
+        "title": { "type": "string", "description": "Headline of the news article" },
+        "source": { "type": "string", "description": "Publishing source or bureau" },
+        "category": { "type": "string", "description": "News category" },
+        "publishedAt": { "type": "string", "description": "Publication date string" },
+        "url": { "type": "string", "description": "Article web URL or source link" },
+        "savedAt": { "type": "integer", "description": "Saved epoch millisecond timestamp" }
+      },
+      "required": ["newsId", "userId", "title", "source", "category", "savedAt"]
+    },
+    "TourismBookmark": {
+      "title": "TourismBookmark",
+      "description": "User bookmarked Balasore tourism destination or hotspot",
+      "type": "object",
+      "properties": {
+        "spotId": { "type": "string", "description": "Unique hotspot ID" },
+        "userId": { "type": "string", "description": "Firebase Auth UID" },
+        "spotName": { "type": "string", "description": "Name of the tourism spot" },
+        "category": { "type": "string", "description": "Spot category (e.g. Beach, Temple, Heritage)" },
+        "location": { "type": "string", "description": "Subdivision or block location" },
+        "rating": { "type": "number", "description": "Tourism spot average rating" },
+        "bookmarkedAt": { "type": "integer", "description": "Bookmarked timestamp" }
+      },
+      "required": ["spotId", "userId", "spotName", "category", "location", "bookmarkedAt"]
+    },
+    "TourismReview": {
+      "title": "TourismReview",
+      "description": "Public review and rating for a Balasore tourism hotspot",
+      "type": "object",
+      "properties": {
+        "reviewId": { "type": "string", "description": "Unique review ID" },
+        "spotId": { "type": "string", "description": "Reviewed hotspot ID" },
+        "spotName": { "type": "string", "description": "Reviewed hotspot name" },
+        "userId": { "type": "string", "description": "Reviewer Firebase Auth UID" },
+        "userDisplayName": { "type": "string", "description": "Reviewer public display name" },
+        "userPhotoUrl": { "type": "string", "description": "Reviewer avatar URL" },
+        "rating": { "type": "integer", "description": "Star rating 1 to 5" },
+        "reviewText": { "type": "string", "description": "User review text" },
+        "travelTip": { "type": "string", "description": "Visitor travel tip" },
+        "tipCategory": { "type": "string", "description": "Category of visitor tip" },
+        "photoUris": { "type": "array", "description": "Attached photo URLs or URIs" },
+        "visitSeason": { "type": "string", "description": "Season or month of visit" },
+        "moderationStatus": { "type": "string", "description": "Moderation status" },
+        "moderatorNote": { "type": "string", "description": "Moderator note" },
+        "helpfulVotes": { "type": "integer", "description": "Helpful vote count" },
+        "createdAt": { "type": "integer", "description": "Review creation timestamp" }
+      },
+      "required": ["reviewId", "spotId", "userId", "userDisplayName", "rating", "reviewText", "createdAt"]
+    },
+    "FirestoreNews": {
+      "title": "FirestoreNews",
+      "description": "Real-time district bulletins and local news articles for Balasore",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique article document ID" },
+        "title": { "type": "string", "description": "English news headline" },
+        "titleOr": { "type": "string", "description": "Odia news headline" },
+        "summary": { "type": "string", "description": "Short summary" },
+        "content": { "type": "string", "description": "Full news text content" },
+        "category": { "type": "string", "description": "News category (e.g. Local, Defense, Weather, Tourism, Civic)" },
+        "imageUrl": { "type": "string", "description": "Article hero image URL" },
+        "source": { "type": "string", "description": "Publisher or bureau source" },
+        "isBreaking": { "type": "boolean", "description": "Flag for breaking news alert banner" },
+        "timestamp": { "type": "integer", "description": "Publication epoch timestamp in ms" },
+        "author": { "type": "string", "description": "Reporter or agency attribution" },
+        "priority": { "type": "integer", "description": "Display order priority 1 to 5" }
+      },
+      "required": ["id", "title", "summary", "content", "category", "source", "isBreaking", "timestamp", "author"]
+    },
+    "FirestoreEmergencyContact": {
+      "title": "FirestoreEmergencyContact",
+      "description": "Official 24/7 verified emergency helplines and department contacts in Balasore",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique contact ID" },
+        "name": { "type": "string", "description": "Department or facility English name" },
+        "odiaName": { "type": "string", "description": "Department or facility Odia name" },
+        "category": { "type": "string", "description": "Category (HOSPITAL, POLICE, CYCLONE_SHELTER, FIRE_RESCUE, COAST_GUARD, DISASTER_MGMT)" },
+        "phone": { "type": "string", "description": "Direct primary helpline phone number" },
+        "alternatePhone": { "type": "string", "description": "Secondary phone or control room line" },
+        "address": { "type": "string", "description": "Postal or landmark address" },
+        "odiaAddress": { "type": "string", "description": "Odia address description" },
+        "latitude": { "type": "number", "description": "GPS latitude coordinate" },
+        "longitude": { "type": "number", "description": "GPS longitude coordinate" },
+        "is24x7": { "type": "boolean", "description": "Flag indicating round-the-clock availability" },
+        "capacityOrBeds": { "type": "string", "description": "Facility capacity, bed count, or quick description" },
+        "priority": { "type": "integer", "description": "Listing sort priority" },
+        "updatedAt": { "type": "integer", "description": "Last updated epoch timestamp in ms" }
+      },
+      "required": ["id", "name", "category", "phone", "address", "latitude", "longitude", "is24x7", "updatedAt"]
+    },
+    "FirestoreUserReport": {
+      "title": "FirestoreUserReport",
+      "description": "Citizen civic reports and infrastructure problem submissions in Balasore",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique report document ID" },
+        "userId": { "type": "string", "description": "Submitting user's Firebase Auth UID" },
+        "userName": { "type": "string", "description": "Display name of citizen" },
+        "title": { "type": "string", "description": "Report headline or issue title" },
+        "category": { "type": "string", "description": "Issue type (road, drainage, electricity, water, garbage, coastal, other)" },
+        "description": { "type": "string", "description": "Detailed description of problem" },
+        "wardLocation": { "type": "string", "description": "Municipality ward, village, or landmark" },
+        "status": { "type": "string", "description": "Resolution status: SUBMITTED, IN_PROGRESS, RESOLVED, REJECTED" },
+        "urgency": { "type": "string", "description": "Urgency rating: LOW, MEDIUM, HIGH, EMERGENCY" },
+        "latitude": { "type": "number", "description": "GPS latitude coordinate" },
+        "longitude": { "type": "number", "description": "GPS longitude coordinate" },
+        "photoUrl": { "type": "string", "description": "Uploaded evidence photo URL" },
+        "reportedTimestamp": { "type": "integer", "description": "Submission epoch timestamp in ms" },
+        "lastUpdatedTimestamp": { "type": "integer", "description": "Status update epoch timestamp in ms" },
+        "resolutionNotes": { "type": "string", "description": "Municipal action or authority feedback notes" }
+      },
+      "required": ["id", "userId", "userName", "title", "category", "description", "wardLocation", "status", "urgency", "reportedTimestamp", "lastUpdatedTimestamp"]
+    },
+    "NewsArticleViewCount": {
+      "title": "NewsArticleViewCount",
+      "description": "Trending news article view count and metadata",
+      "type": "object",
+      "properties": {
+        "articleId": { "type": "string", "description": "News article ID" },
+        "title": { "type": "string", "description": "Article headline" },
+        "category": { "type": "string", "description": "Article category" },
+        "viewCount": { "type": "integer", "description": "Total article views" },
+        "lastViewedAt": { "type": "integer", "description": "Last viewed epoch timestamp" }
+      },
+      "required": ["articleId", "title", "category", "viewCount", "lastViewedAt"]
+    },
+    "FestivalRsvp": {
+      "title": "FestivalRsvp",
+      "description": "Community festival RSVP count entry",
+      "type": "object",
+      "properties": {
+        "eventId": { "type": "string", "description": "Festival event ID" },
+        "titleEn": { "type": "string", "description": "Festival English title" },
+        "attendeeCount": { "type": "integer", "description": "Total interested attendees" },
+        "updatedAt": { "type": "integer", "description": "Last updated epoch timestamp" }
+      },
+      "required": ["eventId", "titleEn", "attendeeCount", "updatedAt"]
+    },
+    "CommunityForumPost": {
+      "title": "CommunityForumPost",
+      "description": "Balasore community forum discussion post",
+      "type": "object",
+      "properties": {
+        "postId": { "type": "string", "description": "Unique forum post ID" },
+        "title": { "type": "string", "description": "Post title" },
+        "odiaTitle": { "type": "string", "description": "Odia post title" },
+        "body": { "type": "string", "description": "Post body content" },
+        "odiaBody": { "type": "string", "description": "Odia post body content" },
+        "category": { "type": "string", "description": "Forum topic category" },
+        "authorName": { "type": "string", "description": "Author display name" },
+        "wardOrLocation": { "type": "string", "description": "Ward or locality" },
+        "createdAtMs": { "type": "integer", "description": "Creation epoch timestamp" },
+        "upvotes": { "type": "integer", "description": "Upvote count" },
+        "replyCount": { "type": "integer", "description": "Reply count" },
+        "replies": { "type": "array", "description": "List of reply objects" },
+        "updatedAt": { "type": "integer", "description": "Last updated epoch timestamp" }
+      },
+      "required": ["postId", "title", "body", "category", "authorName", "createdAtMs", "upvotes", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "User profile records indexed by auth UID"
+    },
+    "/users/{userId}/preferences/{prefId}": {
+      "schema": "WeatherPreferences",
+      "description": "User custom weather and hazard alert preferences"
+    },
+    "/users/{userId}/profile/{docId}": {
+      "schema": "UserGeneralPreferences",
+      "description": "User general language and notification preferences"
+    },
+    "/users/{userId}/grounded_queries/{queryId}": {
+      "schema": "GroundedQueryLog",
+      "description": "User grounded search query history"
+    },
+    "/users/{userId}/favorite_news/{newsId}": {
+      "schema": "FavoriteNews",
+      "description": "User saved favorite news articles"
+    },
+    "/users/{userId}/bookmarks/{bookmarkId}": {
+      "schema": "TourismBookmark",
+      "description": "User cloud-synced tourism bookmarks"
+    },
+    "/tourism_reviews/{reviewId}": {
+      "schema": "TourismReview",
+      "description": "Public tourism hotspot reviews submitted by verified community members"
+    },
+    "/news/{newsId}": {
+      "schema": "FirestoreNews",
+      "description": "Real-time district news bulletins and coastal defense updates"
+    },
+    "/emergency_contacts/{contactId}": {
+      "schema": "FirestoreEmergencyContact",
+      "description": "Official real-time emergency services and disaster helplines"
+    },
+    "/user_reports/{reportId}": {
+      "schema": "FirestoreUserReport",
+      "description": "Real-time citizen civic issue and infrastructure reports"
+    },
+    "/news_article_views/{articleId}": {
+      "schema": "NewsArticleViewCount",
+      "description": "Trending news article view counts"
+    },
+    "/festivals_rsvp/{eventId}": {
+      "schema": "FestivalRsvp",
+      "description": "Community festival RSVP counters"
+    },
+    "/community_forum_posts/{postId}": {
+      "schema": "CommunityForumPost",
+      "description": "Community forum discussion posts"
+    }
+  }
+}

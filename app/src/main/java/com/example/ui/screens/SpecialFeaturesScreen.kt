@@ -1,0 +1,3605 @@
+package com.example.ui.screens
+
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.FastOutLinearInEasing
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearOutSlowInEasing
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.Flare
+import androidx.compose.material.icons.filled.Lightbulb
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Tune
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import kotlinx.coroutines.delay
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.platform.LocalContext
+import android.content.Intent
+import androidx.compose.material.icons.filled.Article
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.ManageSearch
+import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material.icons.filled.SearchOff
+import androidx.compose.material.icons.filled.Share
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.example.data.daily.DailyBalasorePulse
+import com.example.data.model.AppLanguage
+import com.example.data.model.NewsArticle
+import com.example.data.repository.BalasoreRepository
+import com.example.ui.components.DailyAutoUpdateCard
+import com.example.ui.components.LanguageSwitcherBannerCard
+import com.example.ui.theme.BentoSlate100
+import com.example.ui.theme.BentoSlate200
+import com.example.ui.theme.BentoSlate400
+import com.example.ui.theme.BentoSlate500
+import com.example.ui.theme.BentoSlate600
+import com.example.ui.theme.BentoSlate800
+import com.example.ui.theme.BentoSlate900
+import com.example.ui.theme.OceanBlue
+import com.example.ui.theme.OceanBlueDark
+import com.example.ui.viewmodel.UniqueFeatureSheetType
+
+enum class FeaturesSearchScope {
+    ALL,
+    FEATURE_CARDS,
+    NEWS_ARTICLES
+}
+
+data class SpecialFeatureItem(
+    val sheetType: UniqueFeatureSheetType,
+    val titleEn: String,
+    val titleOd: String,
+    val category: String,
+    val iconEmoji: String,
+    val descriptionEn: String,
+    val descriptionOd: String,
+    val tagText: String,
+    val primaryColor: Color,
+    val borderColor: Color,
+    val isAutoUpdated: Boolean = true
+)
+
+/**
+ * Dedicated Menu / Screen for Balasore Special Features.
+ * Provides curated access, search & categorized filtering for all 31 unique hubs
+ * and daily auto-updating engines of Balasore district.
+ */
+@Composable
+fun SpecialFeaturesScreen(
+    dailyPulse: DailyBalasorePulse,
+    language: AppLanguage,
+    onRefreshDailyPulse: () -> Unit,
+    onOpenFeatureSheet: (UniqueFeatureSheetType) -> Unit,
+    onLanguageSelected: ((AppLanguage) -> Unit)? = null,
+    newsArticles: List<NewsArticle> = BalasoreRepository.newsArticles,
+    modifier: Modifier = Modifier
+) {
+    var searchQuery by remember { mutableStateOf("") }
+    var selectedScope by remember { mutableStateOf(FeaturesSearchScope.ALL) }
+    var selectedCategory by remember { mutableStateOf("All") }
+
+    val allFeatures = remember {
+        listOf(
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.BATTERY_HEALTH_MONITOR,
+                titleEn = "Battery Health Monitor & Services Energy Dashboard",
+                titleOd = "ବ୍ୟାଟେରୀ ସ୍ୱାସ୍ଥ୍ୟ ମନିଟର୍ ଓ ବ୍ୟାକଗ୍ରାଉଣ୍ଡ ଶକ୍ତି ଡ୍ୟାସବୋର୍ଡ",
+                category = "Resilience & Security",
+                iconEmoji = "🔋",
+                descriptionEn = "Tracks energy consumption of background services, live battery temperature & voltage telemetry, and actionable tips to optimize sync intervals for better battery longevity.",
+                descriptionOd = "ବ୍ୟାକଗ୍ରାଉଣ୍ଡ ସର୍ଭିସ୍ ଶକ୍ତି ବ୍ୟବହାର ଟ୍ରାକିଂ, ଲାଇଭ୍ ବ୍ୟାଟେରୀ ତାପମାତ୍ରା ଓ ଭୋଲ୍ଟେଜ୍ ଏବଂ ଆୟୁଷ ବୃଦ୍ଧି ପାଇଁ ସିଙ୍କ୍ ବ୍ୟବଧାନ ଅପ୍ଟିମାଇଜେସନ୍।",
+                tagText = "BATTERY LONGEVITY & ENERGY MONITOR",
+                primaryColor = Color(0xFFF0FDF4),
+                borderColor = Color(0xFF86EFAC),
+                isAutoUpdated = true
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.PRIVACY_POLICY,
+                titleEn = "Privacy Policy & Google Play Compliance Hub",
+                titleOd = "ଗୋପନୀୟତା ନୀତି ଓ Google Play ନିୟମାବଳୀ",
+                category = "Resilience & Security",
+                iconEmoji = "🔒",
+                descriptionEn = "Transparent data practices, permission justifications, zero-permission photo picker, and 14-day deletion request rights.",
+                descriptionOd = "ତଥ୍ୟ ସୁରକ୍ଷା ନୀତି, ଅନୁମତି କାରଣ, ଫଟୋ ପିକର୍ ଓ ୧୪ ଦିନରେ ତଥ୍ୟ ବିଲୋପ ଅଧିକାର।",
+                tagText = "PLAY STORE VERIFIED POLICY",
+                primaryColor = Color(0xFFF8FAFC),
+                borderColor = Color(0xFFCBD5E1),
+                isAutoUpdated = true
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.CYCLONE_SHELTER_WIDGET_MANAGER,
+                titleEn = "Cyclone Shelter & Block Helpline Widget",
+                titleOd = "ବାତ୍ୟା ଆଶ୍ରୟସ୍ଥଳ ଓ ବ୍ଲକ ହେଲ୍ପଲାଇନ୍ ୱିଜେଟ୍",
+                category = "Resilience & Widgets",
+                iconEmoji = "🛡️",
+                descriptionEn = "Location-based Android home screen widget showing live distance to nearest cyclone shelter and current emergency helpline for your Balasore block.",
+                descriptionOd = "ଘରୋଇ ସ୍କ୍ରିନ୍ ୱିଜେଟ୍: ଆପଣଙ୍କ ବାଲେଶ୍ୱର ବ୍ଲକର ନିକଟତମ ବାତ୍ୟା ଆଶ୍ରୟସ୍ଥଳୀ ଦୂରତା ଓ ୨୪x୭ ଜରୁରୀକାଳୀନ ହେଲ୍ପଲାଇନ୍ ନମ୍ବର।",
+                tagText = "HOME SCREEN APPWIDGET",
+                primaryColor = Color(0xFFFEF2F2),
+                borderColor = Color(0xFFFCA5A5),
+                isAutoUpdated = true
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.BALASORE_LIVE_TRAIN_STATUS,
+                titleEn = "Balasore Live Train Status & Push Alerts",
+                titleOd = "ବାଲେଶ୍ୱର ଲାଇଭ୍ ଟ୍ରେନ୍ ଷ୍ଟାଟସ୍ ଓ ଆଲର୍ଟ",
+                category = "Transit & Transport",
+                iconEmoji = "🚆",
+                descriptionEn = "Real-time train arrival & departure status at Balasore (BLS), live speed & delay telemetry, platform assignments, and push notifications for specific trains.",
+                descriptionOd = "ବାଲେଶ୍ୱର ଷ୍ଟେସନରେ ଟ୍ରେନ୍ ଆଗମନ, ପ୍ରସ୍ଥାନ, ବିଳମ୍ବ ସ୍ଥିତି, ପ୍ଲାଟଫର୍ମ ନମ୍ବର ଓ ମନପସନ୍ଦ ଟ୍ରେନ୍ ପାଇଁ ପୁସ୍ ନୋଟିଫିକେସନ୍ ଆଲର୍ଟ।",
+                tagText = "REAL-TIME BLS TELEMETRY & ALERTS",
+                primaryColor = Color(0xFFF0FDF4),
+                borderColor = Color(0xFF86EFAC),
+                isAutoUpdated = true
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.CHANDIPUR_VANISHING_SEA_CLOCK,
+                titleEn = "Chandipur Vanishing Sea & Tidal Clock",
+                titleOd = "ଚାନ୍ଦିପୁର ଜୁଆର-ଭଟ୍ଟା ଓ ସମୁଦ୍ର ଘଣ୍ଟା",
+                category = "Coastal & Estuary",
+                iconEmoji = "🌊",
+                descriptionEn = "Interactive tidal radial clock, 5km sea recession meter, safe sea-walk corridor calculator & returning flood tide warning siren.",
+                descriptionOd = "ଲାଇଭ୍ ଜୁଆର-ଭଟ୍ଟା ଘଣ୍ଟା, ୫ କିମି ସମୁଦ୍ର ହଟିବା ମିଟର, ନିରାପଦ ଚଲାପଥ କାଲକୁଲେଟର ଓ ସାଇରେନ୍ ଆଲର୍ଟ।",
+                tagText = "LIVE TIDAL RADIAL CLOCK",
+                primaryColor = Color(0xFFF0F9FF),
+                borderColor = Color(0xFF7DD3FC),
+                isAutoUpdated = true
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.COASTAL_CYCLONE_PREPAREDNESS,
+                titleEn = "Coastal Cyclone Preparedness Companion",
+                titleOd = "ବାତ୍ୟା ସୁରକ୍ଷା ଓ ବିପର୍ଯ୍ୟୟ ପରିଚାଳନା",
+                category = "Resilience & Security",
+                iconEmoji = "🌪️",
+                descriptionEn = "IMD Port Signals 1-11 decoded, 72h Emergency Go-Bag checklist, offline Multipurpose Cyclone Shelters (MCS) & night rescue SOS strobe.",
+                descriptionOd = "IMD ବନ୍ଦର ସଙ୍କେତ ୧ ରୁ ୧୧, ୭୨ ଘଣ୍ଟାର ଏମରଜେନ୍ସି କିଟ୍, ଅଫଲାଇନ୍ ବାତ୍ୟା ଆଶ୍ରୟସ୍ଥଳୀ ଓ SOS ଷ୍ଟ୍ରୋବ୍।",
+                tagText = "IMD SIGNALS 1-11 & SOS",
+                primaryColor = Color(0xFFFEF2F2),
+                borderColor = Color(0xFFFCA5A5),
+                isAutoUpdated = true
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.BALASORE_DAY_TRIP_PLANNER,
+                titleEn = "Heritage Trails & Day-Trip Generator",
+                titleOd = "ଐତିହ୍ୟ ପଥ ଓ ଦିବସ ପରିଭ୍ରମଣ ପ୍ଲାନର୍",
+                category = "Artisans & Heritage",
+                iconEmoji = "🏛️",
+                descriptionEn = "Curated trails (Defence & Science, Freedom Satyagraha, Sacred Sanctums, Eco Wild), custom itinerary generator with authentic culinary stops & maps.",
+                descriptionOd = "ପ୍ରତିରକ୍ଷା, ସ୍ୱାଧୀନତା ସଂଗ୍ରାମ, ପବିତ୍ର ମନ୍ଦିର ଓ ପ୍ରକୃତି ପରିଭ୍ରମଣ ପାଇଁ କଷ୍ଟମ୍ ଟ୍ରିପ୍ ପ୍ଲାନର୍।",
+                tagText = "CUSTOM ITINERARY GENERATOR",
+                primaryColor = Color(0xFFFFFBEB),
+                borderColor = Color(0xFFFDE68A),
+                isAutoUpdated = true
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.BALARAMGADI_SEAFOOD_INDEX,
+                titleEn = "Balaramgadi Port Daily Catch & Seafood Index",
+                titleOd = "ବଳରାମଗଡ଼ି ମତ୍ସ୍ୟ ସୂଚକାଙ୍କ ଓ ତାଜା ମାଛ ଦର",
+                category = "Coastal & Estuary",
+                iconEmoji = "🐟",
+                descriptionEn = "Trawler fleet landing times at Balaramgadi jetty, daily market price index (Ilish, Tiger Prawn, Pomfret, Crab), freshness check & fry shacks.",
+                descriptionOd = "ଦୈନିକ ଟ୍ରଲର ଅବତରଣ ସମୟ, ଇଲିଶି-ବାଘା ଚିଙ୍ଗୁଡ଼ି-ଚାନ୍ଦି ମାଛ ବଜାର ଦର ଓ ଫ୍ରାଏ ଷ୍ଟଲ୍।",
+                tagText = "DAILY FISH MANDI & RATES",
+                primaryColor = Color(0xFFF0FDFA),
+                borderColor = Color(0xFF99F6E4),
+                isAutoUpdated = true
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.BALASORE_PHOTO_SPOTS_CHECKLIST,
+                titleEn = "Hidden Gems & Photo Spots Checklist",
+                titleOd = "ଫଟୋଗ୍ରାଫି ସ୍ପଟ୍ ଓ ଏକ୍ସପ୍ଲୋରର୍ ବ୍ୟାଜ୍",
+                category = "Nature & Agro",
+                iconEmoji = "📸",
+                descriptionEn = "8 breathtaking scenic locations, unlockable explorer achievement badges, camera gear tips, drone regulations & GPS vantage points.",
+                descriptionOd = "୮ଟି ଶ୍ରେଷ୍ଠ ଫଟୋଗ୍ରାଫି ସ୍ଥଳୀ, ଅନଲକ୍ ହେବାକୁ ଥିବା ବ୍ୟାଜ୍, କ୍ୟାମେରା ଗିଅର୍ ଟିପ୍ସ ଓ ଡ୍ରୋନ୍ ନିୟମ।",
+                tagText = "PHOTOGRAPHY BADGES",
+                primaryColor = Color(0xFFF5F3FF),
+                borderColor = Color(0xFFDDD6FE),
+                isAutoUpdated = true
+            ),
+            // Auto-Updated Innovations
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.LOCAL_TRANSPORT,
+                titleEn = "Local Transport & Live City Bus Radar",
+                titleOd = "ସ୍ଥାନୀୟ ପରିବହନ ଓ ସିଟି ବସ୍ ଲାଇଭ୍ ଟ୍ରାକର୍",
+                category = "Coastal & Estuary",
+                iconEmoji = "🚌",
+                descriptionEn = "Live Balasore city bus locations, CRUT Mo Bus route schedules, next stop ETAs & public transit API telemetry in scrollable list view.",
+                descriptionOd = "ପବ୍ଲିକ୍ ଟ୍ରାନ୍ସିଟ୍ API ଦ୍ୱାରା ବାଲେଶ୍ୱର ସିଟି ବସ୍ ଲାଇଭ୍ GPS, ରୁଟ୍ ସୂଚୀ, ନେକ୍ସଟ୍ ଷ୍ଟପ୍ ETA ଓ ସ୍କ୍ରୋଲେବଲ୍ ତାଲିକା।",
+                tagText = "TRANSIT API LIVE",
+                primaryColor = Color(0xFFF0FDF4),
+                borderColor = Color(0xFFBBF7D0),
+                isAutoUpdated = true
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.TOURISM_HOTSPOTS,
+                titleEn = "Tourism Hotspots & Maps Distance Markers",
+                titleOd = "ପର୍ଯ୍ୟଟନ ସ୍ଥଳୀ ଓ ଗୁଗୁଲ୍ ମ୍ୟାପ୍ସ ଦୂରତା ମାର୍କର୍",
+                category = "Coastal & Estuary",
+                iconEmoji = "🗺️",
+                descriptionEn = "Nearby Balasore tourist locations fetched with Google Maps API, card-based carousel with distance markers & turn-by-turn navigation.",
+                descriptionOd = "ଗୁଗୁଲ୍ ମ୍ୟାପ୍ସ API ଦ୍ୱାରା ବାଲେଶ୍ୱରର ସମସ୍ତ ପର୍ଯ୍ୟଟନ କେନ୍ଦ୍ର, କାର୍ଡ କ୍ୟାରୋସେଲ୍, ଲାଇଭ୍ ଦୂରତା ମାର୍କର୍ ଓ ନାଭିଗେସନ୍।",
+                tagText = "GOOGLE MAPS CAROUSEL",
+                primaryColor = Color(0xFFEFF6FF),
+                borderColor = Color(0xFFBAE6FD),
+                isAutoUpdated = true
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.ODIA_FESTIVALS,
+                titleEn = "Odia Festivals & Cultural Dates (ପର୍ବପର୍ବାଣି)",
+                titleOd = "ଓଡ଼ିଆ ପର୍ବପର୍ବାଣି ଓ ଉତ୍ସବ କ୍ୟାଲେଣ୍ଡର",
+                category = "Artisans & Heritage",
+                iconEmoji = "🏮",
+                descriptionEn = "Upcoming local festivals, Chadak Mela, Boita Bandana, Remuna Chandan Yatra, offline Room DB cached with live countdowns.",
+                descriptionOd = "ଚନ୍ଦନେଶ୍ୱର ଚଡ଼କ, ବଳରାମଗଡ଼ି ବୋଇତ ବନ୍ଦାଣ, ନୀଳଗିରି ମକର ମେଳାର ଲାଇଭ୍ କାଉଣ୍ଟଡାଉନ୍ ଓ ଅଫଲାଇନ୍ Room ଡାଟାବେସ୍।",
+                tagText = "ROOM OFFLINE CACHED",
+                primaryColor = Color(0xFFFFF7ED),
+                borderColor = Color(0xFFFED7AA),
+                isAutoUpdated = true
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.ODIA_CULTURE_SECTION,
+                titleEn = "Odia Culture & Daily Horoscope (ଦୈନିକ ରାଶିଫଳ)",
+                titleOd = "ଓଡ଼ିଆ ସଂସ୍କୃତି ଓ ଦୈନିକ ରାଶିଫଳ (ଜ୍ୟୋତିଷ)",
+                category = "Artisans & Heritage",
+                iconEmoji = "🪔",
+                descriptionEn = "Live Daily Horoscope from Astrology API, 12 Rasis, Auspicious Shubha Bela, Rahu Kala, Panjika & Balasore Temples.",
+                descriptionOd = "ଜ୍ୟୋତିଷ API ରୁ ୧୨ଟି ରାଶିର ଦୈନିକ ରାଶିଫଳ, ଶୁଭ ବେଳା, ରାହୁ କାଳ, ମନ୍ତ୍ର, ପାଞ୍ଜି ଓ ବାଲେଶ୍ୱର ମନ୍ଦିର ଦର୍ଶନ।",
+                tagText = "ASTROLOGY API & PANJIKA",
+                primaryColor = Color(0xFFFFFBEB),
+                borderColor = Color(0xFFFDE68A),
+                isAutoUpdated = true
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.COASTAL_WEATHER_RADAR_MAP,
+                titleEn = "Google Maps Coastal Weather Radar & Storm Tracker",
+                titleOd = "ଗୁଗୁଲ୍ ମ୍ୟାପ୍ସ ଉପକୂଳ ବୃଷ୍ଟିପାତ ଓ ବାତ୍ୟା ରାଡ଼ାର",
+                category = "Coastal & Estuary",
+                iconEmoji = "🛰️",
+                descriptionEn = "Live Google Maps Doppler precipitation overlay, Bay of Bengal cyclone storm tracking, 7 coastal observatories & 30s auto-updates.",
+                descriptionOd = "ଚାନ୍ଦିପୁର, କାସାଫାଳ ଓ ବଙ୍ଗୋପସାଗର ବାତ୍ୟା କେନ୍ଦ୍ର, ବର୍ଷା ବାଷ୍ପୀୟ ରାଡ଼ାର ଓ ୩୦ ସେକେଣ୍ଡ ସ୍ୱୟଂକ୍ରିୟ ଅପଡେଟ୍।",
+                tagText = "GOOGLE MAPS LIVE OVERLAY",
+                primaryColor = Color(0xFFECFEFF),
+                borderColor = Color(0xFFA5F3FC),
+                isAutoUpdated = true
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.OLIVE_RIDLEY_MARINE_WILDLIFE,
+                titleEn = "Olive Ridley & Marine Life Sighting Tracker",
+                titleOd = "ଅଲିଭ୍ ରିଡଲେ ଓ ସାମୁଦ୍ରିକ ଜୀବ ସଂରକ୍ଷଣ",
+                category = "Coastal & Estuary",
+                iconEmoji = "🐢",
+                descriptionEn = "Live nesting season telemetry, citizen sighting logger & direct Balasore Wildlife Division hotline.",
+                descriptionOd = "କାସାଫାଳ ଓ ତାଳସାରୀ କଇଁଛ ବସା ସୂଚନା, ନାଗରିକ ରିପୋର୍ଟ ଓ ବନ ବିଭାଗ ହଟଲାଇନ୍।",
+                tagText = "LIVE WILDLIFE SENTINEL",
+                primaryColor = Color(0xFFF0FDF4),
+                borderColor = Color(0xFFBBF7D0),
+                isAutoUpdated = true
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.AIIMS_DHH_OPD_BED_TRACKER,
+                titleEn = "AIIMS Satellite Centre & DHH OPD & Bed Pulse",
+                titleOd = "AIIMS ଓ DHH ବାଲେଶ୍ୱର OPD ଓ ବେଡ୍ ଟ୍ରାକର୍",
+                category = "Health & Safety",
+                iconEmoji = "🏥",
+                descriptionEn = "Real-time doctor chamber roster, OPD token wait estimates, ICU bed vacancy & 108 ambulance dial.",
+                descriptionOd = "ବାସ୍ତବ ସମୟ ଡାକ୍ତର ତାଲିକା, ଟୋକନ୍ ଅପେକ୍ଷା ସମୟ, ଆଇସିୟୁ ବେଡ୍ ଓ ୧୦୮ ଆମ୍ବୁଲାନ୍ସ।",
+                tagText = "LIVE OPD & BEDS",
+                primaryColor = Color(0xFFEFF6FF),
+                borderColor = Color(0xFFBFDBFE),
+                isAutoUpdated = true
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.OFFLINE_CYCLONE_SAFETY_TOOLKIT,
+                titleEn = "Offline Cyclone & Flood Safety Toolkit",
+                titleOd = "ଅଫଲାଇନ୍ ବାତ୍ୟା ଓ ବନ୍ୟା ସୁରକ୍ଷା ଟୁଲକିଟ୍",
+                category = "Health & Safety",
+                iconEmoji = "🛡️",
+                descriptionEn = "100% offline-ready shelter directory, interactive 72h survival checklist & emergency SOS screen strobe beacon.",
+                descriptionOd = "ଇଣ୍ଟରନେଟ୍ ବିନା ବାତ୍ୟା ଆଶ୍ରୟସ୍ଥଳୀ ତାଲିକା, ୭୨-ଘଣ୍ଟା କିଟ୍ ଓ SOS ସ୍କ୍ରିନ୍ ବିକନ୍।",
+                tagText = "100% OFFLINE READY",
+                primaryColor = Color(0xFFFEF3C7),
+                borderColor = Color(0xFFFDE68A),
+                isAutoUpdated = true
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.MY_CIVIC_REPORTS,
+                titleEn = "My Reports: Offline Civic Issue Tracker",
+                titleOd = "ମୋ ଅଭିଯୋଗ: ଅଫଲାଇନ୍ ନାଗରିକ ସମସ୍ୟା ଟ୍ରାକର୍",
+                category = "Emergency & Transit",
+                iconEmoji = "📋",
+                descriptionEn = "Track reported civic issues (Pending, In-Progress, Resolved) using local Room Database with automated municipal status sync.",
+                descriptionOd = "ରାସ୍ତା, ଲାଇଟ୍ ଓ ଡ୍ରେନେଜ୍ ଅଭିଯୋଗ ଲୋକାଲ୍ Room DB ରେ ଟ୍ରାକ୍ କରନ୍ତୁ ଏବଂ ସ୍ୱୟଂକ୍ରିୟ ଅପଡେଟ୍ ପାଆନ୍ତୁ।",
+                tagText = "ROOM DB OFFLINE TRACKER",
+                primaryColor = Color(0xFFF0FDF4),
+                borderColor = Color(0xFF86EFAC),
+                isAutoUpdated = true
+            ),
+
+            // Daily Coastal & Intertidal
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.CHANDIPUR_TIDE_TIMER,
+                titleEn = "Chandipur Safe Tide & 72h Recharts Telemetry",
+                titleOd = "ଚାନ୍ଦିପୁର ୭୨-ଘଣ୍ଟା Recharts ଗ୍ରାଫ୍ ଓ ଭଟ୍ଟା ସମୟ କାଳ",
+                category = "Coastal & Estuary",
+                iconEmoji = "🌊",
+                descriptionEn = "Interactive 72-hour Recharts tidal graph with high/low tide cycle telemetry & automated live updates.",
+                descriptionOd = "୭୨-ଘଣ୍ଟା Recharts ଜୁଆର-ଭଟ୍ଟା ଗ୍ରାଫ୍, ସମୁଦ୍ର ଜଳସ୍ତର (ମିଟର) ଓ ସ୍ୱୟଂକ୍ରିୟ ନବୀକରଣ।",
+                tagText = "72H RECHARTS",
+                primaryColor = Color(0xFFF0F9FF),
+                borderColor = Color(0xFFBAE6FD)
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.KASAFAL_RED_CRABS,
+                titleEn = "Kasafal Red Crab Window",
+                titleOd = "କାସାଫାଳ ନାଲି କଙ୍କଡ଼ା ଅଭିଯାନ",
+                category = "Daily Pulse",
+                iconEmoji = "🦀",
+                descriptionEn = "Daily intertidal schedule when millions of red ghost crabs emerge on pristine sands.",
+                descriptionOd = "ଭଟ୍ଟା ସମୟରେ ବାଲୁକା ତଟରେ ଲକ୍ଷ ଲକ୍ଷ ନାଲି କଙ୍କଡ଼ାଙ୍କ ବିଚରଣ।",
+                tagText = "LIVE TIDAL SCHEDULE",
+                primaryColor = Color(0xFFFFF1F2),
+                borderColor = Color(0xFFFECDD3)
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.TALASARI_AUCTION_MONITOR,
+                titleEn = "Talasari Fish Auction Clock",
+                titleOd = "ତାଳସାରୀ ପ୍ରାତଃ ମତ୍ସ୍ୟ ନିଲାମ",
+                category = "Daily Pulse",
+                iconEmoji = "🐟",
+                descriptionEn = "Live beach auction clock for freshly landed Hilsa, Tiger Prawns and pomfrets.",
+                descriptionOd = "ସକାଳେ ଡଙ୍ଗାରୁ ଆସୁଥିବା ଇଲିସି ଓ ବାଘ ଚିଙ୍ଗୁଡ଼ିର ସଦ୍ୟ ନିଲାମ।",
+                tagText = "05:00 - 08:30 AM",
+                primaryColor = Color(0xFFEFF6FF),
+                borderColor = Color(0xFFBFDBFE)
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.BALARAMGADI_ESTUARY,
+                titleEn = "Balaramgadi Fishing Harbor",
+                titleOd = "ବଳରାମଗଡ଼ି ମତ୍ସ୍ୟ ବନ୍ଦର ଓ ମୁହାଣ",
+                category = "Coastal & Estuary",
+                iconEmoji = "⛵",
+                descriptionEn = "Budhabalanga confluence, artisanal boat landings & daily aquaculture rates.",
+                descriptionOd = "ବୁଢ଼ାବଳଙ୍ଗ ମୁହାଣ, ମାଛଧରା ଟ୍ରଲର ଏବଂ ଦୈନିକ ମତ୍ସ୍ୟ ଦର।",
+                tagText = "AQUACULTURE RATES",
+                primaryColor = Color(0xFFECFEFF),
+                borderColor = Color(0xFFA5F3FC)
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.BICHITRAPUR_MANGROVE_BOATING,
+                titleEn = "Bichitrapur Mangrove Creeks",
+                titleOd = "ବିଚିତ୍ରପୁର ହେନ୍ତାଳବଣ ବୋଟିଂ",
+                category = "Wildlife & Nature",
+                iconEmoji = "🛶",
+                descriptionEn = "Tidal boating schedules through virgin delta mangroves at Subarnarekha mouth.",
+                descriptionOd = "ସୁବର୍ଣ୍ଣରେଖା ମୁହାଣରେ ହେନ୍ତାଳବଣ ଭିତରେ ସୁରକ୍ଷିତ ଡଙ୍ଗା ଚାଳନା।",
+                tagText = "HIGH-TIDE TIMINGS",
+                primaryColor = Color(0xFFF0FDF4),
+                borderColor = Color(0xFFBBF7D0)
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.DARK_SKY_BIOLUMINESCENCE,
+                titleEn = "Dagara Dark Sky & Bioluminescence",
+                titleOd = "ଡଗରା ନୀଳ ଆଲୋକ ଓ ତାରକା ରାତି",
+                category = "Coastal & Estuary",
+                iconEmoji = "✨",
+                descriptionEn = "Noctiluca blue sea sparkle forecast & stargazing dune visibility guide.",
+                descriptionOd = "ରାତିରେ ସମୁଦ୍ର ଢେଉରେ ନୀଳ ଆଲୋକ ଏବଂ ଆକାଶ ନିରୀକ୍ଷଣ ସୂଚକ।",
+                tagText = "NIGHT WATCH",
+                primaryColor = Color(0xFF0F172A),
+                borderColor = Color(0xFF38BDF8)
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.RIVER_FLOOD_TELEMETRY,
+                titleEn = "Subarnarekha River Flood Telemetry",
+                titleOd = "ସୁବର୍ଣ୍ଣରେଖା ବନ୍ୟା ଜଳସ୍ତର ମାପକେନ୍ଦ୍ର",
+                category = "Coastal & Estuary",
+                iconEmoji = "🌊",
+                descriptionEn = "Rajghat & Jamsholaghat live gauge levels, warning marks & dam releases.",
+                descriptionOd = "ରାଜଘାଟ ଓ ଜାମଶୋଳାଘାଟ ନଦୀ ଜଳସ୍ତର ଓ ବିପଦ ସଙ୍କେତ ସୂଚନା।",
+                tagText = "HYDROLOGY GAUGES",
+                primaryColor = Color(0xFFF0FDFA),
+                borderColor = Color(0xFF99F6E4)
+            ),
+
+            // Heritage & Craft Guilds
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.MATI_MANISHA_ARTISANS,
+                titleEn = "Mati O Manisha: Lac Bangles",
+                titleOd = "ମାଟି ଓ ମଣିଷ: ବାଲେଶ୍ୱରୀ ଲାଖ ଚୁଡ଼ି",
+                category = "Artisans & Heritage",
+                iconEmoji = "🎨",
+                descriptionEn = "Traditional natural resin lacquer bangles (ଲାଖ ଶଙ୍ଖା) & direct artisan workshops.",
+                descriptionOd = "ମୋତିଗଞ୍ଜ ଓ ରେମୁଣାର ପାରମ୍ପରିକ ଲାଖ ଶଙ୍ଖା ଶିଳ୍ପୀଙ୍କ ସହ ସିଧାସଳଖ ସଂଯୋଗ।",
+                tagText = "DIRECT FAIR-TRADE",
+                primaryColor = Color(0xFFFDF2F8),
+                borderColor = Color(0xFFFBCFE8)
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.REMUNA_PRASAD_ARTISANS,
+                titleEn = "Remuna Khirachora Bhog & Brass Guilds",
+                titleOd = "ରେମୁଣା କ୍ଷୀରଚୋରା ଭୋଗ ଓ କଂସା ଶିଳ୍ପ",
+                category = "Artisans & Heritage",
+                iconEmoji = "🛕",
+                descriptionEn = "Live Amrita Keli batch distribution alerts and Kansari bell-metal crafts.",
+                descriptionOd = "ଅମୃତ କେଳି ପ୍ରସାଦ ବଣ୍ଟନ ଏବଂ ପ୍ରସିଦ୍ଧ କଂସା ବାସନ ଶିଳ୍ପୀ ପ୍ରଦର୍ଶନୀ।",
+                tagText = "TEMPLE RITUALS",
+                primaryColor = Color(0xFFFFFBEB),
+                borderColor = Color(0xFFFDE68A)
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.NILAGIRI_STONE_SABAI,
+                titleEn = "Nilagiri Stone Carving & Sabai Grass",
+                titleOd = "ନୀଳଗିରି ପଥର ଖୋଦେଇ ଓ ସବାଇ ଘାସ",
+                category = "Artisans & Heritage",
+                iconEmoji = "🪨",
+                descriptionEn = "Utensil stone carving clusters and eco-friendly golden fibre handicrafts.",
+                descriptionOd = "ପଥର ବାସନ ନିର୍ମାଣ ଶିଳ୍ପୀ ଏବଂ ଆଦିବାସୀ ସବାଇ ଘାସ ହସ୍ତଶିଳ୍ପ ସମବାୟ।",
+                tagText = "GI CRAFT CLUSTERS",
+                primaryColor = Color(0xFFF0FDFA),
+                borderColor = Color(0xFF99F6E4)
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.BELL_METAL_ARTISANS,
+                titleEn = "Remuna & Soro Bell Metal (କଂସା-ପିତ୍ତଳ)",
+                titleOd = "ସୋରୋ ଓ ରେମୁଣା କଂସା-ପିତ୍ତଳ ଶିଳ୍ପ",
+                category = "Artisans & Heritage",
+                iconEmoji = "🔔",
+                descriptionEn = "Master metal smiths crafting traditional temple bells, gongs, and thalis.",
+                descriptionOd = "ମନ୍ଦିର ଘଣ୍ଟ, ଥାଳି ଓ ପାରମ୍ପରିକ କଂସା ବାସନ ନିର୍ମାଣକାରୀ।",
+                tagText = "HANDCRAFTED HERITAGE",
+                primaryColor = Color(0xFFFFFBEB),
+                borderColor = Color(0xFFFDE68A)
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.BALESWARIYA_DIALECT_PROVERBS,
+                titleEn = "Baleswariya Dialect & Proverbs",
+                titleOd = "ବାଲେଶ୍ୱରୀ ଭାଷା ଓ ଢଗଢମାଳି",
+                category = "Daily Pulse",
+                iconEmoji = "🗣️",
+                descriptionEn = "Fakir Mohan Senapati's regional literary idioms and vernacular phrases.",
+                descriptionOd = "ବ୍ୟାସକବି ଫକୀର ମୋହନ ସେନାପତିଙ୍କ ଐତିହାସିକ ଢଗ ଓ ବାଲେଶ୍ୱରୀ ଭାଷା।",
+                tagText = "DAILY PROVERB",
+                primaryColor = Color(0xFFFAF5FF),
+                borderColor = Color(0xFFDDD6FE)
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.BILINGUAL_HERITAGE_AUDIO,
+                titleEn = "Bilingual Audio Stories & AR Architecture",
+                titleOd = "ଦ୍ୱିଭାଷୀ ଐତିହ୍ୟ ଅଡ଼ିଓ ଓ ମନ୍ଦିର AR",
+                category = "Artisans & Heritage",
+                iconEmoji = "🎧",
+                descriptionEn = "Immersive audio narratives in English and Odia plus Kalinga Temple 3D AR.",
+                descriptionOd = "ଓଡ଼ିଆ ଓ ଇଂରାଜୀରେ ଐତିହ୍ୟ କାହାଣୀ ଏବଂ କଳିଙ୍ଗ ମନ୍ଦିର AR ଦୃଶ୍ୟ।",
+                tagText = "3D AR + AUDIO",
+                primaryColor = Color(0xFFFAF5FF),
+                borderColor = Color(0xFFE9D5FF)
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.COLONIAL_HERITAGE_WALK,
+                titleEn = "Colonial Port Walk: Dutch & French Forts",
+                titleOd = "ବାଲେଶ୍ୱର ଡଚ୍ ଓ ଫରାସୀ ଐତିହ୍ୟ ପଦଯାତ୍ରା",
+                category = "Artisans & Heritage",
+                iconEmoji = "🏛️",
+                descriptionEn = "Self-guided walk across Dutch Cemetery, Barabati Port, and French Loge.",
+                descriptionOd = "୧୭ଶ ଶତାବ୍ଦୀର ଡଚ୍ ସମାଧିପୀଠ, ବାରବାଟୀ ବନ୍ଦର ଓ ଫରାସୀ କୋଠି।",
+                tagText = "GPS HERITAGE TRAIL",
+                primaryColor = Color(0xFFFAF5FF),
+                borderColor = Color(0xFFE9D5FF)
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.BUDDHIST_JAIN_CIRCUIT,
+                titleEn = "Buddhist & Jain Sacred Circuit",
+                titleOd = "ଅଯୋଧ୍ୟା ଓ କୁପାରୀ ବୌଦ୍ଧ-ଜୈନ ପୀଠ",
+                category = "Artisans & Heritage",
+                iconEmoji = "☸️",
+                descriptionEn = "Ayodhya Marichi temple, Kupari stupa ruins, and Avukana Buddhist relics.",
+                descriptionOd = "ଅଯୋଧ୍ୟାର ମାରୀଚୀ ମନ୍ଦିର, କୁପାରୀ ସ୍ତୂପ ଓ ପ୍ରାଚୀନ ଐତିହ୍ୟ।",
+                tagText = "ARCHAEOLOGICAL TRAIL",
+                primaryColor = Color(0xFFFAF5FF),
+                borderColor = Color(0xFFDDD6FE)
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.LAKHANNATH_ZAMINDARI,
+                titleEn = "Lakhannath Zamindari Moat Fortress",
+                titleOd = "ଲକ୍ଷ୍ମଣନାଥ ରାଜବାଟୀ ଓ ପରିଖା ଦୁର୍ଗ",
+                category = "Artisans & Heritage",
+                iconEmoji = "🏰",
+                descriptionEn = "Historical fortified gateway and protective moat on the Odisha-Bengal border.",
+                descriptionOd = "ଓଡ଼ିଶା-ବଙ୍ଗ ସୀମାନ୍ତର ଐତିହାସିକ ରାଜବାଟୀ, ପରିଖା ଓ କଳା ସମ୍ପଦ।",
+                tagText = "BORDER FORTRESS",
+                primaryColor = Color(0xFFEFF6FF),
+                borderColor = Color(0xFFBFDBFE)
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.CHANDANESWAR_CHADAK_MELA,
+                titleEn = "Chandaneswar Chadak Mela & Shaivite Vows",
+                titleOd = "ଚନ୍ଦନେଶ୍ୱର ଚଡ଼କ ମେଳା ଓ ଉଡ଼ା ପର୍ବ",
+                category = "Artisans & Heritage",
+                iconEmoji = "🔥",
+                descriptionEn = "Traditional Bhaktas, Kamina vows, and seasonal Shaivite rituals.",
+                descriptionOd = "ବାବା ଚନ୍ଦନେଶ୍ୱରଙ୍କ ପ୍ରସିଦ୍ଧ ଚଡ଼କ ମେଳା ଓ ଭକ୍ତଙ୍କ ଉଡ଼ା ପରମ୍ପରା।",
+                tagText = "SACRED RITUALS",
+                primaryColor = Color(0xFFFFFBEB),
+                borderColor = Color(0xFFFDE68A)
+            ),
+
+            // Defense & Nature
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.DEFENSE_TRAIL,
+                titleEn = "ITR Missile Defense Trail & NOTAM",
+                titleOd = "ଚାନ୍ଦିପୁର କ୍ଷେପଣାସ୍ତ୍ର ଘାଟି ଓ ଡ଼. କଲାମ ଟ୍ରେଲ",
+                category = "Defense & Wildlife",
+                iconEmoji = "🚀",
+                descriptionEn = "Dr. Kalam testing heritage, radar telemetry, and coastal NOTAM advisories.",
+                descriptionOd = "ଅଗ୍ନି, ପୃଥ୍ବୀ କ୍ଷେପଣାସ୍ତ୍ର ପରୀକ୍ଷଣ ଇତିହାସ ଓ ସାମୁଦ୍ରିକ ସୁରକ୍ଷା ସୂଚନା।",
+                tagText = "AIRSPACE & RADAR STATUS",
+                primaryColor = Color(0xFFEFF6FF),
+                borderColor = Color(0xFFBFDBFE)
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.HORSESHOE_CRAB,
+                titleEn = "Horseshoe Crab Conservation Radar",
+                titleOd = "ଜୀବନ୍ତ ଜୀବାଶ୍ମ ରାଜକଙ୍କଡ଼ା ସୁରକ୍ଷା",
+                category = "Defense & Wildlife",
+                iconEmoji = "🦀",
+                descriptionEn = "450-million-year-old living fossil radar, nesting sandy shoals & reporting.",
+                descriptionOd = "ଚାନ୍ଦିପୁର-ଖଣ୍ଡିଆ ମୁହାଣରେ ରାଜକଙ୍କଡ଼ାଙ୍କ ସଂରକ୍ଷଣ ଓ ଅନୁଧ୍ୟାନ।",
+                tagText = "LIVING FOSSIL",
+                primaryColor = Color(0xFFFFFBEB),
+                borderColor = Color(0xFFFDE68A)
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.KULDIHA_SAFARI_COMPANION,
+                titleEn = "Kuldiha Elephant Safari Companion",
+                titleOd = "କୁଲଡିହା ହାତୀ ଅଭୟାରଣ୍ୟ ସଫାରୀ ଗାଇଡ୍",
+                category = "Defense & Wildlife",
+                iconEmoji = "🐘",
+                descriptionEn = "Wildlife species checklist, Rissia nature camp safari rules & tracking.",
+                descriptionOd = "ରିଷିଆ ନେଚର କ୍ୟାମ୍ପ, ହାତୀ ଦର୍ଶନ ଓ ସୁରକ୍ଷିତ ଜଙ୍ଗଲ ନିୟମାବଳୀ।",
+                tagText = "ECO-SAFARI CHECKLIST",
+                primaryColor = Color(0xFFECFDF5),
+                borderColor = Color(0xFFA7F3D0)
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.ELEPHANT_PASSPORT,
+                titleEn = "Elephant Corridor Live Alert",
+                titleOd = "ହାତୀ ଚଳାଚଳ କରିଡର ସତର୍କତା",
+                category = "Defense & Wildlife",
+                iconEmoji = "🌿",
+                descriptionEn = "Real-time forest ranger notices for Similipal-Kuldiha-Hadgarh herd crossings.",
+                descriptionOd = "ଶିମିଳିପାଳ-କୁଲଡିହା ମଧ୍ୟରେ ହାତୀ ପଲଙ୍କ ଚଳାଚଳ ସତର୍କ ସୂଚନା।",
+                tagText = "CORRIDOR TRACKING",
+                primaryColor = Color(0xFFFAF5FF),
+                borderColor = Color(0xFFE9D5FF)
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.PANCHALINGESWAR_STREAM_SAFETY,
+                titleEn = "Panchalingeswar Perennial Hill Stream",
+                titleOd = "ପଞ୍ଚଲିଙ୍ଗେଶ୍ୱର ପାହାଡ଼ିଆ ଝରଣା ଓ ପାହାଚ",
+                category = "Defense & Wildlife",
+                iconEmoji = "⛰️",
+                descriptionEn = "Live stream flow clarity, 263-step moss slip index, and pilgrimage safety.",
+                descriptionOd = "ପାହାଡ଼ିଆ ଝରଣାର ଜଳ ପ୍ରବାହ ଏବଂ ୨୬୩ ପାହାଚ ଚଢ଼ିବା ସୁରକ୍ଷା ନିର୍ଦ୍ଦେଶ।",
+                tagText = "WATER CASCADE",
+                primaryColor = Color(0xFFECFDF5),
+                borderColor = Color(0xFFA7F3D0)
+            ),
+
+            // Agro & Marine Livelihoods
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.PAN_BARAJA_AGRO,
+                titleEn = "Bhograi Pan Baraja Betel Agro-Tourism",
+                titleOd = "ଭୋଗରାଇ ପାନ ବରଜ କୃଷି ପର୍ଯ୍ୟଟନ",
+                category = "Agro & Food",
+                iconEmoji = "🌿",
+                descriptionEn = "Sweet and spicy Betel vine plantations exported across India and Bangladesh.",
+                descriptionOd = "ସୁଗନ୍ଧିତ ବାଙ୍ଗାଲା ଓ ମିଠା ପାନ ବରଜ ଏବଂ ପାରମ୍ପରିକ ଚାଷ ପଦ୍ଧତି।",
+                tagText = "AGRO-HERITAGE",
+                primaryColor = Color(0xFFF0FDF4),
+                borderColor = Color(0xFFBBF7D0)
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.HEIRLOOM_RICE_AGRO,
+                titleEn = "Heirloom Rice: Kanakchur & Kalajira",
+                titleOd = "କନକଚୂଡ଼ ଓ କଳାଜିରା ସୁଗନ୍ଧିତ ଧାନ",
+                category = "Agro & Food",
+                iconEmoji = "🌾",
+                descriptionEn = "Aromatic heritage rice cultivars used exclusively in Remuna Khirachora bhog.",
+                descriptionOd = "ରେମୁଣାର ଅମୃତ କେଳି ପାଇଁ ବ୍ୟବହୃତ ଐତିହାସିକ ସୁଗନ୍ଧିତ ଧାନ ଚାଷ।",
+                tagText = "NATIVE CROPS",
+                primaryColor = Color(0xFFFFFBEB),
+                borderColor = Color(0xFFFDE68A)
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.BALASORE_FOOD_TRAIL,
+                titleEn = "Balasore Food Trail: Khira, Crab & Chhena",
+                titleOd = "ବାଲେଶ୍ୱର ଖାଦ୍ୟ ଯାତ୍ରା: ଛେନାଝିଲି ଓ କଙ୍କଡ଼ା ତରକାରୀ",
+                category = "Agro & Food",
+                iconEmoji = "🍲",
+                descriptionEn = "Curated trail of Remuna Khira, Chandipur mud crab masala, and Dalma sweets.",
+                descriptionOd = "ବାଲେଶ୍ୱର ସହର ଓ ଚାନ୍ଦିପୁରର ପ୍ରସିଦ୍ଧ ପାରମ୍ପରିକ ସ୍ୱାଦିଷ୍ଟ ବ୍ୟଞ୍ଜନ।",
+                tagText = "FOOD CULTURE",
+                primaryColor = Color(0xFFFEF3C7),
+                borderColor = Color(0xFFFDE68A)
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.BUDHABALANGA_RIVER_ANGLING,
+                titleEn = "Budhabalanga Estuary Angling",
+                titleOd = "ବୁଢ଼ାବଳଙ୍ଗ ନଦୀ ମୁହାଣ ମାଛ ଧରା",
+                category = "Agro & Food",
+                iconEmoji = "🎣",
+                descriptionEn = "Traditional hook and line angling windows for Bhetki, Mangrove Jack and threadfins.",
+                descriptionOd = "ଭେକଟି ଓ ବାଳିଆ ମାଛ ଧରିବାର ଉପଯୁକ୍ତ ସମୟ ଓ ସୁରକ୍ଷିତ ନଦୀ ତଟ।",
+                tagText = "RIVER ANGLING",
+                primaryColor = Color(0xFFF0FDF4),
+                borderColor = Color(0xFFBBF7D0)
+            ),
+
+            // Health & Medical Suites
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.DOCTORS_DIRECTORY,
+                titleEn = "Doctors & OPD Duty Roster",
+                titleOd = "ଡାକ୍ତର ତାଲିକା ଓ OPD ସମୟ ନିର୍ଘଣ୍ଟ",
+                category = "Health & Medical",
+                iconEmoji = "🩺",
+                descriptionEn = "FMMCH Balasore & District Headquarters Hospital (DHH) emergency roster.",
+                descriptionOd = "ଫକୀର ମୋହନ ମେଡିକାଲ କଲେଜ ଓ ଜିଲ୍ଲା ମୁଖ୍ୟ ଚିକିତ୍ସାଳୟ ଡାକ୍ତର ତାଲିକା।",
+                tagText = "DAILY OPD ROSTER",
+                primaryColor = Color(0xFFF0F9FF),
+                borderColor = Color(0xFFBAE6FD)
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.PRIVATE_HOSPITAL_DIRECTORY,
+                titleEn = "Private Hospitals & Nursing Homes",
+                titleOd = "ବେସରକାରୀ ହସ୍ପିଟାଲ ଓ ନର୍ସିଂହୋମ୍",
+                category = "Health & Medical",
+                iconEmoji = "🏥",
+                descriptionEn = "24x7 emergency admissions, ICU/NICU beds, BSKY cashless desks, and specialty surgeons.",
+                descriptionOd = "ଜରୁରୀକାଳୀନ ଆଇସିୟୁ, ବିଏସକେୱାଇ କ୍ୟାସଲେସ୍ ଏବଂ ପ୍ରମୁଖ ସର୍ଜନଙ୍କ ଡାଇରେକ୍ଟୋରି।",
+                tagText = "24/7 ICU & SURGERY",
+                primaryColor = Color(0xFFF0F9FF),
+                borderColor = Color(0xFFBAE6FD)
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.MEDICINE_STORES_DIRECTORY,
+                titleEn = "24x7 Pharmacies & Anti-Venom Stocks",
+                titleOd = "୨୪ ଘଣ୍ଟିଆ ଔଷଧ ଦୋକାନ ଓ ସାପ ବିଷ ପ୍ରତିଷେଧକ",
+                category = "Health & Medical",
+                iconEmoji = "💊",
+                descriptionEn = "All-night chemists with phone dials, Google Maps pins, and anti-venom (ASV).",
+                descriptionOd = "ଜରୁରୀକାଳୀନ ଔଷଧ ଦୋକାନ ଏବଂ ସାପକାମୁଡ଼ା ପ୍ରତିଷେଧକ ଇଞ୍ଜେକ୍ସନ ସୂଚନା।",
+                tagText = "24/7 PHARMACY",
+                primaryColor = Color(0xFFF0FDF4),
+                borderColor = Color(0xFFBBF7D0)
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.PATHOLOGY_LAB_DIRECTORY,
+                titleEn = "Pathology Labs & Fasting Blood Tests",
+                titleOd = "ରକ୍ତ ପରୀକ୍ଷା କେନ୍ଦ୍ର ଓ ଫାଷ୍ଟିଂ ଟେଷ୍ଟ",
+                category = "Health & Medical",
+                iconEmoji = "🔬",
+                descriptionEn = "Fasting sample collections, CT/MRI diagnostic centres, and test fees.",
+                descriptionOd = "ଡିଜିଟାଲ ରିପୋର୍ଟ ସହିତ ବାଲେଶ୍ୱରର ପ୍ରମୁଖ ପାଥୋଲୋଜି ଲ୍ୟାବ।",
+                tagText = "FASTING DRAWS",
+                primaryColor = Color(0xFFFFF1F2),
+                borderColor = Color(0xFFFECDD3)
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.POLYCLINIC_DIRECTORY,
+                titleEn = "Polyclinics, Daycare & Speciality Clinics",
+                titleOd = "ପଲିକ୍ଲିନିକ ଓ ବିଶେଷଜ୍ଞ ଡେ-କେୟାର",
+                category = "Health & Medical",
+                iconEmoji = "🏥",
+                descriptionEn = "Multi-specialty doctor chambers, ultrasound USG, and day care clinics.",
+                descriptionOd = "ହୃଦରୋଗ, ଶିଶୁରୋଗ ଓ ଅସ୍ଥିଶଲ୍ୟ ବିଶେଷଜ୍ଞଙ୍କ କ୍ଲିନିକ।",
+                tagText = "DAYCARE CLINICS",
+                primaryColor = Color(0xFFFAF5FF),
+                borderColor = Color(0xFFDDD6FE)
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.BLOOD_AND_DIALYSIS_DIRECTORY,
+                titleEn = "24x7 Blood Bank & Dialysis Centres",
+                titleOd = "ରକ୍ତ ଭଣ୍ଡାର ଓ ଡାଏଲିସିସ୍ କେନ୍ଦ୍ର",
+                category = "Health & Medical",
+                iconEmoji = "🩸",
+                descriptionEn = "Red Cross blood bank live contact, rare blood group desks & DHH dialysis unit.",
+                descriptionOd = "ଜିଲ୍ଲା ରେଡକ୍ରସ ରକ୍ତ ଭଣ୍ଡାର ଓ ଡିଏଚ୍ଏଚ୍ ଡାଏଲିସିସ୍ ୟୁନିଟ୍।",
+                tagText = "EMERGENCY 24x7",
+                primaryColor = Color(0xFFFEF2F2),
+                borderColor = Color(0xFFFECACA)
+            ),
+
+            // Emergency & Transit Tools
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.CYCLONE_SHELTER_FINDER,
+                titleEn = "Multi-Hazard Cyclone Shelter Finder",
+                titleOd = "ବାତ୍ୟା ଆଶ୍ରୟସ୍ଥଳୀ ଓ ଜରୁରୀକାଳୀନ ମାର୍ଗ",
+                category = "Emergency & Transit",
+                iconEmoji = "🛡️",
+                descriptionEn = "GPS navigation to 60+ coastal cyclone shelters across Bhograi, Sadar, Bahanaga.",
+                descriptionOd = "ବାଲେଶ୍ୱର ଉପକୂଳର ୬୦ରୁ ଊର୍ଦ୍ଧ୍ୱ ସୁରକ୍ଷିତ ବାତ୍ୟା ଆଶ୍ରୟସ୍ଥଳୀର GPS ମାର୍ଗ।",
+                tagText = "DISASTER SAFETY",
+                primaryColor = Color(0xFFF0FDF4),
+                borderColor = Color(0xFFBBF7D0)
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.CYCLONE_ORAL_HISTORY,
+                titleEn = "Cyclone Lore & Elder Warnings",
+                titleOd = "ବାତ୍ୟା ଅଭିଜ୍ଞତା ଓ ପୂର୍ବାନୁମାନ ପରମ୍ପରା",
+                category = "Emergency & Transit",
+                iconEmoji = "🗣️",
+                descriptionEn = "Traditional sea-breeze shifts, bird behaviour, and historical cyclone memories.",
+                descriptionOd = "ଉପକୂଳ ବାସିନ୍ଦାଙ୍କ ପାରମ୍ପରିକ ପାଣିପାଗ ଅଭିଜ୍ଞତା ଓ ଲୋକକଥା।",
+                tagText = "COASTAL RESILIENCE",
+                primaryColor = Color(0xFFFEF2F2),
+                borderColor = Color(0xFFFECACA)
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.TRANSIT_FARE_ESTIMATOR,
+                titleEn = "Auto, Taxi & RTO Transit Fare Estimator",
+                titleOd = "ଅଟୋ ଓ ଟ୍ୟାକ୍ସି ଭଡ଼ା ନିର୍ଣ୍ଣୟ ଯନ୍ତ୍ର",
+                category = "Emergency & Transit",
+                iconEmoji = "🚖",
+                descriptionEn = "Official fair-rate tariff calculator between Railway Station, Chandipur & Remuna.",
+                descriptionOd = "ବାଲେଶ୍ୱର ରେଳ ଷ୍ଟେସନରୁ ଚାନ୍ଦିପୁର, ରେମୁଣା ଯିବା ପାଇଁ ସରକାରୀ ଭଡ଼ା ସୂଚୀ।",
+                tagText = "RTO TARIFF CALCULATOR",
+                primaryColor = Color(0xFFEFF6FF),
+                borderColor = Color(0xFFBFDBFE)
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.TRAVEL_JOURNAL,
+                titleEn = "Balasore Offline Travel Journal",
+                titleOd = "ବାଲେଶ୍ୱର ଭ୍ରମଣ ଡାଏରୀ ଓ ଫଟୋ ସଂଗ୍ରହ",
+                category = "Emergency & Transit",
+                iconEmoji = "📖",
+                descriptionEn = "Offline trip scrapbook to pin memory notes, photos, and favourite spots.",
+                descriptionOd = "ନିଜ ଭ୍ରମଣ ଅନୁଭୂତି, ଫଟୋ ଓ ଟିପ୍ପଣୀ ଲେଖି ରଖିବାର ଅଫଲାଇନ୍ ଡାଏରୀ।",
+                tagText = "PERSONAL JOURNAL",
+                primaryColor = Color(0xFFF0F9FF),
+                borderColor = Color(0xFFBAE6FD)
+            ),
+            // 6 Extended Unique Suites with Auto-Updating Telemetry
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.SALT_PAN_HERITAGE,
+                titleEn = "Inchudi Salt Satyagraha & Pans",
+                titleOd = "ଇଞ୍ଚୁଡ଼ି ଲବଣ ସତ୍ୟାଗ୍ରହ ଓ ସୌର ଲୁଣ କିଆରୀ",
+                category = "Coastal & Estuary",
+                iconEmoji = "🧂",
+                descriptionEn = "1930 historic salt defiance memorial, solar brine Baumé density & mirror reflection windows.",
+                descriptionOd = "୧୯୩୦ ମସିହାର ଐତିହାସିକ ଲବଣ ସତ୍ୟାଗ୍ରହ ସ୍ମୃତି ଏବଂ ସୌର ଲୁଣ ଉତ୍ପାଦନ ତଥ୍ୟ।",
+                tagText = "SOLAR BRINE TELEMETRY",
+                primaryColor = Color(0xFFF0F9FF),
+                borderColor = Color(0xFFBAE6FD)
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.HILSA_MIGRATION,
+                titleEn = "Subarnarekha Hilsa Run & Marine Migration",
+                titleOd = "ସୁବର୍ଣ୍ଣରେଖା ଇଲିଶି ମାଛ ଚଳାଚଳ ଓ ଦର",
+                category = "Daily Pulse",
+                iconEmoji = "🐟",
+                descriptionEn = "Monsoon brackish salinity gradient, live Kirtania beach landing clocks and authentic Besara cooking.",
+                descriptionOd = "ସୁବର୍ଣ୍ଣରେଖା ମୁହାଣରେ ଇଲିଶି ମାଛର ଆଗମନ, କୀର୍ତ୍ତନିଆ ବନ୍ଦର ଦର ଓ ପ୍ରସ୍ତୁତି ଶୈଳୀ।",
+                tagText = "ESTUARY RUN TELEMETRY",
+                primaryColor = Color(0xFFEFF6FF),
+                borderColor = Color(0xFFBFDBFE)
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.KULDIHA_ELEPHANT_CORRIDOR,
+                titleEn = "Kuldiha Elephant Corridor Radar",
+                titleOd = "କୁଲଡିହା ହାତୀ କରିଡର ସୁରକ୍ଷା ଓ ରାଡାର୍",
+                category = "Defense & Wildlife",
+                iconEmoji = "🐘",
+                descriptionEn = "Live forest crossing alert level, Nilagiri transit speeds and watchtower viewing windows.",
+                descriptionOd = "ନୀଳଗିରି-ମିତ୍ରପୁର ହାତୀ ଚଳାଚଳ ସୂଚକ, ରାତ୍ରୀକାଳୀନ ସୁରକ୍ଷା ଏବଂ ଟାୱାର ଦୃଶ୍ୟ।",
+                tagText = "SANCTUARY RADAR ADVISORY",
+                primaryColor = Color(0xFFF0FDF4),
+                borderColor = Color(0xFFBBF7D0)
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.CHHENA_GAJA_HOT_BATCH,
+                titleEn = "Balasori Chhena Gaja Hot Batch Clock",
+                titleOd = "ବାଲେଶ୍ୱରୀ କାଠ ଚୁଲା ଛେନା ଗଜା",
+                category = "Agro & Food",
+                iconEmoji = "🍮",
+                descriptionEn = "Live wood-fired oven batch timer, cardamom syrup immersion and historic Motiganj halwais.",
+                descriptionOd = "କାଠ ଚୁଲାରେ ପ୍ରସ୍ତୁତ ତାଜା ଛେନା ଗଜା ବାହାରିବା ସମୟ ଓ ଐତିହାସିକ ମିଠା ଦୋକାନ ସୂଚୀ।",
+                tagText = "WOOD-FIRED KILN CLOCK",
+                primaryColor = Color(0xFFFFFBEB),
+                borderColor = Color(0xFFFDE68A)
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.RIVER_FERRY_SCHEDULE,
+                titleEn = "Subarnarekha & Budhabalanga Passenger Ferry",
+                titleOd = "ନଦୀ ଡଙ୍ଗା ଘାଟ ଓ ନୌକା ଚଳାଚଳ ସମୟସାରଣୀ",
+                category = "Emergency & Transit",
+                iconEmoji = "⛴️",
+                descriptionEn = "Live tidal current crossability, Chaumukh-Kirtania country boat ghats & tariff guide.",
+                descriptionOd = "ଚୌମୁଖ ଓ କୀର୍ତ୍ତନିଆ ଡଙ୍ଗା ଘାଟରେ ଯାତ୍ରୀବାହୀ ନୌକା ଚଳାଚଳ ଓ ଭଡ଼ା ସୂଚୀ।",
+                tagText = "LIVE GHAT TELEMETRY",
+                primaryColor = Color(0xFFF0FDFA),
+                borderColor = Color(0xFF99F6E4)
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.ODIA_SAHITYA_REVIVAL,
+                titleEn = "Odia Sahitya Revival & Utkal Press Trail",
+                titleOd = "ବ୍ୟାସକବି ଫକୀର ମୋହନ ଓ ଶାନ୍ତି କାନନ ସାହିତ୍ୟ ଧାରା",
+                category = "Artisans & Heritage",
+                iconEmoji = "📜",
+                descriptionEn = "Daily classic literature excerpt, 1868 Utkal Press printing revolution & Shanti Kanan museum.",
+                descriptionOd = "ଦୈନିକ ସାହିତ୍ୟ ପଂକ୍ତି, ବାଲେଶ୍ୱର ଉତ୍କଳ ପ୍ରେସ ମୁଦ୍ରଣ ବିପ୍ଳବ ଓ ଶାନ୍ତି କାନନ ସ୍ମୃତି।",
+                tagText = "DAILY LITERARY PASSAGE",
+                primaryColor = Color(0xFFFAF5FF),
+                borderColor = Color(0xFFE9D5FF)
+            ),
+            // Cutting-Edge Suggested Innovations:
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.ASK_BALASORE_AI,
+                titleEn = "Ask Balasore AI Companion & Lyria Music",
+                titleOd = "ବାଲେଶ୍ୱର AI ସହାୟକ ଓ ଲିରିଆ ସଙ୍ଗୀତ ରଚନା",
+                category = "AI Innovations",
+                iconEmoji = "✨",
+                descriptionEn = "Multi-turn Gemini 3.5 Flash / Pro conversation, Google Search & Maps grounding, and Lyria ambient coastal music generator.",
+                descriptionOd = "ଜେମିନି AI ସହିତ କଥାବାର୍ତ୍ତା, ଲାଇଭ୍ ମ୍ୟାପ୍ ସୂଚନା ଏବଂ ଚାନ୍ଦିପୁର ସମୁଦ୍ର ସଙ୍ଗୀତ ସୃଷ୍ଟି।",
+                tagText = "GEMINI 3.5 & LYRIA AI",
+                primaryColor = Color(0xFFEFF6FF),
+                borderColor = Color(0xFF93C5FD)
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.INCOIS_OCEAN_ADVISORY,
+                titleEn = "INCOIS Coastal Wave & Fishermen Advisory",
+                titleOd = "ସମୁଦ୍ର ଢେଉ, ତରଙ୍ଗ ଓ ମତ୍ସ୍ୟଜୀବୀ ସତର୍କତା",
+                category = "Coastal & Estuary",
+                iconEmoji = "🌊",
+                descriptionEn = "Real-time sea swell height, wave periods, tidal current velocity, and coastal fishing safety flags.",
+                descriptionOd = "ଚାନ୍ଦିପୁର, ବଳରାମଗଡ଼ି ଏବଂ ତାଳସାରୀ ଉପକୂଳର ଢେଉ ଉଚ୍ଚତା ଓ ସମୁଦ୍ର ଯାତ୍ରା ସୁରକ୍ଷା।",
+                tagText = "INCOIS MET-OCEAN",
+                primaryColor = Color(0xFFF0F9FF),
+                borderColor = Color(0xFF7DD3FC)
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.ODIA_PANJIKA_CALENDAR,
+                titleEn = "Baleswar Kohinoor Panjika Calendar",
+                titleOd = "ବାଲେଶ୍ୱର କୋହିନୂର ପାଞ୍ଜି ଓ ତିଥି ଦର୍ପଣ",
+                category = "Artisans & Heritage",
+                iconEmoji = "📅",
+                descriptionEn = "Traditional Odia solar month, Tithi, Nakshatra, Amrutabela, Rahukala, and coastal temple festival timings.",
+                descriptionOd = "ଖୀରଚୋରା ଗୋପୀନାଥ ଓ ଚନ୍ଦନେଶ୍ୱର ମନ୍ଦିର ନୀତି ସହିତ ଶୁଭବେଳା ଓ ତିଥି ବିବରଣୀ।",
+                tagText = "ASTRONOMICAL TITHI",
+                primaryColor = Color(0xFFFFFBEB),
+                borderColor = Color(0xFFFDE68A)
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.RAIBANIA_AUDIO_WALK,
+                titleEn = "Raibania Fort Medieval Audio Walk",
+                titleOd = "ରାଇବଣିଆ ଦୁର୍ଗ ଅଡିଓ ଗାଇଡ୍ ଓ ଇତିହାସ",
+                category = "Artisans & Heritage",
+                iconEmoji = "🏰",
+                descriptionEn = "Immersive multi-stop audio story of Eastern India's largest medieval stone fort with ambient Lyria music generation.",
+                descriptionOd = "୧୩ଶ ଶତାବ୍ଦୀର ବିଶାଳ ପଥର ଦୁର୍ଗର ଐତିହାସିକ ଯାତ୍ରା ଓ ଲୋକକଥା।",
+                tagText = "AI AUDIO STORY WALK",
+                primaryColor = Color(0xFFFDF4FF),
+                borderColor = Color(0xFFF0ABFC)
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.BLOOD_AND_BED_PULSE,
+                titleEn = "Emergency Blood Donor & ICU Bed Pulse",
+                titleOd = "ଜରୁରୀ ରକ୍ତଦାତା ଓ ଡାକ୍ତରଖାନା ବେଡ୍ ସ୍ଥିତି",
+                category = "Emergency & Transit",
+                iconEmoji = "🩸",
+                descriptionEn = "Instant contact blood donor network by blood group, real-time hospital bed & dialysis unit availability.",
+                descriptionOd = "ଜିଲ୍ଲା ମୁଖ୍ୟ ଚିକିତ୍ସାଳୟ ଓ ବେସରକାରୀ ହସ୍ପିଟାଲ୍ ରକ୍ତ ଭଣ୍ଡାର ଓ ICU ବେଡ୍ ସନ୍ଧାନ।",
+                tagText = "LIVE HEALTH PULSE",
+                primaryColor = Color(0xFFFEF2F2),
+                borderColor = Color(0xFFFCA5A5)
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.CITIZEN_CIVIC_EYE,
+                titleEn = "Citizen Civic Eye: Clean Balasore",
+                titleOd = "ଆମ ବାଲେଶ୍ୱର: ସ୍ୱଚ୍ଛତା ଓ ନାଗରିକ ଅଭିଯୋଗ",
+                category = "Emergency & Transit",
+                iconEmoji = "📸",
+                descriptionEn = "Report road potholes, dark streetlights, drainage blocks & garbage heaps directly to Balasore Municipal wards with tracking.",
+                descriptionOd = "ରାସ୍ତା ଖାଲ, ଅଚଳ ଷ୍ଟ୍ରିଟ୍ ଲାଇଟ୍, ଡ୍ରେନେଜ୍ ଓ ଆବର୍ଜନା ସମସ୍ୟା ପୌରପାଳିକାକୁ ଜଣାନ୍ତୁ।",
+                tagText = "MUNICIPAL GRIEVANCE",
+                primaryColor = Color(0xFFEFF6FF),
+                borderColor = Color(0xFF93C5FD)
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.CIVIC_ISSUES_MAP,
+                titleEn = "Civic Issues Map: Proximity Radar",
+                titleOd = "ନାଗରିକ ସମସ୍ୟା ମ୍ୟାପ୍: ଅଫଲାଇନ୍ ପ୍ରକ୍ସିମିଟି ରାଡାର୍",
+                category = "Emergency & Transit",
+                iconEmoji = "🗺️",
+                descriptionEn = "Visualize all drafted Civic Eye pothole & drainage reports as pins on an offline OSMDroid map with proximity radar.",
+                descriptionOd = "ଅଫଲାଇନ୍ OSM ମ୍ୟାପ୍‌ରେ ଆପଣଙ୍କ ପାଖାପାଖି ରାସ୍ତା ଖାଲ ଓ ଜଳବନ୍ଦୀ ଡ୍ରାଫ୍ଟ ରିପୋର୍ଟ ପିନ୍ ଦେଖନ୍ତୁ।",
+                tagText = "OSMDROID PROXIMITY",
+                primaryColor = Color(0xFFF0FDF4),
+                borderColor = Color(0xFF86EFAC)
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.CITIZEN_CONTRIBUTION_LEADERBOARD,
+                titleEn = "Citizen Contribution Leaderboard",
+                titleOd = "ନାଗରିକ ଯୋଗଦାନ ମାନ୍ୟତା ଲିଡରବୋର୍ଡ",
+                category = "Emergency & Transit",
+                iconEmoji = "🏆",
+                descriptionEn = "Recognizing civic reporters with point rankings, tiers (Bronze to Apex Champion), and badges for resolved municipal issues.",
+                descriptionOd = "ଦାଖଲ ଓ ସମାଧାନ ହୋଇଥିବା ଅଭିଯୋଗ ଆଧାରରେ ପୌରପାଳିକା ସମ୍ମାନ ଓ ବ୍ୟାଜ୍।",
+                tagText = "CIVIC RECOGNITION",
+                primaryColor = Color(0xFFFFFBEB),
+                borderColor = Color(0xFFFCD34D)
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.MUNICIPAL_WARDS_DIRECTORY,
+                titleEn = "Balasore Wards Directory (All 31 Wards)",
+                titleOd = "ବାଲେଶ୍ୱର ପୌରପାଳିକା ସମସ୍ତ ୩୧ଟି ୱାର୍ଡ ଡିରେକ୍ଟୋରୀ",
+                category = "Emergency & Transit",
+                iconEmoji = "🏛️",
+                descriptionEn = "Explore all 31 municipal wards with zone breakdown, key landmarks, sanitation supervisor hotlines, and instant map centering.",
+                descriptionOd = "ସମସ୍ତ ୩୧ଟି ୱାର୍ଡ, ପ୍ରମୁଖ ସ୍ଥାନ, ସ୍ୱଚ୍ଛତା ସୁପରଭାଇଜର ହଟଲାଇନ ଏବଂ ମ୍ୟାପ୍ ନାଭିଗେସନ।",
+                tagText = "31 WARDS REGISTRY",
+                primaryColor = Color(0xFFF8FAFC),
+                borderColor = Color(0xFFCBD5E1)
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.TOTO_AUTO_FARE_CARD,
+                titleEn = "Balasore Toto & Auto Fare Card",
+                titleOd = "ବାଲେଶ୍ୱର ଟୋଟୋ ଓ ଅଟୋ ଭଡ଼ା ସୂଚୀ",
+                category = "Emergency & Transit",
+                iconEmoji = "🛺",
+                descriptionEn = "Municipal fixed-rate fare chart, interactive route calculator, anti-overcharging rules, and direct traffic police helpline.",
+                descriptionOd = "ଷ୍ଟେସନ, ଚାନ୍ଦିପୁର, ରେମୁଣା ଓ ଏଫଏମୟୁ ପାଇଁ ପୌର ନିର୍ଦ୍ଧାରିତ ଭଡ଼ା ଏବଂ ଟ୍ରାଫିକ ହେଲ୍ପଲାଇନ।",
+                tagText = "RTA FIXED TARIFF",
+                primaryColor = Color(0xFFFEFCE8),
+                borderColor = Color(0xFFFDE047)
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.BALASORE_CAMPUS_CAREER_BOARD,
+                titleEn = "Balasore Campus & Career Board",
+                titleOd = "ବାଲେଶ୍ୱର କ୍ୟାମ୍ପସ୍, ନିଯୁକ୍ତି ଓ ବସ୍ ସୂଚୀ",
+                category = "Emergency & Transit",
+                iconEmoji = "🎓",
+                descriptionEn = "FM University exam schedules, daily campus shuttle bus timetables, DRDO Chandipur apprentice drives, and scholarships.",
+                descriptionOd = "ଏଫଏମୟୁ ନୂଆ କ୍ୟାମ୍ପସ୍ ବସ୍ ସମୟସାରଣୀ, ପରୀକ୍ଷା ତାରିଖ ଏବଂ ଡିଆରଡିଓ ଆପ୍ରେଣ୍ଟିସ ନିଯୁକ୍ତି।",
+                tagText = "FMU & DRDO HUB",
+                primaryColor = Color(0xFFF0FDF4),
+                borderColor = Color(0xFF86EFAC)
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.BALASORE_AUTO_UPDATE_CENTER,
+                titleEn = "Auto-Update & Live Telemetry Center",
+                titleOd = "ସ୍ୱୟଂକ୍ରିୟ ନବୀକରଣ ଓ ଲାଇଭ୍ ଟେଲିମେଟ୍ରି କେନ୍ଦ୍ର",
+                category = "Daily Pulse",
+                iconEmoji = "🔄",
+                descriptionEn = "Background synchronization loop, live river/tide/fish status, force refresh trigger, and Play Store update verification.",
+                descriptionOd = "ନଦୀ ଜଳସ୍ତର, ସମୁଦ୍ର ଭଟ୍ଟା, ରକ୍ତଭଣ୍ଡାର ଓ ଖବରର ସ୍ୱୟଂକ୍ରିୟ ନବୀକରଣ ଏବଂ ଆପ୍ ଅପଡେଟ୍।",
+                tagText = "AUTO-SYNC 15 MINS",
+                primaryColor = Color(0xFF0F172A),
+                borderColor = Color(0xFF38BDF8)
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.BALASORE_JUNCTION_RADAR,
+                titleEn = "Balasore Junction (BLS) Train Radar",
+                titleOd = "ବାଲେଶ୍ୱର ଜଙ୍କସନ ଟ୍ରେନ ଓ ପ୍ଲାଟଫର୍ମ ରାଡାର",
+                category = "Emergency & Transit",
+                iconEmoji = "🚆",
+                descriptionEn = "Live platform indicators for Vande Bharat, Dhauli & Coromandel, station amenities, cloakroom & RPF 139.",
+                descriptionOd = "ବନ୍ଦେ ଭାରତ, ଧଉଳି ଓ କରମଣ୍ଡଳ ପ୍ଲାଟଫର୍ମ ସୂଚନା, କ୍ଲୋକରୁମ୍ ଏବଂ ରେଳ ସୁରକ୍ଷା ବଳ ସହାୟତା।",
+                tagText = "LIVE RAIL RADAR",
+                primaryColor = Color(0xFFEFF6FF),
+                borderColor = Color(0xFF93C5FD)
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.BALESWARI_PAAN_KRUSHI_MANDI,
+                titleEn = "Baleswari Paan & Krushi Mandi Index",
+                titleOd = "ବାଲେଶ୍ୱରୀ ପାନ ଓ କୃଷି ମଣ୍ଡି ସୂଚୀ",
+                category = "Agro & Food",
+                iconEmoji = "🍃",
+                descriptionEn = "Daily wholesale mandi rates for Bhograi Mitha Paan, Baliapal Sanchi Paan, cashew nuts & KVK advisories.",
+                descriptionOd = "ଭୋଗରାଇ ମିଠା ପାନ, ବାଲିଆପାଳ ସାଞ୍ଚି ପାନ ଓ କାଜୁ ବାଦାମର ଦୈନିକ ହୋଲସେଲ ମଣ୍ଡି ଦର।",
+                tagText = "DAILY PAAN MANDI",
+                primaryColor = Color(0xFFF0FDF4),
+                borderColor = Color(0xFF86EFAC)
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.NIGHT_CHEMIST_SANJEEVANI,
+                titleEn = "24x7 Night Chemist & Sanjeevani Oxygen",
+                titleOd = "୨୪x୭ ରାତ୍ରିକାଳୀନ ଔଷଧାଳୟ ଓ ଅକ୍ସିଜେନ ଡେସ୍କ",
+                category = "Emergency & Transit",
+                iconEmoji = "💊",
+                descriptionEn = "All-night pharmacies near DHH, emergency medical oxygen cylinder refills, ICU ambulances & Jan Aushadhi.",
+                descriptionOd = "ଡିଏଚ୍ଏଚ୍ ଓ ସହରର ରାତ୍ରି ଔଷଧ ଦୋକାନ, ଜରୁରୀକାଳୀନ ଅମ୍ଳଜାନ ସିଲିଣ୍ଡର ଓ ଆମ୍ବୁଲାନ୍ସ।",
+                tagText = "24x7 EMERGENCY RX",
+                primaryColor = Color(0xFFFEF2F2),
+                borderColor = Color(0xFFFCA5A5)
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.BALESWAR_MAHOTSAV_CHADAK,
+                titleEn = "Baleswar Mahotsav & Festival Calendar",
+                titleOd = "ବାଲେଶ୍ୱର ମହୋତ୍ସବ ଓ ଚନ୍ଦନେଶ୍ୱର ଚଡ଼କ ମେଳା",
+                category = "Artisans & Heritage",
+                iconEmoji = "🎭",
+                descriptionEn = "Chandaneswar Uda Parba penance timetable, Expo cultural stage schedules, and Kartik Purnima boat floating.",
+                descriptionOd = "ଚନ୍ଦନେଶ୍ୱର ଉଡ଼ା ପର୍ବ, ଆଇଟିଆଇ ପଡ଼ିଆ ମହୋତ୍ସବ ଏବଂ ତାଳସାରୀ ବୋଇତ ବନ୍ଦାଣ ତିଥି।",
+                tagText = "FESTIVAL CALENDAR",
+                primaryColor = Color(0xFFFFFBEB),
+                borderColor = Color(0xFFFDE68A)
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.NILAGIRI_STONE_ARTISAN,
+                titleEn = "Nilagiri Green Stone & Dokra Showcase",
+                titleOd = "ନୀଳଗିରି ସବୁଜ ପଥର ବାସନ ଓ ଢୋକ୍ରା ଶିଳ୍ପ",
+                category = "Artisans & Heritage",
+                iconEmoji = "🏺",
+                descriptionEn = "GI green chlorite cookware handis, temple sculptures, Kuldiha Dokra brasscraft & direct artisan contacts.",
+                descriptionOd = "ନୀଳଗିରି ପଥର କୁଣ୍ଡ, ମନ୍ଦିର ମୂର୍ତ୍ତି ଏବଂ କୁଲଡିହା ଢୋକ୍ରା ପିତ୍ତଳ କଳାକାରଙ୍କ ସିଧାସଳଖ ଯୋଗାଯୋଗ।",
+                tagText = "ARTISAN REGISTRY",
+                primaryColor = Color(0xFFF1F5F9),
+                borderColor = Color(0xFFCBD5E1)
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.TPNODL_WATCO_MONITOR,
+                titleEn = "TPNODL Power & WATCO Water Civic Monitor",
+                titleOd = "ବିଦ୍ୟୁତ୍ (TPNODL) ଓ ପାନୀୟ ଜଳ (WATCO) ସୂଚୀ",
+                category = "Emergency & Transit",
+                iconEmoji = "⚡",
+                descriptionEn = "Scheduled substation maintenance cuts, piped municipal water release hours, and ward lineman contacts.",
+                descriptionOd = "ଲାଇଭ୍ ବିଦ୍ୟୁତ୍ କାଟ୍ ବିଜ୍ଞପ୍ତି, ପାଇପ୍ ଜଳ ଯୋଗାଣ ସମୟ ଏବଂ ୱାର୍ଡ ଲାଇନମ୍ୟାନ ଫୋନ ନମ୍ବର।",
+                tagText = "CIVIC UTILITY PULSE",
+                primaryColor = Color(0xFFFEF3C7),
+                borderColor = Color(0xFFFCD34D)
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.TALASARI_MANGROVE_EXPLORER,
+                titleEn = "Talasari & Bichitrapur Mangrove Eco-Boat",
+                titleOd = "ତାଳସାରୀ ଓ ବିଚିତ୍ରପୁର ହେନ୍ତାଳବଣ ବୋଟ୍ ସଫାରି",
+                category = "Coastal & Estuary",
+                iconEmoji = "🦀",
+                descriptionEn = "OFDC mangrove boat safari booking tariffs, high tide creek entry guidelines & red crab colonies.",
+                descriptionOd = "ବିଚିତ୍ରପୁର ହେନ୍ତାଳବଣ ବୋଟିଂ ଟିକେଟ, ସୁବର୍ଣ୍ଣରେଖା ମୁହାଣ ଲାଲ କଙ୍କଡ଼ା ଓ ଦୀଘା ଯୋଗାଯୋଗ।",
+                tagText = "OFDC BOAT SAFARI",
+                primaryColor = Color(0xFFE0F2FE),
+                borderColor = Color(0xFF7DD3FC)
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.MO_SEVA_KENDRA_CITIZEN,
+                titleEn = "Mo Seva Kendra & e-District Desk",
+                titleOd = "ମୋ ସେବା କେନ୍ଦ୍ର ଓ ଇ-ପ୍ରଶାସନ ଡେସ୍କ",
+                category = "Emergency & Transit",
+                iconEmoji = "🌾",
+                descriptionEn = "12 Block citizen centers, statutory certificate fee caps (₹30), document checklists & anti-overcharging helpline.",
+                descriptionOd = "ବାଲେଶ୍ୱର ଜିଲ୍ଲାର ୧୨ଟି ବ୍ଲକ୍ ମୋ ସେବା କେନ୍ଦ୍ର ଫୋନ ନମ୍ବର, ସରକାରୀ ୟୁଜର ଫିସ୍ ଏବଂ ପ୍ରମାଣପତ୍ର ନିୟମ।",
+                tagText = "CITIZEN SERVICES",
+                primaryColor = Color(0xFFE0F2FE),
+                borderColor = Color(0xFF7DD3FC)
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.MARINE_FISHERMEN_SAFETY,
+                titleEn = "Marine Fishermen Sea-Safety & Radar",
+                titleOd = "ମତ୍ସ୍ୟଜୀବୀ ସମୁଦ୍ର ସୁରକ୍ଷା ଓ ଟେଲିମେଟ୍ରି",
+                category = "Coastal & Estuary",
+                iconEmoji = "⚓",
+                descriptionEn = "Balaramgadi & Kasafal swell/wind telemetry, Coast Guard SOS 1554, and marine police station desks.",
+                descriptionOd = "ବଳରାମଗଡ଼ି ଓ କାସାଫାଳ ସମୁଦ୍ର ତରଙ୍ଗ ସ୍ଥିତି, ତଟରକ୍ଷୀ ୧୫୫୪ ଜରୁରୀ ସହାୟତା ଏବଂ ମେରାଇନ ଥାନା।",
+                tagText = "SEA SAFETY & SOS",
+                primaryColor = Color(0xFFEFF6FF),
+                borderColor = Color(0xFF93C5FD)
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.KULDIHA_ECO_CAMP_SAFARI,
+                titleEn = "Kuldiha Eco-Camp & Safari Desk",
+                titleOd = "କୁଲଡିହା ନେଚର କ୍ୟାମ୍ପ ଓ ସଫାରୀ ଡେସ୍କ",
+                category = "Daily Pulse",
+                iconEmoji = "🐘",
+                descriptionEn = "Rissia Nature Camp cottages, Jadachua elephant watchtower spotting times & Nilagiri checkpost permits.",
+                descriptionOd = "ରିଷିଆ ନେଚର କ୍ୟାମ୍ପ ବୁକିଂ, ଜଡ଼ାଚୁଆ ହାତୀ ୱାଚଟାୱାର୍ ଏବଂ ନୀଳଗିରି ରେଞ୍ଜ ସଫାରି ଅନୁମତି।",
+                tagText = "OFDC ECO-CAMP",
+                primaryColor = Color(0xFFF0FDF4),
+                borderColor = Color(0xFF86EFAC)
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.FM_MCH_MEDICAL_COLLEGE_OPD,
+                titleEn = "FM MCH Medical College OPD & BSKY",
+                titleOd = "ଫକୀର ମୋହନ ମେଡିକାଲ OPD ଓ BSKY ସୂଚୀ",
+                category = "Health & Medical",
+                iconEmoji = "🏥",
+                descriptionEn = "Remuna campus doctor chambers, daily specialist OPD roster, e-Sanjeevani video consults & BSKY helpdesks.",
+                descriptionOd = "ଏଫଏମ ମେଡିକାଲ କଲେଜ ବିଭାଗୀୟ OPD ରୋଷ୍ଟର, ଇ-ସଞ୍ଜୀବନୀ ମାଗଣା ପରାମର୍ଶ ଏବଂ BSKY ତାଲିକାଭୁକ୍ତ ହସ୍ପିଟାଲ।",
+                tagText = "MCH OPD ROSTER",
+                primaryColor = Color(0xFFFEF2F2),
+                borderColor = Color(0xFFFCA5A5)
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.SABAI_GRASS_MISSION_SHAKTI,
+                titleEn = "Sabai Grass & Mission Shakti SHG Mart",
+                titleOd = "ସବାଇ ଘାସ ଓ ମିଶନ ଶକ୍ତି ହାଟ",
+                category = "Artisans & Heritage",
+                iconEmoji = "🧺",
+                descriptionEn = "Nilagiri golden fiber handicraft catalog, direct fair prices without middlemen, and Mission Shakti Haats.",
+                descriptionOd = "ନୀଳଗିରି ସୁବର୍ଣ୍ଣ ସବାଇ ଘାସ ହସ୍ତଶିଳ୍ପ, ସିଧାସଳଖ ମହିଳା SHG ମୂଲ୍ୟ ଏବଂ ମିଶନ ଶକ୍ତି କେନ୍ଦ୍ର।",
+                tagText = "SHG FAIR TRADE",
+                primaryColor = Color(0xFFFFFBEB),
+                borderColor = Color(0xFFFDE68A)
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.BALASORE_MARITIME_COLONIAL,
+                titleEn = "Maritime & Colonial Port Heritage",
+                titleOd = "ବାଲେଶ୍ୱର ସାମୁଦ୍ରିକ ଓ ଔପନିବେଶିକ ଇତିହାସ",
+                category = "Artisans & Heritage",
+                iconEmoji = "⛵",
+                descriptionEn = "Farasidinga French Loge enclave, Dutch VOC cemetery, British factory (1633), and Sadhabapua Boita voyages.",
+                descriptionOd = "ଫରାସୀଡିଙ୍ଗା, ଡଚ୍ କବରସ୍ତାନ, ଇଂରେଜ୍ କୋଠି (୧୬୩୩) ଏବଂ ପ୍ରାଚୀନ ସାଧବ ବୋଇତ ବନ୍ଦାଣ ଇତିହାସ।",
+                tagText = "COLONIAL PORTS",
+                primaryColor = Color(0xFFEEF2FF),
+                borderColor = Color(0xFFC7D2FE)
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.BALASORE_STUDENT_CAREER_SCHOLARSHIP,
+                titleEn = "Scholarships & Career Guidance Desk",
+                titleOd = "ଛାତ୍ରବୃତ୍ତି ଓ କ୍ୟାରିୟର ସହାୟତା ଡେସ୍କ",
+                category = "Emergency & Transit",
+                iconEmoji = "🎓",
+                descriptionEn = "e-Medhabruti, Sudakshya girls technical aid, KALIA scholarship criteria, and Model Career Center.",
+                descriptionOd = "ଓଡ଼ିଶା ରାଜ୍ୟ ଛାତ୍ରବୃତ୍ତି ପୋର୍ଟାଲ, ମେଧାବୃତ୍ତି, ସୁଦକ୍ଷା ବାଳିକା ଯୋଜନା ଏବଂ ଜିଲ୍ଲା ନିୟୋଜନ କାର୍ଯ୍ୟାଳୟ।",
+                tagText = "SCHOLARSHIPS",
+                primaryColor = Color(0xFFF0F9FF),
+                borderColor = Color(0xFFBAE6FD)
+            ),
+            // 7 New Local Specialized Hubs with Real-Time Telemetry & Utilities
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.DRDO_CHANDIPUR_SAFETY_RADAR,
+                titleEn = "DRDO Chandipur Launch & Sea Radar",
+                titleOd = "ଚାନ୍ଦିପୁର କ୍ଷେପଣାସ୍ତ୍ର ପରୀକ୍ଷଣ ଓ ସୁରକ୍ଷା ରାଡାର",
+                category = "Defense & Wildlife",
+                iconEmoji = "🚀",
+                descriptionEn = "Live NOTAM airspace/sea exclusion zones, evacuation shelter telemetry, siren protocols & security checkposts.",
+                descriptionOd = "କ୍ଷେପଣାସ୍ତ୍ର ପରୀକ୍ଷା ସମୟର ସାମୁଦ୍ରିକ ନିଷିଦ୍ଧାଞ୍ଚଳ, ସୁରକ୍ଷା ସାଇରନ ଓ ସ୍ଥାନାନ୍ତରଣ ଆଶ୍ରୟସ୍ଥଳୀ।",
+                tagText = "DRDO NOTAM RADAR",
+                primaryColor = Color(0xFFEFF6FF),
+                borderColor = Color(0xFF93C5FD)
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.SUBARNAREKHA_SLUICE_FLOOD_RADAR,
+                titleEn = "Subarnarekha River & Sluice Gate Radar",
+                titleOd = "ସୁବର୍ଣ୍ଣରେଖା ନଦୀ ଓ ସ୍ଲୁଇସ୍ ଗେଟ୍ ବନ୍ୟା ରାଡାର",
+                category = "Daily Pulse",
+                iconEmoji = "🌊",
+                descriptionEn = "Rajghat & Jamshedpur live gauge discharge, 8 coastal sluice gate status, and Bhograi-Jaleswar inundation risks.",
+                descriptionOd = "ରାଜଘାଟ ଜଳସ୍ତର, ସ୍ଲୁଇସ୍ ଗେଟ୍ ସ୍ଥିତି, ଜଳ ନିଷ୍କାସନ କ୍ଷମତା ଏବଂ ବନ୍ୟା ସତର୍କତା ବୁଲେଟିନ୍।",
+                tagText = "RIVER FLOOD RADAR",
+                primaryColor = Color(0xFFE0F2FE),
+                borderColor = Color(0xFF38BDF8)
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.FCM_SEVERE_WEATHER_ALERT,
+                titleEn = "FCM Severe Weather & Coastal Flood Push Alerts",
+                titleOd = "FCM ବାତ୍ୟା ଓ ଉପକୂଳ ବନ୍ୟା ତତ୍କାଳ ପୁସ୍ ସତର୍କତା",
+                category = "Daily Pulse",
+                iconEmoji = "🚨",
+                descriptionEn = "Automated real-time push notifications delivered directly to user devices for cyclones, squalls, tidal surges & Rajghat danger marks.",
+                descriptionOd = "ସିଧାସଳଖ ଫୋନକୁ ସ୍ୱୟଂକ୍ରିୟ ଜରୁରୀ ବନ୍ୟା ଓ ଝଡ଼ ସତର୍କତା ନୋଟିଫିକେସନ୍ ପ୍ରେରଣ।",
+                tagText = "FCM ZERO-LATENCY PUSH",
+                primaryColor = Color(0xFFFEF2F2),
+                borderColor = Color(0xFFF87171)
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.NILAGIRI_CHHAU_CULTURAL_GUILD,
+                titleEn = "Nilagiri Chhau Dance & Cultural Guild",
+                titleOd = "ନୀଳଗିରି ଛଉ ନୃତ୍ୟ ଓ ସାଂସ୍କୃତିକ ଗିଲ୍ଡ",
+                category = "Artisans & Heritage",
+                iconEmoji = "🎭",
+                descriptionEn = "Centuries-old royal martial Chhau troupes, traditional clay masks, Akharas, and festive performance calendar.",
+                descriptionOd = "ନୀଳଗିରି ରାଜବାଟୀ ଛଉ ନୃତ୍ୟ ପରମ୍ପରା, ମାଟି ମୁଖା ଶିଳ୍ପ, ଆଖଡ଼ା ଓ କଳାକାର ବୁକିଂ।",
+                tagText = "MARTIAL HERITAGE",
+                primaryColor = Color(0xFFFFFBEB),
+                borderColor = Color(0xFFFDE68A)
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.DHH_BLOOD_BANK_LIVE_RADAR,
+                titleEn = "DHH & Red Cross Blood Bank Live Radar",
+                titleOd = "ବାଲେଶ୍ୱର ମୁଖ୍ୟ ଡାକ୍ତରଖାନା ରକ୍ତ ଭଣ୍ଡାର ରାଡାର",
+                category = "Health & Medical",
+                iconEmoji = "🩸",
+                descriptionEn = "Live component units (PRBC, Platelets, FFP), rare negative groups, voluntary camp schedule & SOS requisition.",
+                descriptionOd = "ଜିଲ୍ଲା ମୁଖ୍ୟ ଚିକିତ୍ସାଳୟ (DHH) ରକ୍ତ ମହଜୁଦ ସ୍ଥିତି, ପ୍ଲେଟଲେଟ୍ ଉପଲବ୍ଧତା ଓ ଜରୁରୀ ସହାୟତା।",
+                tagText = "LIVE BLOOD STOCK",
+                primaryColor = Color(0xFFFEF2F2),
+                borderColor = Color(0xFFFCA5A5)
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.PAN_BARAJA_AQUA_SHRIMP_DESK,
+                titleEn = "Paan Baraja & Aqua Shrimp Livelihood Desk",
+                titleOd = "ପାନ ବରଜ ଓ ଇକୋ-ଆକ୍ୱା ଚିଙ୍ଗୁଡ଼ି ଡେସ୍କ",
+                category = "Agro & Marine",
+                iconEmoji = "🍃",
+                descriptionEn = "Bhograi betel shade humidity, saline shrimp salinity/DO levels, MPEDA export rates & KVK pest doctor.",
+                descriptionOd = "ପାନ ବରଜ ରୋଗ ନିରାକରଣ, ଆକ୍ୱା ଚିଙ୍ଗୁଡ଼ି ଚାଷ ଲାଇଭ୍ ପାରାମିଟର ଓ ରପ୍ତାନି ମଣ୍ଡି ଦର।",
+                tagText = "LIVELIHOOD TELEMETRY",
+                primaryColor = Color(0xFFF0FDF4),
+                borderColor = Color(0xFF86EFAC)
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.BALASORE_COURT_LEGAL_AID_DESK,
+                titleEn = "District Court & DLSA Free Legal Aid",
+                titleOd = "ଜିଲ୍ଲା କୋର୍ଟ ଓ ଡିଏଲ୍ଏସ୍ଏ ମାଗଣା ଆଇନ ସେବା",
+                category = "Emergency & Transit",
+                iconEmoji = "⚖️",
+                descriptionEn = "District & Sessions Court cause lists, Lok Adalat schedules, free legal defense counsel & mediation center.",
+                descriptionOd = "ବାଲେଶ୍ୱର ଜିଲ୍ଲା କୋର୍ଟ ମାଗଣା ଆଇନ ସହାୟତା, ଲୋକ ଅଦାଲତ ଏବଂ ମଧ୍ୟସ୍ଥତା କେନ୍ଦ୍ର ତଥ୍ୟ।",
+                tagText = "FREE LEGAL AID",
+                primaryColor = Color(0xFFF8FAFC),
+                borderColor = Color(0xFFCBD5E1)
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.NH16_HIGHWAY_PATROL_TRAUMA_SOS,
+                titleEn = "NH-16 Golden Quadrilateral Highway Patrol & SOS",
+                titleOd = "NH-16 ଜାତୀୟ ରାଜପଥ ପାଟ୍ରୋଲିଂ ଓ ଟ୍ରମା ଏସଓଏସ",
+                category = "Emergency & Transit",
+                iconEmoji = "🚨",
+                descriptionEn = "Bahanaga to Jaleswar toll corridor assistance, NHAI 1033 emergency patrol, cranes, and designated trauma centers.",
+                descriptionOd = "ବାହାନଗା-ବାଲେଶ୍ୱର-ଜଳେଶ୍ୱର NH-16 ପାଟ୍ରୋଲ୍, ଟୋଲ୍ ପ୍ଲାଜା, କ୍ରେନ୍ ସହାୟତା ଓ ଟ୍ରମା ହସ୍ପିଟାଲ୍।",
+                tagText = "HIGHWAY SOS 1033",
+                primaryColor = Color(0xFFFFF1F2),
+                borderColor = Color(0xFFFDA4AF)
+            ),
+            // 7 New Automated Hubs with Live Telemetry
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.PANCHALINGESWAR_KULDIHA_SAFARI,
+                titleEn = "Panchalingeswar & Kuldiha Safari Companion",
+                titleOd = "ପଞ୍ଚଲିଙ୍ଗେଶ୍ୱର ଓ କୁଲଡିହା ସଫାରୀ କମ୍ପାନିଅନ୍",
+                category = "Defense & Wildlife",
+                iconEmoji = "🐘",
+                descriptionEn = "Rissia forest checkpost, live elephant corridor telemetry, submerged Shiva Linga spring climb & 4x4 safari jeeps.",
+                descriptionOd = "ରିସିଆ ଜଙ୍ଗଲ ଗେଟ୍ ସ୍ଥିତି, ହାତୀ ଚଳାଚଳ ସତର୍କତା, ପାହାଡ଼ ଝରଣା ଜଳସ୍ତର ଓ ୪x୪ ଜିପ୍ ଡ୍ରାଇଭର ସୂଚୀ।",
+                tagText = "SAFARI & SPRING RADAR",
+                primaryColor = Color(0xFFF0FDF4),
+                borderColor = Color(0xFF86EFAC)
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.SER_BALASORE_RAILWAY_JUNCTION,
+                titleEn = "SER Balasore & Jaleswar Rail Radar",
+                titleOd = "ଦକ୍ଷିଣ ପୂର୍ବ ରେଳପଥ ବାଲେଶ୍ୱର ଲାଇଭ୍ ରାଡାର",
+                category = "Emergency & Transit",
+                iconEmoji = "🚆",
+                descriptionEn = "Live platform assignments, Vande Bharat & Dhauli Express coach diagrams, MEMU passenger schedule & coolie tariff.",
+                descriptionOd = "ବାଲେଶ୍ୱର ଓ ଜଳେଶ୍ୱର ପ୍ଲାଟଫର୍ମ ଟ୍ରାକର, ବନ୍ଦେ ଭାରତ କୋଚ୍ ଗାଇଡ୍, ମେମୁ ସମୟସାରଣୀ ଓ କୁଲି ମଜୁରୀ।",
+                tagText = "SER RAIL RADAR",
+                primaryColor = Color(0xFFEEF2FF),
+                borderColor = Color(0xFFC7D2FE)
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.NOCCI_INDUSTRIAL_B2B_SKILL,
+                titleEn = "NOCCI Industrial Corridor & B2B Hub",
+                titleOd = "ନୋସି ଶିଳ୍ପ କରିଡର ଓ ଦକ୍ଷତା ନିଯୁକ୍ତି ଡେସ୍କ",
+                category = "Emergency & Transit",
+                iconEmoji = "🏭",
+                descriptionEn = "Chhanpur & Remuna industrial park directory, CIPET plastic engineering, ITI apprenticeships & DIC assistance.",
+                descriptionOd = "ଛାନପୁର ଓ ରେମୁଣା ଶିଳ୍ପାଞ୍ଚଳ, CIPET ତାଲିମ, କାରଖାନା ନିଯୁକ୍ତି ଓ ଜିଲ୍ଲା ଶିଳ୍ପ କେନ୍ଦ୍ର ସହାୟତା।",
+                tagText = "NOCCI MSME & SKILLS",
+                primaryColor = Color(0xFFFFFBEB),
+                borderColor = Color(0xFFFDE68A)
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.TALSARI_BICHITRAPUR_MANGROVE_PILOT,
+                titleEn = "Talsari & Bichitrapur Mangrove Pilot",
+                titleOd = "ତାଳସାରୀ ଓ ବିଚିତ୍ରପୁର ହେନ୍ତାଳବଣ ରାଡାର",
+                category = "Coastal & Estuary",
+                iconEmoji = "🦀",
+                descriptionEn = "Subarnarekha estuary motorboat booking, red ghost crab colony rules, and Bhograi farm-gate roasted cashew hubs.",
+                descriptionOd = "ବିଚିତ୍ରପୁର ହେନ୍ତାଳବଣ ନୌକାବିହାର, ନାଲି କଙ୍କଡ଼ା ସଂରକ୍ଷଣ ନିୟମ ଓ ଭୋଗରାଇ କାଜୁ ବଜାର।",
+                tagText = "MANGROVE & RED CRABS",
+                primaryColor = Color(0xFFF0FDFA),
+                borderColor = Color(0xFF99F6E4)
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.FAKIR_MOHAN_BHASHA_LITERATURE,
+                titleEn = "Fakir Mohan Bhasha & Literature Hub",
+                titleOd = "ଫକୀର ମୋହନ ଭାଷା ଓ ଓଡ଼ିଆ ସାହିତ୍ୟ ଆର୍କାଇଭ",
+                category = "Artisans & Heritage",
+                iconEmoji = "📜",
+                descriptionEn = "Mallikashpur ancestral home (Shantisneha), authentic Baleswari Dhaga-Dhamali idioms & district central library.",
+                descriptionOd = "ଶାନ୍ତିସ୍ନେହ ମଲ୍ଲିକାଶପୁର ବ୍ୟାସକବି ସ୍ମୃତିପୀଠ, ବାଲେଶ୍ୱରୀ ଢଗଢମାଳି ଓ ଜିଲ୍ଲା କେନ୍ଦ୍ରୀୟ ପାଠାଗାର।",
+                tagText = "ODIA LITERATURE CRADLE",
+                primaryColor = Color(0xFFFFFBEB),
+                borderColor = Color(0xFFFDE68A)
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.BALESWARI_CUISINE_SWEET_HERITAGE,
+                titleEn = "Baleswari Culinary & Sweet Heritage",
+                titleOd = "ବାଲେଶ୍ୱରୀ ଖାଦ୍ୟ ଓ ମିଠା ଐତିହ୍ୟ ଡାଇରୀ",
+                category = "Agro & Food",
+                iconEmoji = "🍲",
+                descriptionEn = "GI-coveted Chhena Mudki verified makers, Nilagiri authentic royal Khaja, Mudhi-Mansha, and Kasafal Sukhua dry fish.",
+                descriptionOd = "ଛେନା ମୁଡ଼କି ଜିଆଇ ସୂଚୀ, ନୀଳଗିରି ରାଜକୀୟ ଖଜା, ବାଲେଶ୍ୱରୀ ମୁଢ଼ି ମାଂସ ଝୋଳ ଓ ଶୁଖୁଆ ବଜାର।",
+                tagText = "CHHENA MUDKI & SUKHUA",
+                primaryColor = Color(0xFFFFFBEB),
+                borderColor = Color(0xFFFDE68A)
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.TPNODL_WATCO_UTILITY_HOTLINE,
+                titleEn = "TPNODL Power & WATCO Water Hotline",
+                titleOd = "TPNODL ବିଦ୍ୟୁତ୍ ଓ WATCO ଜଳଯୋଗାଣ ରାଡାର",
+                category = "Daily Pulse",
+                iconEmoji = "⚡",
+                descriptionEn = "33/11kV substation feeder shutdown telemetry, municipal piped tap water ward schedules & 24x7 fuse-off 1912.",
+                descriptionOd = "ଟାଉନ୍ ଓ ରେମୁଣା ବିଦ୍ୟୁତ୍ ଫିଡର ସ୍ଥିତି, ପୌରପାଳିକା ପାନୀୟ ଜଳ ସମୟ ଓ ଫିଉଜ୍-ଅଫ୍ ହେଲ୍ପଲାଇନ।",
+                tagText = "CIVIC GRID HOTLINE",
+                primaryColor = Color(0xFFFEF3C7),
+                borderColor = Color(0xFFFDE68A)
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.DHAN_MANDI_MSP_PROCUREMENT,
+                titleEn = "Dhan Mandi & MSP Procurement Radar",
+                titleOd = "ଧାନ ମଣ୍ଡି ଓ ସରକାରୀ ଏମଏସପି କ୍ରୟ ରାଡାର",
+                category = "Agro & Food",
+                iconEmoji = "🌾",
+                descriptionEn = "PACS mandi tokens across Jaleswar, Soro, Basta, <17% moisture FAQ standards & KVK agronomist hotline.",
+                descriptionOd = "ଜଳେଶ୍ୱର, ସୋର, ବସ୍ତା PACS ଧାନ ମଣ୍ଡି ଟୋକନ୍, ଆର୍ଦ୍ରତା ନିୟମ ଓ କୃଷି ବୈଜ୍ଞାନିକ ପରାମର୍ଶ।",
+                tagText = "MSP MANDI RADAR",
+                primaryColor = Color(0xFFFFFBEB),
+                borderColor = Color(0xFFFDE68A)
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.NILAGIRI_GRANITE_STONEWARE_GUILD,
+                titleEn = "Nilagiri Granite & Stoneware Guild",
+                titleOd = "ନୀଳଗିରି କଳା ପଥର ଶିଳ୍ପ ଓ ବାସନ ଗିଲ୍ଡ",
+                category = "Artisans & Heritage",
+                iconEmoji = "🪨",
+                descriptionEn = "Mitrapur chlorite stone carving, traditional Pathara Kunda/Kathi seasoning guides, and Utkalika emporium.",
+                descriptionOd = "ନୀଳଗିରି କଳା ପଥର ବାସନ ଶିଳ୍ପୀ, ତେଲ ପାରମ୍ପରିକ ସିଜନିଂ ପ୍ରଣାଳୀ ଓ ଉତ୍କଳିକା ଏମ୍ପୋରିୟମ୍।",
+                tagText = "STONEWARE GUILD",
+                primaryColor = Color(0xFFF8FAFC),
+                borderColor = Color(0xFFCBD5E1)
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.BAHANAGA_NHAI_RAPID_TRAUMA_NETWORK,
+                titleEn = "Bahanaga & NH-16 Rapid Trauma Network",
+                titleOd = "ବାହାନଗା ଓ NH-16 ରାପିଡ୍ ଟ୍ରମା ନେଟୱର୍କ",
+                category = "Emergency & Transit",
+                iconEmoji = "🚨",
+                descriptionEn = "NH-16 108 ALS ambulance GPS posts, Balasore DHH apex trauma ICU beds, and Good Samaritan legal protection.",
+                descriptionOd = "ବାହାନଗା ଓ NH-16 ୧୦୮ ଆମ୍ବୁଲାନ୍ସ ବେସ୍, ଟ୍ରମା ଆଇସିୟୁ ଶଯ୍ୟା ଏବଂ ସହାୟକ ଆଇନଗତ ସୁରକ୍ଷା।",
+                tagText = "HIGHWAY TRAUMA 108",
+                primaryColor = Color(0xFFFEF2F2),
+                borderColor = Color(0xFFFECACA)
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.BHUSANDESWAR_CHANDANESWAR_PILGRIMAGE,
+                titleEn = "Bhusandeswar & Chandaneswar Pilgrimage",
+                titleOd = "ଭୂଷଣ୍ଡେଶ୍ୱର ଓ ଚନ୍ଦନେଶ୍ୱର ତୀର୍ଥ ରାଡାର",
+                category = "Artisans & Heritage",
+                iconEmoji = "🛕",
+                descriptionEn = "Asia's largest black stone lingam at Bhograi, Baba Chandaneswar Chadak Mela companion, and pilgrim shuttles.",
+                descriptionOd = "ଭୂଷଣ୍ଡେଶ୍ୱର ବିରାଟ ଶିବଲିଙ୍ଗ, ଚନ୍ଦନେଶ୍ୱର ଚଡ଼କ ମେଳା ଏବଂ ଜଳେଶ୍ୱର-ଦୀଘା ତୀର୍ଥ ଶଟଲ।",
+                tagText = "ASIA'S LARGEST LINGAM",
+                primaryColor = Color(0xFFFFFBEB),
+                borderColor = Color(0xFFFDE68A)
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.SENIOR_CITIZEN_SEVA_SETU,
+                titleEn = "Seva Setu: Senior Citizen Care Desk",
+                titleOd = "ସେବା ସେତୁ: ବରିଷ୍ଠ ନାଗରିକ ସହାୟତା ଡେସ୍କ",
+                category = "Health & Medical",
+                iconEmoji = "🏥",
+                descriptionEn = "Verified geriatric home nurses, Nidan doorstep blood tests, and Balasore Police Senior Beat patrol registration.",
+                descriptionOd = "ଘରୋଇ ନର୍ସିଂ ସେବା, ମାଗଣା ଡୋରଷ୍ଟେପ୍ ରକ୍ତ ପରୀକ୍ଷା ଏବଂ ବାଲେଶ୍ୱର ପୋଲିସ ବରିଷ୍ଠ ସୁରକ୍ଷା ଡେସ୍କ।",
+                tagText = "SENIOR CARE SETU",
+                primaryColor = Color(0xFFF0FDF4),
+                borderColor = Color(0xFFBBF7D0)
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.BALASORE_HIGHER_EDUCATION_HUB,
+                titleEn = "Balasore Higher Education & Campus Hub",
+                titleOd = "ବାଲେଶ୍ୱର ଉଚ୍ଚଶିକ୍ଷା ଓ କ୍ୟାମ୍ପସ ଆଡମିଶନ ହବ୍",
+                category = "Emergency & Transit",
+                iconEmoji = "🎓",
+                descriptionEn = "FMU, FM MCH, BCET, Govt ITI cutoffs, e-Medhabruti/PRERANA scholarship deadlines & Model Career Center.",
+                descriptionOd = "ଫକୀର ମୋହନ ବିଶ୍ୱବିଦ୍ୟାଳୟ, ମେଡିକାଲ କଲେଜ କଟ୍-ଅଫ୍, ଛାତ୍ରବୃତ୍ତି ଓ ନିୟୋଜନ ପରାମର୍ଶ।",
+                tagText = "CAMPUS & SCHOLARSHIPS",
+                primaryColor = Color(0xFFF0F9FF),
+                borderColor = Color(0xFFBAE6FD)
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.BALASORE_MO_BUS_CRUT_NAVIGATOR,
+                titleEn = "Balasore Mo Bus & CRUT Transit Hub",
+                titleOd = "ବାଲେଶ୍ୱର ମୋ ବସ୍ ଓ ସହଦେବଖୁଣ୍ଟା ଟର୍ମିନାଲ୍",
+                category = "Emergency & Transit",
+                iconEmoji = "🚌",
+                descriptionEn = "Routes 71-74 live frequencies, student concession pass guidelines & Sahadevkhunta inter-district express bays.",
+                descriptionOd = "ସହରୀ ମୋ ବସ୍ ରୁଟ୍, ଛାତ୍ର ରିହାତି ପାସ୍ ଏବଂ ସହଦେବଖୁଣ୍ଟା ଅନ୍ତଃ-ଜିଲ୍ଲା ଏକ୍ସପ୍ରେସ୍ ବସ୍ ସୂଚୀ।",
+                tagText = "CRUT MO BUS LIVE",
+                primaryColor = Color(0xFFF0FDFA),
+                borderColor = Color(0xFF99F6E4)
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.AQUA_SHRIMP_HATCHERY_RADAR,
+                titleEn = "Subarnarekha Brackish Shrimp Hatchery Radar",
+                titleOd = "ସୁବର୍ଣ୍ଣରେଖା ଲୁଣିଜଳ ଚିଙ୍ଗୁଡ଼ି ହେଚେରୀ ରାଡାର୍",
+                category = "Agro & Marine",
+                iconEmoji = "🦐",
+                descriptionEn = "Real-time salinity, pH, dissolved oxygen & export mandi rates across 3,800+ brackish ponds.",
+                descriptionOd = "ବାଲିଆପାଳ, ଭୋଗରାଇ ଓ କସାଫଳର ୩,୮୦୦+ ପୋଖରୀର ଲାଇଭ୍ ଲବଣାକ୍ତତା (ppt), pH, ଅମ୍ଳଜାନ ଓ ମଣ୍ଡି ଦର।",
+                tagText = "AQUA HATCHERY MPEDA",
+                primaryColor = Color(0xFFF0F9FF),
+                borderColor = Color(0xFFBAE6FD)
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.COASTAL_CYCLONE_SHELTER_NETWORK,
+                titleEn = "Balasore Coastal 64 Cyclone Shelter Radar",
+                titleOd = "ବାଲେଶ୍ୱର ଉପକୂଳ ବାତ୍ୟା ଆଶ୍ରୟସ୍ଥଳ ନେଟୱାର୍କ",
+                category = "Emergency & Transit",
+                iconEmoji = "🌀",
+                descriptionEn = "Real-time generator fuel, solar backup, potable water reserves & evacuation paths for 64 shelters.",
+                descriptionOd = "୬୪ କଂକ୍ରିଟ୍ ବାତ୍ୟା ଆଶ୍ରୟସ୍ଥଳର ସୌର ବିଦ୍ୟୁତ, ଡିଜେଲ ଜେନେରେଟର ଓ ଜଳ ସଂରକ୍ଷଣ ଟେଲିମେଟ୍ରି।",
+                tagText = "64 SHELTERS OSDMA",
+                primaryColor = Color(0xFFEFF6FF),
+                borderColor = Color(0xFFBFDBFE)
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.MARITIME_FOREIGN_LOGE_TRAIL,
+                titleEn = "French-Dutch-Danish Foreign Loge Trail",
+                titleOd = "ଫରାସୀ, ଡଚ୍ ଓ ଡେନିସ୍ ବାଣିଜ୍ୟ କୋଠି ଐତିହ୍ୟ",
+                category = "Artisans & Heritage",
+                iconEmoji = "🏛️",
+                descriptionEn = "Explore Farashdanga French enclave, Dutch obelisks (1675), and Danish spice warehouses along Budhabalanga.",
+                descriptionOd = "ଫରାସୀଡଙ୍ଗା, ଡଚ୍ ସମାଧି (୧୬୭୫) ଓ ଦିନେମାରଡଙ୍ଗାରେ ବାଲେଶ୍ୱରର ଆନ୍ତର୍ଜାତୀୟ ବାଣିଜ୍ୟ ଇତିହାସ।",
+                tagText = "FOREIGN LOGE HERITAGE",
+                primaryColor = Color(0xFFFDF4FF),
+                borderColor = Color(0xFFF5D0FE)
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.RURAL_MOBILE_TELEMEDICINE_NETWORK,
+                titleEn = "Balasore Rural Mobile Medical Unit Network",
+                titleOd = "ବାଲେଶ୍ୱର ଗ୍ରାମୀଣ ମୋବାଇଲ୍ ମେଡିକାଲ୍ ଭ୍ୟାନ୍ ସେବା",
+                category = "Health & Medical",
+                iconEmoji = "🩺",
+                descriptionEn = "Daily village camp roster for 12 Mobile Medical Units, free diagnostic tests & Jan Aushadhi generic medicines.",
+                descriptionOd = "ନୀଳଗିରି, ଔପଦା ଓ ଉପକୂଳ ଗ୍ରାମାଞ୍ଚଳରେ ଦୈନିକ ଡାକ୍ତରୀ କ୍ୟାମ୍ପ, ମାଗଣା ପରୀକ୍ଷା ଓ ଜନ ଔଷଧି।",
+                tagText = "NHM 12 MMU VANS",
+                primaryColor = Color(0xFFECFDF5),
+                borderColor = Color(0xFFA7F3D0)
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.BALESWARI_BETEL_PADDY_COOPERATIVE,
+                titleEn = "Mati-Miras Betel Leaf & Saline Paddy Radar",
+                titleOd = "ବାଲେଶ୍ୱରୀ ପାନ ବରଜ ଓ ଲୁଣା ଧାନ ସମବାୟ ରାଡାର୍",
+                category = "Agro & Marine",
+                iconEmoji = "🌿",
+                descriptionEn = "Bhograi betel leaf export mandi rates, saline-tolerant coastal paddy procurement & PACS cooperatives.",
+                descriptionOd = "ଭୋଗରାଇ-ବାଲିଆପାଳ ପାନ ବରଜ ରପ୍ତାନି ଦର, ଲୁଣା ଶଙ୍ଖି ଧାନ ଏବଂ ସମବାୟ ମଣ୍ଡିର ଦୈନିକ ଦର।",
+                tagText = "BETEL LEAF & SALINE PADDY",
+                primaryColor = Color(0xFFF0FDF4),
+                borderColor = Color(0xFFBBF7D0)
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.COASTAL_CRUT_INTERDISTRICT_BUS_RADAR,
+                titleEn = "Balasore Coastal Bus & Fleet Live Radar",
+                titleOd = "ବାଲେଶ୍ୱର ଉପକୂଳ ମୋ ବସ୍ ଓ ଏକ୍ସପ୍ରେସ୍ ରାଡାର୍",
+                category = "Emergency & Transit",
+                iconEmoji = "🚍",
+                descriptionEn = "Real-time GPS bus arrivals, digital fares & schedules for Chandipur, Talsari, Kasafal, and Nilagiri routes.",
+                descriptionOd = "ଚାନ୍ଦିପୁର, ତାଳସାରୀ, କସାଫଳ ଓ ପଞ୍ଚଲିଙ୍ଗେଶ୍ୱର ବସ୍ ରୁଟ୍, ଜିପିଏସ୍ ଲାଇଭ୍ ଟ୍ରାକିଂ ଓ ଡିଜିଟାଲ୍ ଟିକେଟ୍।",
+                tagText = "COASTAL BUS FLEET GPS",
+                primaryColor = Color(0xFFF0F9FF),
+                borderColor = Color(0xFFBAE6FD)
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.HORSESHOE_CRAB_INTERTIDAL_PROTECTION,
+                titleEn = "Horseshoe Crab Intertidal Bio-Reserve Watch",
+                titleOd = "ଜୀବନ୍ତ ଜୀବାଶ୍ମ ରାଜକଙ୍କଡ଼ା ସଂରକ୍ଷଣ ୱାଚ୍",
+                category = "Defense & Wildlife",
+                iconEmoji = "🦀",
+                descriptionEn = "Track Chandipur's 450-million-year-old living fossils with blue copper blood (LAL) & wildlife rescue helpline.",
+                descriptionOd = "୪୫ କୋଟି ବର୍ଷ ପୁରାତନ ନୀଳରକ୍ତ ରାଜକଙ୍କଡ଼ାର ଚାନ୍ଦିପୁର-ବଳରାମଗଡ଼ିରେ ବସାବାନ୍ଧିବା ଓ ସୁରକ୍ଷା ଟେଲିମେଟ୍ରି।",
+                tagText = "IUCN LIVING FOSSIL",
+                primaryColor = Color(0xFFFFFBEB),
+                borderColor = Color(0xFFFDE68A)
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.CITIZEN_FEEDBACK_PORTAL,
+                titleEn = "Citizen Reports & Suggestions Desk",
+                titleOd = "ନାଗରିକ ମତାମତ, ପ୍ରସ୍ତାବ ଓ ଅଭିଯୋଗ ଡେସ୍କ",
+                category = "Daily Pulse",
+                iconEmoji = "📝",
+                descriptionEn = "Submit community reports, municipal suggestions & feature feedback directly to Firestore 'feedback' collection.",
+                descriptionOd = "ଜନସାଧାରଣଙ୍କ ସମସ୍ୟା, ପରାମର୍ଶ ଓ ନୂତନ ପ୍ରସ୍ତାବ ସିଧାସଳଖ କ୍ଲାଉଡ୍ ଫାୟାରଷ୍ଟୋର 'feedback' ରେ ସଂରକ୍ଷଣ।",
+                tagText = "FIRESTORE 'FEEDBACK' SYNC",
+                primaryColor = Color(0xFFF0FDF4),
+                borderColor = Color(0xFFBBF7D0)
+            ),
+            // 6 New Auto-Updated Features
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.COASTAL_MARINE_AUDIO_RADIO,
+                titleEn = "Coastal Marine Audio Radio & Fishermen Ring",
+                titleOd = "ସମୁଦ୍ର ମତ୍ସ୍ୟଜୀବୀ ରେଡିଓ ବୁଲେଟିନ୍ ଓ ସୁରକ୍ଷା ରିଙ୍ଗ୍",
+                category = "Coastal & Estuary",
+                iconEmoji = "🎙️",
+                descriptionEn = "INCOIS wave swell audio bulletins in Odia/English, return-to-shore countdown & offshore safety rings.",
+                descriptionOd = "ଇନ୍‌କଏସ୍ ସମୁଦ୍ର ତରଙ୍ଗ ସତର୍କତା, ଘାଟ ଫେରିବା କାଉଣ୍ଟଡାଉନ୍ ଓ ମତ୍ସ୍ୟଜୀବୀ ଅଡିଓ ରେଡିଓ।",
+                tagText = "TTS AUDIO RADIO",
+                primaryColor = Color(0xFFF0F9FF),
+                borderColor = Color(0xFFBAE6FD)
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.CYCLONE_SURGE_EVACUATION_ROUTER,
+                titleEn = "Cyclone Surge & MCS Evacuation Router",
+                titleOd = "ବାତ୍ୟା ଜୁଆର ଓ ୬୪ ବାତ୍ୟା ଆଶ୍ରୟସ୍ଥଳ ରାଉଟର୍",
+                category = "Emergency & Transit",
+                iconEmoji = "🗺️",
+                descriptionEn = "Projected inundation zone maps, vetted cyclone shelter capacities, warden contacts & hazard avoidance routing.",
+                descriptionOd = "ବାତ୍ୟା ସମୟରେ ସୁରକ୍ଷିତ ୬୪ ବହୁମୁଖୀ ଆଶ୍ରୟସ୍ଥଳ ରାସ୍ତା, ୱାର୍ଡେନ୍ ସୂଚୀ ଓ ଜଳବନ୍ଦୀ ବିପଦ ସତର୍କତା।",
+                tagText = "64 SHELTERS ROUTER",
+                primaryColor = Color(0xFFEFF6FF),
+                borderColor = Color(0xFFBFDBFE)
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.BALARAMGADI_MANDI_PRICE_INDEX,
+                titleEn = "Balasore Mandi & Fish Landing Price Index",
+                titleOd = "ବାଲେଶ୍ୱର ମଣ୍ଡି ଓ ବଳରାମଗଡ଼ି ମତ୍ସ୍ୟ ଦର ସୂଚକାଙ୍କ",
+                category = "Agro & Marine",
+                iconEmoji = "🦐",
+                descriptionEn = "Daily Hilsa, Tiger Prawn, Crab landing rates & Swarna Paddy MSP, Betel leaf spot prices with 7-day trends.",
+                descriptionOd = "ସୁବର୍ଣ୍ଣରେଖା ଇଲିଶି, ବାଘ ଚିଙ୍ଗୁଡ଼ି ଓ ଧାନ ଏମଏସପି ସରକାରୀ ଦରର ଦୈନିକ ସୂଚକାଙ୍କ।",
+                tagText = "DAILY SPOT RATES",
+                primaryColor = Color(0xFFF0FDF4),
+                borderColor = Color(0xFF86EFAC)
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.TEMPLE_AARTI_KHIRA_BHOG_COMPANION,
+                titleEn = "Temple Aarti, Khira Bhog & Pilgrimage Companion",
+                titleOd = "ରେମୁଣା ଖିରଭୋଗ ଓ ମନ୍ଦିର ଆଳତି ଲାଇଭ୍ ଟାଇମିଂ",
+                category = "Artisans & Heritage",
+                iconEmoji = "🛕",
+                descriptionEn = "Remuna Khirachora Gopinath live aarti & Khira Bhog availability, Panchalingeswar hill stream flow & Chadak timings.",
+                descriptionOd = "ରେମୁଣା ଖିରଚୋରା ଗୋପୀନାଥ ଖିରଭୋଗ କାଉଣ୍ଟର୍, ପଞ୍ଚଲିଙ୍ଗେଶ୍ୱର ପାହାଡ଼ ଝରଣା ଜଳସ୍ତର ଓ ଆଳତି ସୂଚୀ।",
+                tagText = "SANCTUM COMPANION",
+                primaryColor = Color(0xFFFFFBEB),
+                borderColor = Color(0xFFFDE68A)
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.FM_MCH_EMERGENCY_BLOOD_NETWORK,
+                titleEn = "FM MCH Hospital SOS & Emergency Blood Network",
+                titleOd = "FM MCH ହସ୍ପିଟାଲ୍ ଓ ଜରୁରୀ ରକ୍ତଦାତା ନେଟୱାର୍କ",
+                category = "Health & Medical",
+                iconEmoji = "🩸",
+                descriptionEn = "Fakir Mohan MCH blood bank live inventory, verified voluntary donor search by block, and SOS blood beacon.",
+                descriptionOd = "ଏଫ୍ଏମ୍ ମେଡିକାଲ୍ କଲେଜ୍ ଟ୍ରମା ସହାୟତା, ଜିଲ୍ଲା ରକ୍ତ ଭଣ୍ଡାର ଲାଇଭ୍ ଷ୍ଟକ୍ ଓ ରକ୍ତଦାତା ସମ୍ପର୍କ।",
+                tagText = "HOSPITAL SOS & DONORS",
+                primaryColor = Color(0xFFFEF2F2),
+                borderColor = Color(0xFFFCA5A5)
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.MO_BALASORE_CIVIC_STORM_REPORTER,
+                titleEn = "Mo Balasore Citizen Civic & Storm Reporter",
+                titleOd = "ମୋ ବାଲେଶ୍ୱର ନାଗରିକ ଓ ବାତ୍ୟା କ୍ଷତି ରିପୋର୍ଟର୍",
+                category = "Emergency & Transit",
+                iconEmoji = "📸",
+                descriptionEn = "Report waterlogging, fallen trees, broken electric lines with GPS & photo; offline queue with auto-sync.",
+                descriptionOd = "ଜଳବନ୍ଦୀ, ଭାଙ୍ଗିଥିବା ଗଛ ଓ ବିଦ୍ୟୁତ୍ ତାର ସମସ୍ୟା ଫଟୋ ଉଠାଇ ଅଫଲାଇନରେ ଦାୟର କରନ୍ତୁ, ନେଟ୍ ଆସିଲେ ସ୍ୱତଃ ସିଙ୍କ୍।",
+                tagText = "OFFLINE AUTO-SYNC",
+                primaryColor = Color(0xFFF5F3FF),
+                borderColor = Color(0xFFDDD6FE)
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.ITR_MISSILE_COASTAL_TRACKER,
+                titleEn = "ITR Chandipur Missile & Airspace Radar",
+                titleOd = "ଚାନ୍ଦିପୁର ITR କ୍ଷେପଣାସ୍ତ୍ର ପରୀକ୍ଷା ଓ ଉପକୂଳ ରାଡାର୍",
+                category = "Defense & Wildlife",
+                iconEmoji = "🚀",
+                descriptionEn = "NOTAM test windows, coastal safety belts, sonic boom alerts, and Kalam Island indigenous missile milestones.",
+                descriptionOd = "କ୍ଷେପଣାସ୍ତ୍ର ପରୀକ୍ଷା ସତର୍କତା, ମତ୍ସ୍ୟ ନିଷିଦ୍ଧାଞ୍ଚଳ ଓ କଲାମ ଦ୍ୱୀପ ଗୌରବମୟ ଇତିହାସ।",
+                tagText = "DRDO NOTAM RADAR",
+                primaryColor = Color(0xFF0F172A).copy(alpha = 0.05f),
+                borderColor = Color(0xFF0284C7)
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.SUBARNAREKHA_CROP_ADVISORY,
+                titleEn = "Crop Advisory & Soil Health Radar",
+                titleOd = "ସୁବର୍ଣ୍ଣରେଖା କୃଷି ଓ ପାନ ବରଜ ପରାମର୍ଶ",
+                category = "Agro & Marine",
+                iconEmoji = "🌾",
+                descriptionEn = "Subarnarekha basin soil salinity, Paan Baraja fungal blight prevention, and KVK scientist helpline.",
+                descriptionOd = "ପାନ ବରଜ ରୋଗ ନିରାକରଣ, ମାଟି ଲବଣାକ୍ତତା ଓ କୃଷି ବିଜ୍ଞାନ କେନ୍ଦ୍ର ତଥ୍ୟ।",
+                tagText = "KVK AGRONOMY",
+                primaryColor = Color(0xFFF0FDF4),
+                borderColor = Color(0xFF86EFAC)
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.BALASORE_SMART_TRANSIT_TRACKER,
+                titleEn = "Smart Commuter & Transit Radar",
+                titleOd = "ବାଲେଶ୍ୱର ସ୍ମାର୍ଟ ଯାତ୍ରୀ ଓ ବସ୍ ଟ୍ରାକର୍",
+                category = "Emergency & Transit",
+                iconEmoji = "🚌",
+                descriptionEn = "Sahadevkhunta bus schedules, platform bays, FM MCH shuttle frequency, and official auto tariff card.",
+                descriptionOd = "ସହଦେବଖୁଣ୍ଟା କେନ୍ଦ୍ରୀୟ ବସ୍ ଟର୍ମିନାଲ୍ ପ୍ରସ୍ଥାନ ସୂଚୀ ଓ ଅଟୋ ରିକ୍ସା ସରକାରୀ ଭଡ଼ା ଚାର୍ଟ।",
+                tagText = "TRANSIT & AUTO FARE",
+                primaryColor = Color(0xFFEFF6FF),
+                borderColor = Color(0xFF93C5FD)
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.FAKIR_MOHAN_STUDENT_HUB,
+                titleEn = "Fakir Mohan University Campus Hub",
+                titleOd = "ଫକୀର ମୋହନ ବିଶ୍ୱବିଦ୍ୟାଳୟ ଓ ଛାତ୍ର ହବ୍",
+                category = "Daily Pulse",
+                iconEmoji = "🎓",
+                descriptionEn = "FMU exam timetables, Medhabruti scholarship deadlines, and competitive recruitment exam alerts.",
+                descriptionOd = "ଏଫ୍ଏମ୍‌ୟୁ ପରୀକ୍ଷା ସୂଚୀ, ମେଧାବୃତ୍ତି ସର୍ବଶେଷ ତାରିଖ ଓ ବାଲେଶ୍ୱର ପରୀକ୍ଷା କେନ୍ଦ୍ର ତଥ୍ୟ।",
+                tagText = "CAMPUS & EXAMS",
+                primaryColor = Color(0xFFFDF4FF),
+                borderColor = Color(0xFFF0ABFC)
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.BALESWARI_CUISINE_EXPLORER,
+                titleEn = "Baleswari Cuisine & Sweet Trails",
+                titleOd = "ବାଲେଶ୍ୱର ଖାଦ୍ୟ ଓ ମିଠା ପରିକ୍ରମା",
+                category = "Artisans & Heritage",
+                iconEmoji = "🥘",
+                descriptionEn = "Remuna Khira Bhog, Nabadwip Sandesh, Mudhi-Mansha, Soro Chhena Gaja, and historic sweet shop guide.",
+                descriptionOd = "ରେମୁଣା ଅମୃତ କେଳି ଖିରଭୋଗ, ନବଦ୍ୱୀପ ସନ୍ଦେଶ, ମୁଢ଼ି ମାଂସ ଓ ପ୍ରସିଦ୍ଧ ଦୋକାନ ମାର୍ଗଦର୍ଶନ।",
+                tagText = "HERITAGE FOOD",
+                primaryColor = Color(0xFFFFFBEB),
+                borderColor = Color(0xFFFCD34D)
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.BALASORE_MOVIE_THEATRES,
+                titleEn = "Balasore Movie Theatres & Showtimes",
+                titleOd = "ବାଲେଶ୍ୱର ସିନେମା ହଲ୍ ଓ ଶୋ’ ସମୟ",
+                category = "Artisans & Heritage",
+                iconEmoji = "🎬",
+                descriptionEn = "Odean Cinema (Sahadevkhunta), MovieX (O. T. Road), Baleswar Talkies, Subham Cineplex & Samrat showtimes, fares & box office.",
+                descriptionOd = "ଓଡ଼ିଅନ୍ ସିନେମା (ସହଦେବଖୁଣ୍ଟା), ମୁଭିଏକ୍ସ (ଓ.ଟି. ରୋଡ୍), ବାଲେଶ୍ୱର ଟକିଜ୍ ଓ ଶୁଭମ୍ ସିନେପ୍ଲେକ୍ସ ଶୋ’ ସମୟ ଓ ଟିକେଟ୍ ଦର।",
+                tagText = "ODEAN • MOVIEX • 3D",
+                primaryColor = Color(0xFFFAF5FF),
+                borderColor = Color(0xFFC084FC)
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.TPNODL_POWER_OUTAGE_RADAR,
+                titleEn = "TPNODL Power Outage & Grid Radar",
+                titleOd = "TPNODL ବିଦ୍ୟୁତ୍ ସରବରାହ ଓ କଟ୍ ରାଡାର୍",
+                category = "Emergency & Transit",
+                iconEmoji = "⚡",
+                descriptionEn = "33/11kV feeder live status, scheduled maintenance cuts, transformer breakdown reporting & 1912 SOS.",
+                descriptionOd = "୩୩/୧୧ କେଭି ବିଦ୍ୟୁତ୍ ଫିଡର୍ ସ୍ଥିତି, କଟ୍ ଆକଳନ ଓ ୧୯୧୨ ତୁରନ୍ତ ହେଲ୍ପଲାଇନ୍।",
+                tagText = "1912 POWER SOS",
+                primaryColor = Color(0xFFFEF3C7),
+                borderColor = Color(0xFFF59E0B)
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.CHANDIPUR_BIOLUMINESCENCE_EXPLORER,
+                titleEn = "Chandipur Bioluminescence & Night Sea Walk",
+                titleOd = "ଚାନ୍ଦିପୁର ସମୁଦ୍ର ନୀଳ ଆଲୋକ ଓ ରାତ୍ରି ୱାଚ୍",
+                category = "Coastal & Estuary",
+                iconEmoji = "🌊",
+                descriptionEn = "Noctiluca scintillans bioluminescent sea sparkle index, night low-tide safe countdown & eco red torch.",
+                descriptionOd = "ଚାନ୍ଦିପୁର ଜୈବ-ଆଲୋକ ସମ୍ଭାବନା ସୂଚକାଙ୍କ, ନୀଳ ତରଙ୍ଗ ଦର୍ଶନ ଓ ରାତ୍ରିକାଳୀନ ଭଟ୍ଟା ସୁରକ୍ଷା।",
+                tagText = "NOCTURNAL GLOW",
+                primaryColor = Color(0xFF0F172A).copy(alpha = 0.05f),
+                borderColor = Color(0xFF38BDF8)
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.BALASORE_SNAKEBITE_ANTI_VENOM,
+                titleEn = "Snakebite & Anti-Venom (ASV) Emergency Radar",
+                titleOd = "ବାଲେଶ୍ୱର ସର୍ପାଘାତ ଓ ଆଣ୍ଟି-ଭେନମ୍ ରାଡାର",
+                category = "Health & Medical",
+                iconEmoji = "🐍",
+                descriptionEn = "Live Anti-Snake Venom (ASV) vial stock across FM MCH & Nilagiri SDH, snake ID guide & 108 ambulance dispatch.",
+                descriptionOd = "ଡାକ୍ତରଖାନା ASV ଇଞ୍ଜେକ୍ସନ୍ ମହଜୁଦ ତଥ୍ୟ, ଚିତି ଓ ଗୋଖର ସାପ ଚିହ୍ନଟ ଏବଂ ୧୦୮ ଆମ୍ବୁଲାନ୍ସ।",
+                tagText = "LIVE ASV STOCK 108",
+                primaryColor = Color(0xFFFEF2F2),
+                borderColor = Color(0xFFFCA5A5)
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.NILAGIRI_DOKRA_CRAFT_GUILD,
+                titleEn = "Nilagiri Dokra & Lost-Wax Metal Craft",
+                titleOd = "ନୀଳଗିରି ଡୋକ୍ରା ଓ କଂସା-ପିତ୍ତଳ ଗିଲ୍ଡ",
+                category = "Artisans & Heritage",
+                iconEmoji = "🎨",
+                descriptionEn = "Direct master artisan catalog for 4,000-year-old lost-wax tribal bell metal casting, zero middlemen.",
+                descriptionOd = "ନୀଳଗିରି ମିତ୍ରପୁର ଡୋକ୍ରା ପାରମ୍ପରିକ ଶିଳ୍ପୀ ତାଲିକା, ସିଧାସଳଖ ହସ୍ତଶିଳ୍ପ ଅର୍ଡର ଓ ଫୋନ୍ ସଂଯୋଗ।",
+                tagText = "TRIBAL DOKRA GUILD",
+                primaryColor = Color(0xFFFFFBEB),
+                borderColor = Color(0xFFFDE68A)
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.BAGHA_JATIN_FREEDOM_TRAIL,
+                titleEn = "Bagha Jatin & Chasakhand 1915 Battle Trail",
+                titleOd = "ବାଘା ଯତୀନ ଓ ଚାଷାଖଣ୍ଡ ସ୍ୱାଧୀନତା ଟ୍ରେଲ୍",
+                category = "Artisans & Heritage",
+                iconEmoji = "🇮🇳",
+                descriptionEn = "GPS self-guided audio tour of the 1915 Battle of Chasakhand on Budhabalanga river & memorial landmarks.",
+                descriptionOd = "୧୯୧୫ ଐତିହାସିକ ବୁଢ଼ାବଳଙ୍ଗ ଚାଷାଖଣ୍ଡ ଯୁଦ୍ଧ କ୍ଷେତ୍ର, ବାଘା ଯତୀନ ସ୍ମୃତିପୀଠ ଓ ଅଡିଓ ଗାଇଡ୍।",
+                tagText = "1915 BATTLE AUDIO",
+                primaryColor = Color(0xFFFFF7ED),
+                borderColor = Color(0xFFFDBA74)
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.KULDIHA_ECO_CORRIDOR_FIRE_RADAR,
+                titleEn = "Kuldiha Elephant Corridor & Forest Fire Radar",
+                titleOd = "କୁଲଡିହା କରିଡର ଓ ବନାଗ୍ନି ରାଡାର୍",
+                category = "Defense & Wildlife",
+                iconEmoji = "🐘",
+                descriptionEn = "Real-time elephant herd movement warnings for Nilagiri fringes & NASA FIRMS satellite forest fire radar.",
+                descriptionOd = "ଶିମିଳିପାଳ-କୁଲଡିହା ହାତୀ କରିଡର ସତର୍କତା ଓ ଉପଗ୍ରହ ବନାଗ୍ନି ତାପମାତ୍ରା ନିରୀକ୍ଷଣ।",
+                tagText = "SATELLITE ECO-WATCH",
+                primaryColor = Color(0xFFF0FDF4),
+                borderColor = Color(0xFF86EFAC)
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.BHOGRAI_CASHEW_GROUNDNUT_MANDI,
+                titleEn = "Bhograi Cashew & Groundnut Cluster Mandi",
+                titleOd = "ଭୋଗରାଇ କାଜୁ ଓ ଚିନାବାଦାମ ମଣ୍ଡି ରାଡାର୍",
+                category = "Agro & Marine",
+                iconEmoji = "🥜",
+                descriptionEn = "Daily Raw Cashew Nut (RCN) spot rates, Kernel Output Ratio (KOR) standards & interstate trade radar.",
+                descriptionOd = "ଭୋଗରାଇ-ବାଲିଆପାଳ କଞ୍ଚା କାଜୁ ଓ ବାଦାମ ମଣ୍ଡି ଦର, ମିଲ୍ ତାଲିକା ଏବଂ କିଷାନ୍ କଲ୍ ସେଣ୍ଟର।",
+                tagText = "CASHEW SPOT RATES",
+                primaryColor = Color(0xFFFFFBEB),
+                borderColor = Color(0xFFFCD34D)
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.RAIBANIA_FORTRESS_VAULT,
+                titleEn = "Raibania Medieval Fortress & Ganga Vault",
+                titleOd = "ରାଇବଣିଆ ଦୁର୍ଗ ପ୍ରତ୍ନତାତ୍ତ୍ୱିକ ଭଲ୍ଟ",
+                category = "Artisans & Heritage",
+                iconEmoji = "🏰",
+                descriptionEn = "13th-century cyclopean stone fortress, 161 defense moats, Jayachandi shrine & Ganga dynasty vault.",
+                descriptionOd = "୧୩ଶ ଶତାବ୍ଦୀର ବିଶାଳ ପ୍ରସ୍ତର ଦୁର୍ଗ, ୧୬୧ ଗଡ଼ଖାଇ, ମା' ଜୟଚଣ୍ଡୀ ପୀଠ ଓ ଗଙ୍ଗ ବଂଶ ଐତିହ୍ୟ।",
+                tagText = "13TH-CENTURY FORT",
+                primaryColor = Color(0xFFFFFBEB),
+                borderColor = Color(0xFFFDE68A)
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.BALARAMGADI_TRAWLER_FLEET_RADAR,
+                titleEn = "Balaramgadi Deep-Sea Trawler Fleet Radar",
+                titleOd = "ବଳରାମଗଡ଼ି ଗଭୀର ସମୁଦ୍ର ଟ୍ରଲର ଫ୍ଲିଟ୍",
+                category = "Coastal & Estuary",
+                iconEmoji = "🍤",
+                descriptionEn = "Budhabalanga harbor mechanized trawler departures, daily Tiger Prawn & Hilsa catch, and marine VHF 16.",
+                descriptionOd = "ମତ୍ସ୍ୟ ବନ୍ଦର ଟ୍ରଲର ସ୍ଥିତି, ବାଘ ଚିଙ୍ଗୁଡ଼ି ଓ ଇଲିସି ଧରା ପରିମାଣ ଏବଂ ତଟରକ୍ଷୀ ୧୫୫୪।",
+                tagText = "DEEP-SEA TRAWLERS",
+                primaryColor = Color(0xFFEFF6FF),
+                borderColor = Color(0xFF93C5FD)
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.NILAGIRI_LACQUER_BAMBOO_GUILD,
+                titleEn = "Nilagiri Royal Lacquer & Bamboo Craft Guild",
+                titleOd = "ନୀଳଗିରି ଲାଖ ଶିଳ୍ପ ଓ ବାଉଁଶ ଗିଲ୍ଡ",
+                category = "Artisans & Heritage",
+                iconEmoji = "🌾",
+                descriptionEn = "Handcrafted royal lacquer bangles (ଲାଖ ଶଙ୍ଖା), lacquered toys, and Swarna Rekha bamboo weaving SHGs.",
+                descriptionOd = "ରାଜକୀୟ ଲାଖ ଶଙ୍ଖା, ଲାଖ ଖେଳଣା ଏବଂ ସୁବର୍ଣ୍ଣରେଖା ବାଉଁଶ ଶିଳ୍ପୀ ମହିଳା କ୍ଲଷ୍ଟର।",
+                tagText = "ROYAL LACQUER SHG",
+                primaryColor = Color(0xFFFFFBEB),
+                borderColor = Color(0xFFFDE68A)
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.BALASORE_DISTRICT_BLOOD_DONOR_GRID,
+                titleEn = "Balasore District Blood Bank & Donor Grid",
+                titleOd = "ଜିଲ୍ଲା ରକ୍ତଭଣ୍ଡାର ଓ ଦାତା ଗ୍ରିଡ୍",
+                category = "Health & Medical",
+                iconEmoji = "🩸",
+                descriptionEn = "Live blood bank reserves at FM MCH & DHH Balasore, rare negative group registry & emergency donor SOS.",
+                descriptionOd = "ଏଫ୍ଏମ୍ ଏମସିଏଚ୍ ଓ ଡିଏଚ୍ଏଚ୍ ରକ୍ତ ମହଜୁଦ ତଥ୍ୟ, ନେଗେଟିଭ୍ ଗ୍ରୁପ୍ ତାଲିକା ଓ ଜରୁରୀ ସହାୟତା।",
+                tagText = "LIVE BLOOD 104",
+                primaryColor = Color(0xFFFEF2F2),
+                borderColor = Color(0xFFFCA5A5)
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.SUBARNAREKHA_FLOOD_SLUICE_TELEMETRY,
+                titleEn = "Subarnarekha River Basin Flood & Sluice Radar",
+                titleOd = "ସୁବର୍ଣ୍ଣରେଖା ବନ୍ୟା ଓ ସ୍ଲୁଇସ୍ ଗେଟ୍ ରାଡାର୍",
+                category = "Coastal & Estuary",
+                iconEmoji = "🌊",
+                descriptionEn = "Rajghat hydrometric river gauge (9.45m danger), 18 coastal sluice gates telemetry & ODRAF 1077 SOS.",
+                descriptionOd = "ରାଜଘାଟ ଜଳସ୍ତର ମାପ, ଭୋଗରାଇ ୧୮ଟି ସ୍ଲୁଇସ୍ ଗେଟ୍ ସ୍ଥିତି ଏବଂ ବନ୍ୟା ନିୟନ୍ତ୍ରଣ କକ୍ଷ ୧୦୭୭।",
+                tagText = "RAJGHAT GAUGE SOS",
+                primaryColor = Color(0xFFEFF6FF),
+                borderColor = Color(0xFF7DD3FC)
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.BALASORE_YOUTH_WELLNESS_STUDY_CIRCLE,
+                titleEn = "Youth Mental Wellness & Aspirant Study Circle",
+                titleOd = "ଯୁବ ମାନସିକ ସ୍ୱାସ୍ଥ୍ୟ ଓ ଅଧ୍ୟୟନ ସର୍କଲ",
+                category = "Daily Pulse",
+                iconEmoji = "🧘",
+                descriptionEn = "Tele-MANAS (14416) tele-counselling, exam stress wellness, and peer study circles for OPSC & Police aspirants.",
+                descriptionOd = "ଟେଲି-ମାନସ ୧୪୪୧୬ ମାଗଣା ପରାମର୍ଶ, ପରୀକ୍ଷା ଚାପ ନିରାକରଣ ଓ ପ୍ରତିଯୋଗିତା ଅଧ୍ୟୟନ ହବ୍।",
+                tagText = "TELE-MANAS 14416",
+                primaryColor = Color(0xFFFAF5FF),
+                borderColor = Color(0xFFD8B4FE)
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.BALASORE_OFFLINE_MAP_TILES,
+                titleEn = "Google Maps Offline Tiles & Outage Navigator",
+                titleOd = "ଅଫଲାଇନ୍ ଗୁଗୁଲ୍ ମ୍ୟାପ୍ସ ଟାଇଲ୍ ଓ ନାଭିଗେସନ୍",
+                category = "Emergency & Transit",
+                iconEmoji = "🗺️",
+                descriptionEn = "Pre-cached Google Maps raster tile packs for 8 key Balasore zones, zero-network turn-by-turn routing & cyclone outage simulator.",
+                descriptionOd = "ବାଲେଶ୍ୱରର ୮ଟି ପ୍ରମୁଖ ଅଞ୍ଚଳ ପାଇଁ ଅଫଲାଇନ୍ ମ୍ୟାପ୍ ଟାଇଲ୍, ନେଟୱାର୍କ ବିଚ୍ଛିନ୍ନ ସମୟରେ ଜରୁରୀ ରୁଟ୍ ନାଭିଗେସନ୍।",
+                tagText = "OFFLINE TILES & GPS",
+                primaryColor = Color(0xFFF0FDF4),
+                borderColor = Color(0xFF34D399)
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.OSM_OFFLINE_TOURISM_MAP,
+                titleEn = "OSMDroid Offline Tourism Map Tiles",
+                titleOd = "OSMDroid ଅଫଲାଇନ୍ ପର୍ଯ୍ୟଟନ ମ୍ୟାପ୍ ଟାଇଲ୍ସ",
+                category = "Tourism & Heritage",
+                iconEmoji = "🧭",
+                descriptionEn = "Autonomous OpenStreetMap offline tile provider for Balasore tourism spots, beaches, and heritage trails with zero data connection.",
+                descriptionOd = "କୌଣସି ଡାଟା ନେଟୱାର୍କ ବିନା ବାଲେଶ୍ୱରର ସମସ୍ତ ପର୍ଯ୍ୟଟନ ସ୍ଥଳୀ, ବେଳାଭୂମି ଓ ଐତିହ୍ୟ ପାଇଁ OSMDroid ଅଫଲାଇନ୍ ମ୍ୟାପ୍ ଟାଇଲ୍ସ।",
+                tagText = "OSMDROID OFFLINE",
+                primaryColor = Color(0xFFF0FDF9),
+                borderColor = Color(0xFF0D9488)
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.HISTORICAL_D3_WEATHER_TIDAL_TRENDS,
+                titleEn = "D3 Historical Weather & Tidal Trends",
+                titleOd = "D3 ଐତିହାସିକ ପାଣିପାଗ ଓ ଜୁଆର ଟ୍ରେଣ୍ଡ୍",
+                category = "Weather & Coastal",
+                iconEmoji = "📊",
+                descriptionEn = "D3.js SVG-driven visual analytics for historical weather, diurnal temperatures, monsoon rainfall & Chandipur vanishing sea trends.",
+                descriptionOd = "D3.js SVG ଭିତ୍ତିକ ଐତିହାସିକ ପାଣିପାଗ, ତାପମାତ୍ରା, ବର୍ଷା ଓ ଚାନ୍ଦିପୁର ଜୁଆର-ଭଟ୍ଟାର ସମ୍ପୂର୍ଣ୍ଣ ଅଫଲାଇନ୍ ବିଶ୍ଳେଷଣ।",
+                tagText = "D3.JS OFFLINE",
+                primaryColor = Color(0xFFFFF7ED),
+                borderColor = Color(0xFFFB923C)
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.OFFICIAL_TOURISM_EVENT_POSTER_SCANNER,
+                titleEn = "ML Kit Tourism & Event Posters QR Scanner",
+                titleOd = "ML Kit ପର୍ଯ୍ୟଟନ ଓ ଉତ୍ସବ ପୋଷ୍ଟର କ୍ୟୁଆର୍ ସ୍କାନର୍",
+                category = "Tourism & Heritage",
+                iconEmoji = "📷",
+                descriptionEn = "Scan official Balasore tourism flyers, festival posters & administrative event notices with Google ML Kit barcode intelligence.",
+                descriptionOd = "ଗୁଗଲ ML Kit ସହାୟତାରେ ବାଲେଶ୍ୱରର ସମସ୍ତ ସରକାରୀ ଉତ୍ସବ, ମହୋତ୍ସବ ଓ ପର୍ଯ୍ୟଟନ ପୋଷ୍ଟରର କ୍ୟୁଆର୍ କୋଡ୍ ତୁରନ୍ତ ସ୍କାନ୍ କରନ୍ତୁ।",
+                tagText = "GOOGLE ML KIT",
+                primaryColor = Color(0xFFFEF3C7),
+                borderColor = Color(0xFFF59E0B)
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.MARINE_FISHERMEN_HIGH_SEAS_SOS,
+                titleEn = "High-Seas Marine Fishermen SOS & Port Distress",
+                titleOd = "ଗଭୀର ସମୁଦ୍ର ମତ୍ସ୍ୟଜୀବୀ ଜରୁରୀକାଳୀନ SOS ଡେସ୍କ",
+                category = "Coastal & Estuary",
+                iconEmoji = "🚨",
+                descriptionEn = "11 Port warning distress signals, Coast Guard SOS 1554 audio beacon, wave height gauges & safe harbor vector routing.",
+                descriptionOd = "୧୧ଟି ବନ୍ଦର ବିପଦ ସଙ୍କେତ, କୋଷ୍ଟଗାର୍ଡ ୧୫୫୪ ଜରୁରୀକାଳୀନ ଅଡିଓ ବିକନ୍, ତରଙ୍ଗ ଉଚ୍ଚତା ଓ ନିରାପଦ ପୋତାଶ୍ରୟ ନାଭିଗେସନ୍।",
+                tagText = "COAST GUARD 1554",
+                primaryColor = Color(0xFFFEF2F2),
+                borderColor = Color(0xFFFCA5A5)
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.BALESWARI_CULINARY_GI_TRAIL,
+                titleEn = "Baleswari Heritage Cuisine & Remuna Gaja Trail",
+                titleOd = "ବାଲେଶ୍ୱରୀ ଖିରି, ଛେନା ଗଜା ଓ ଘୃତ କ୍ଷୀର ଭୋଗ",
+                category = "Agro & Food",
+                iconEmoji = "🍲",
+                descriptionEn = "Remuna Khirachora Gopinath Amruta Keli, Balasore Chhena Gaja GI heritage trail & certified traditional sweetmakers.",
+                descriptionOd = "ରେମୁଣା ଖିରଚୋରା ଗୋପୀନାଥଙ୍କ ଅମୃତ କେଳି, ବାଲେଶ୍ୱର ଛେନା ଗଜା ଜିଆଇ ଇତିହାସ ଓ ବିଶୁଦ୍ଧ ମିଠା ଦୋକାନ ସୂଚୀ।",
+                tagText = "GI HERITAGE FOOD",
+                primaryColor = Color(0xFFFFFBEB),
+                borderColor = Color(0xFFFDE68A)
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.WARD_FLOOD_EVACUATION_ROUTER,
+                titleEn = "Micro-Ward Inundation & Flood Evacuation Router",
+                titleOd = "ମାଇକ୍ରୋ-ୱାର୍ଡ ଜଳବନ୍ଦୀ ଓ ସୁରକ୍ଷିତ ଉଚ୍ଚସ୍ଥାନ ରାଉଟର୍",
+                category = "Emergency & Transit",
+                iconEmoji = "🌊",
+                descriptionEn = "Waterlogging telemetry in low-lying Balasore municipal wards, high-ground evacuation routing & dry relief posts.",
+                descriptionOd = "ନୀଳଗିରି, ମୋତିଗଞ୍ଜ ଓ ତଳିଆ ୱାର୍ଡ ଜଳବନ୍ଦୀ ଟେଲିମେଟ୍ରି, ଉଚ୍ଚସ୍ଥାନ ଆଶ୍ରୟସ୍ଥଳକୁ ସୁରକ୍ଷିତ ରାସ୍ତା ଓ ରିଲିଫ୍ କେନ୍ଦ୍ର।",
+                tagText = "HIGH-GROUND GPS",
+                primaryColor = Color(0xFFEFF6FF),
+                borderColor = Color(0xFF7DD3FC)
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.KULDIHA_ELEPHANT_CORRIDOR_SENTINEL,
+                titleEn = "Kuldiha Elephant Corridor Sentinel & Early Warning",
+                titleOd = "କୁଲଡିହା ହାତୀ ଚଳପ୍ରଚଳ ସେଣ୍ଟିନେଲ୍ ଓ ଆଗୁଆ ସତର୍କତା",
+                category = "Defense & Wildlife",
+                iconEmoji = "🐘",
+                descriptionEn = "Elephant herd migration radar across Kuldiha-Similipal corridor, solar thermal fences & forest patrol SOS alerts.",
+                descriptionOd = "କୁଲଡିହା-ଶିମିଳିପାଳ କରିଡରରେ ହାତୀପଲ ଚଳପ୍ରଚଳ ରାଡାର, ସୌର ବାଡ଼ ସ୍ଥିତି ଓ ବନ ବିଭାଗ କଣ୍ଟ୍ରୋଲ ରୁମ୍ ତତ୍କାଳ ସୂଚନା।",
+                tagText = "WILDLIFE TELEMETRY",
+                primaryColor = Color(0xFFF0FDF4),
+                borderColor = Color(0xFF86EFAC)
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.STUDENT_CAREER_LIBRARY_PULSE,
+                titleEn = "Balasore Student Career & Digital Library Pulse",
+                titleOd = "ବାଲେଶ୍ୱର ଛାତ୍ର ବୃତ୍ତି, ଡିଜିଟାଲ୍ ଲାଇବ୍ରେରୀ ଓ ନିଯୁକ୍ତି",
+                category = "AI Innovations",
+                iconEmoji = "📚",
+                descriptionEn = "District e-library seat availability, Medhabruti & PRERANA scholarship deadlines & OPSC/SSC exam study desks.",
+                descriptionOd = "ବାଲେଶ୍ୱର ଜିଲ୍ଲା ଲାଇବ୍ରେରୀ ସିଟ୍ ସ୍ଥିତି, ମେଧାବୃତ୍ତି ଓ ପ୍ରେରଣା ସ୍କଲାରସିପ୍ ତାରିଖ ଏବଂ ପ୍ରତିଯୋଗିତା ଅଧ୍ୟୟନ ଡେସ୍କ।",
+                tagText = "CAREER & SCHOLARSHIP",
+                primaryColor = Color(0xFFFAF5FF),
+                borderColor = Color(0xFFD8B4FE)
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.ROOFTOP_SOLAR_TPNODL_RADAR,
+                titleEn = "TPNODL Rooftop Solar & Surya Ghar Muft Bijli Radar",
+                titleOd = "ଛାତ ସୌର ଶକ୍ତି, TPNODL ନେଟ୍-ମିଟର ଓ ସୂର୍ଯ୍ୟ ଘର",
+                category = "Emergency & Transit",
+                iconEmoji = "☀️",
+                descriptionEn = "Live coastal solar radiation telemetry, net-metering tracker, ₹78,000 subsidy calculator & zero-bill estimator.",
+                descriptionOd = "ବାଲେଶ୍ୱର ସୌର ବିକିରଣ ତଥ୍ୟ, TPNODL ନେଟ୍-ମିଟର ଆବେଦନ, ପିଏମ୍ ସୂର୍ଯ୍ୟ ଘର ₹୭୮,୦୦୦ ସବସିଡି କାଲକୁଲେଟର।",
+                tagText = "₹78K SUBSIDY DESK",
+                primaryColor = Color(0xFFFEF3C7),
+                borderColor = Color(0xFFFCD34D)
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.TALASARI_UDAYPUR_RED_CRAB_SAFARI,
+                titleEn = "Talasari & Udaypur Red Ghost Crab Safari",
+                titleOd = "ତାଳସାରୀ ଓ ଉଦୟପୁର ଲାଲ୍ କଙ୍କଡ଼ା ସଫାରୀ",
+                category = "Coastal & Estuary",
+                iconEmoji = "🦀",
+                descriptionEn = "Live intertidal red ghost crab colony windows, Subarnarekha estuary ferry schedule & safe sandbar walking guide.",
+                descriptionOd = "ଭଟ୍ଟା ସମୟରେ ଲାଲ୍ କଙ୍କଡ଼ା କଲୋନୀ ପର୍ଯ୍ୟବେକ୍ଷଣ, ସୁବର୍ଣ୍ଣରେଖା ମୁହାଣ ଡଙ୍ଗା ଚଳାଚଳ ଓ ନିରାପଦ ବେଳାଭୂମି ରାସ୍ତା।",
+                tagText = "RED CRAB SAFARI",
+                primaryColor = Color(0xFFFFF1F2),
+                borderColor = Color(0xFFFECDD3)
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.PANCHALINGESWAR_WATERFALL_TREK_MONITOR,
+                titleEn = "Panchalingeswar Waterfall & Devagiri Trek",
+                titleOd = "ପଞ୍ଚଲିଙ୍ଗେଶ୍ୱର ଝରଣା ପ୍ରପାତ ଓ ୨୬୩ ପାହାଚ ଟ୍ରେକ୍",
+                category = "Defense & Wildlife",
+                iconEmoji = "⛰️",
+                descriptionEn = "Devagiri hill perennial waterfall flow velocity gauge, 263-step climb safety status, sanctum queue wait & eco-camp desk.",
+                descriptionOd = "ଦେବଗିରି ପାହାଡ଼ ଝରଣା ଜଳପ୍ରପାତ ବେଗ, ୨୬୩ ପାହାଚ ଚଢ଼ିବା ସୁରକ୍ଷା ପରାମର୍ଶ ଓ ପଞ୍ଚଲିଙ୍ଗ ସ୍ପର୍ଶ ଦର୍ଶନ ସୂଚୀ।",
+                tagText = "WATERFALL TREK",
+                primaryColor = Color(0xFFF0FDFA),
+                borderColor = Color(0xFF99F6E4)
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.EMAMI_JAGANNATH_REMUNA_HERITAGE,
+                titleEn = "Emami Jagannath & Remuna Amruta Keli Bhog",
+                titleOd = "ଇମାମୀ ଜଗନ୍ନାଥ ମନ୍ଦିର ଓ ରେମୁଣା କ୍ଷୀରଭୋଗ",
+                category = "Artisans & Heritage",
+                iconEmoji = "🛕",
+                descriptionEn = "Khirachora Gopinath Amruta Keli pot counter, Emami Jagannath daily ritual clock & Remuna brass bell-metal guild.",
+                descriptionOd = "ରେମୁଣା ଖିରଚୋରା ଗୋପୀନାଥଙ୍କ ଅମୃତ କେଳି ମାଟି ହାଣ୍ଡି କାଉଣ୍ଟର, ଇମାମୀ ମନ୍ଦିର ନୀତିକାନ୍ତି ଓ କଂସା ଶିଳ୍ପୀ ହାଟ।",
+                tagText = "AMRUTA KELI BHOG",
+                primaryColor = Color(0xFFFFFBEB),
+                borderColor = Color(0xFFFDE68A)
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.BALARAMGADI_FISH_MANDI_RATES,
+                titleEn = "Balaramgadi Fish Mandi & Trawler Landing Rates",
+                titleOd = "ବଳରାମଗଡ଼ି ମତ୍ସ୍ୟ ମଣ୍ଡି ଓ ଟ୍ରଲର ନିଲାମ ଦର",
+                category = "Agro & Food",
+                iconEmoji = "🐟",
+                descriptionEn = "Daily Hilsa, Tiger Prawn, White Pomfret, Mud Crab wholesale & retail price index from Budhabalanga estuary.",
+                descriptionOd = "ବଳରାମଗଡ଼ି ମୁହାଣ ଇଲିଶି, ବାଘ ଚିଙ୍ଗୁଡ଼ି, ପମ୍ଫ୍ରେଟ୍ ଓ କଙ୍କଡ଼ା ନିଲାମ ଦର ଏବଂ ଟ୍ରଲର ଅବତରଣ ସୂଚନା।",
+                tagText = "FRESH CATCH RADAR",
+                primaryColor = Color(0xFFF0F9FF),
+                borderColor = Color(0xFFBAE6FD)
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.TOWN_AUTO_RICKSHAW_FARE_CALCULATOR,
+                titleEn = "Town Auto & Toto Benchmark Fare Calculator",
+                titleOd = "ବାଲେଶ୍ୱର ଅଟୋ ଓ ଟୋଟୋ ନ୍ୟାଯ୍ୟ ଭଡ଼ା କାଲକୁଲେଟର୍",
+                category = "Emergency & Transit",
+                iconEmoji = "🛺",
+                descriptionEn = "RTO Balasore fair route fare estimator (Station, Chandipur, Remuna), day vs. night surcharge & police hotline.",
+                descriptionOd = "ରେଳ ଷ୍ଟେସନ, ଚାନ୍ଦିପୁର, ରେମୁଣା ରୁଟ୍ ରିଜର୍ଭ ଓ ଶେୟାରିଂ ଭଡ଼ା, ଅଧିକ ଭଡ଼ା ନିୟନ୍ତ୍ରଣ ଓ ଆରଟିଓ ହେଲ୍ପଲାଇନ।",
+                tagText = "RTO FARE METER",
+                primaryColor = Color(0xFFFFF7ED),
+                borderColor = Color(0xFFFED7AA)
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.WARD_SANITATION_GARBAGE_VEHICLE_TRACKER,
+                titleEn = "Ward Sanitation & Door-to-Door Waste Radar",
+                titleOd = "ୱାର୍ଡ ପରିମଳ ଓ ଘରକୁ ଘର ଅଳିଆ ଗାଡ଼ି ଟ୍ରାକର୍",
+                category = "Emergency & Transit",
+                iconEmoji = "🚛",
+                descriptionEn = "Balasore Municipality ward-wise door-to-door collection vehicle ETAs, driver roster & wet/dry segregation guide.",
+                descriptionOd = "ବାଲେଶ୍ୱର ପୌରପାଳିକା ୱାର୍ଡ ନମ୍ବର ଅନୁସାରେ ଟିପର/ଇ-କାର୍ଟ ଆଗମନ ସମୟ ଓ ସ୍ୱଚ୍ଛ ସର୍ଭେକ୍ଷଣ ପରାମର୍ଶ।",
+                tagText = "SWACCH BALASORE",
+                primaryColor = Color(0xFFF0FDF4),
+                borderColor = Color(0xFFBBF7D0)
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.BALASORE_INDUSTRIAL_JOB_APPRENTICE_BOARD,
+                titleEn = "Balasore Industrial Corridor Job & Apprentice Board",
+                titleOd = "ବାଲେଶ୍ୱର ଶିଳ୍ପାଞ୍ଚଳ ନିଯୁକ୍ତି ଓ ଆପ୍ରେଣ୍ଟିସ୍ ବୋର୍ଡ",
+                category = "Emergency & Transit",
+                iconEmoji = "🏭",
+                descriptionEn = "Verified vacancies & NATS/NAPS apprentice stipends across Somnathpur, Kuruda, Emami Paper, Balasore Alloys & Birla.",
+                descriptionOd = "ସୋମନାଥପୁର, କୁରୁଡ଼ା ଓ ଛାନପୁର କାରଖାନାରେ ଆଇଟିଆଇ, ଡିପ୍ଲୋମା ଓ ଇଞ୍ଜିନିୟରିଂ ଶିକ୍ଷାନବିଶ ଓ ସ୍ଥାୟୀ ନିଯୁକ୍ତି।",
+                tagText = "IDCO JOB BOARD",
+                primaryColor = Color(0xFFEEF2FF),
+                borderColor = Color(0xFFC7D2FE)
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.KRUSHAK_PACS_MANDI_GRAIN_RADAR,
+                titleEn = "Krushak PACS Dhan Mandi & MSP Procurement",
+                titleOd = "କୃଷକ PACS ଧାନ ମଣ୍ଡି ଓ ସରକାରୀ ଏମଏସପି କ୍ରୟ",
+                category = "Agro & Food",
+                iconEmoji = "🌾",
+                descriptionEn = "Official paddy MSP rates (₹2,320/Qtl), moisture limit FAQ (<17%), PACS mandi token status & direct DBT payments.",
+                descriptionOd = "ରେମୁଣା, ସୋର, ଜଳେଶ୍ୱର ଧାନ ମଣ୍ଡି ଟୋକନ୍ ନମ୍ବର, ୧୭% ରୁ କମ୍ ଆର୍ଦ୍ରତା ନିୟମ ଓ କୃଷି ବିଭାଗ ସହାୟତା।",
+                tagText = "PACS DHAN MANDI",
+                primaryColor = Color(0xFFF0FDF4),
+                borderColor = Color(0xFFBBF7D0)
+            )
+        )
+    }
+
+    val categories = listOf(
+        "All",
+        "AI Innovations",
+        "Daily Pulse",
+        "Coastal & Estuary",
+        "Artisans & Heritage",
+        "Defense & Wildlife",
+        "Health & Medical",
+        "Agro & Marine",
+        "Emergency & Transit"
+    )
+
+    val cleanQuery = searchQuery.trim()
+
+    val filteredFeatures = remember(cleanQuery, selectedCategory, selectedScope) {
+        if (selectedScope == FeaturesSearchScope.NEWS_ARTICLES) return@remember emptyList()
+        allFeatures.filter { item ->
+            val matchesCategory = (selectedCategory == "All" || item.category == selectedCategory)
+            val matchesSearch = cleanQuery.isBlank() ||
+                item.titleEn.contains(cleanQuery, ignoreCase = true) ||
+                item.titleOd.contains(cleanQuery, ignoreCase = true) ||
+                item.descriptionEn.contains(cleanQuery, ignoreCase = true) ||
+                item.descriptionOd.contains(cleanQuery, ignoreCase = true) ||
+                item.tagText.contains(cleanQuery, ignoreCase = true) ||
+                item.category.contains(cleanQuery, ignoreCase = true)
+            matchesCategory && matchesSearch
+        }
+    }
+
+    val filteredNews = remember(cleanQuery, selectedCategory, selectedScope, newsArticles) {
+        if (selectedScope == FeaturesSearchScope.FEATURE_CARDS) return@remember emptyList()
+        newsArticles.filter { article ->
+            val matchesCategory = (selectedCategory == "All" ||
+                article.category.equals(selectedCategory, ignoreCase = true) ||
+                (selectedCategory == "Local Politics" && (article.category.equals("Local Politics", ignoreCase = true) || article.category.equals("Politics", ignoreCase = true) || article.category.contains("Civic", ignoreCase = true))) ||
+                (selectedCategory == "Coastal Alerts" && (article.category.equals("Coastal Alerts", ignoreCase = true) || article.category.equals("Coastal", ignoreCase = true) || article.title.contains("Alert", ignoreCase = true))) ||
+                (selectedCategory == "Tourism Updates" && (article.category.equals("Tourism Updates", ignoreCase = true) || article.category.equals("Tourism", ignoreCase = true) || article.category.equals("Culture", ignoreCase = true))) ||
+                (selectedCategory == "Emergency & Transit" && (article.category.equals("Safety", ignoreCase = true) || article.category.equals("Transit", ignoreCase = true) || article.category.equals("Emergency", ignoreCase = true))) ||
+                (selectedCategory == "Health & Medical" && article.category.equals("Health", ignoreCase = true)) ||
+                (selectedCategory == "Coastal & Estuary" && (article.category.equals("Coastal", ignoreCase = true) || article.category.equals("Maritime", ignoreCase = true) || article.category.equals("Coastal Alerts", ignoreCase = true))) ||
+                (selectedCategory == "Agro & Marine" && (article.category.equals("Agro", ignoreCase = true) || article.category.equals("Agriculture", ignoreCase = true) || article.category.equals("Fisheries", ignoreCase = true))))
+            val matchesSearch = cleanQuery.isBlank() ||
+                article.title.contains(cleanQuery, ignoreCase = true) ||
+                article.odiaTitle.contains(cleanQuery, ignoreCase = true) ||
+                article.snippet.contains(cleanQuery, ignoreCase = true) ||
+                article.odiaSnippet.contains(cleanQuery, ignoreCase = true) ||
+                article.category.contains(cleanQuery, ignoreCase = true) ||
+                article.source.contains(cleanQuery, ignoreCase = true) ||
+                article.content.contains(cleanQuery, ignoreCase = true)
+            matchesCategory && matchesSearch
+        }
+    }
+
+    LazyColumn(
+        modifier = modifier
+            .fillMaxSize()
+            .testTag("special_features_screen_list"),
+        contentPadding = PaddingValues(bottom = 90.dp)
+    ) {
+        // Hero Banner: Curated Balasore Specialties
+        item {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp)
+                    .clip(RoundedCornerShape(24.dp))
+                    .background(
+                        Brush.verticalGradient(
+                            listOf(Color(0xFF0F172A), OceanBlueDark, OceanBlue)
+                        )
+                    )
+                    .padding(20.dp)
+            ) {
+                Column {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = Color.White.copy(alpha = 0.2f)
+                        ) {
+                            Text(
+                                text = "BALASORE 360 SPECIALTIES",
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontWeight = FontWeight.ExtraBold,
+                                    letterSpacing = 1.sp,
+                                    fontSize = 9.5.sp,
+                                    color = Color(0xFF7DD3FC)
+                                ),
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                            )
+                        }
+
+                        Surface(
+                            shape = CircleShape,
+                            color = Color(0xFF22C55E),
+                            modifier = Modifier.size(10.dp)
+                        ) {}
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Text(
+                        text = if (language == AppLanguage.ODIA) "ବାଲେଶ୍ୱର ବିଶେଷ ସେବା ଓ ଐତିହ୍ୟ" else "Balasore Special Features",
+                        style = MaterialTheme.typography.headlineMedium.copy(
+                            fontWeight = FontWeight.ExtraBold,
+                            color = Color.White
+                        )
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = if (language == AppLanguage.ODIA)
+                            "ଭଟ୍ଟା ସମୟ, ହାତୀ କରିଡର, ୭୨-ଘଣ୍ଟା Recharts ଗ୍ରାଫ୍, ସ୍ୱାସ୍ଥ୍ୟସେବା, ସୌର ଶକ୍ତି ଓ ${allFeatures.size}ଟି ଦୈନିକ ଲାଇଭ୍ ହବ୍‌।"
+                        else
+                            "${allFeatures.size} curated live hubs: 72h Recharts tidal telemetry, private hospitals, salt pans, elephant radar, solar radar and flood telemetry.",
+                        style = MaterialTheme.typography.bodyMedium.copy(
+                            color = Color(0xFFE2E8F0),
+                            lineHeight = 20.sp
+                        )
+                    )
+                }
+            }
+        }
+
+        // Dynamic Language Switcher Banner Card (English ⇄ Odia)
+        if (onLanguageSelected != null) {
+            item {
+                LanguageSwitcherBannerCard(
+                    currentLanguage = language,
+                    onLanguageSelected = onLanguageSelected,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
+                )
+            }
+        }
+
+        // Live Daily Auto-Update Pulse Card
+        item {
+            DailyAutoUpdateCard(
+                dailyPulse = dailyPulse,
+                onRefresh = onRefreshDailyPulse,
+                onFeatureClick = onOpenFeatureSheet
+            )
+        }
+
+        // Quick Access: Auto-Update & Live Telemetry Center
+        item {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 4.dp)
+                    .clickable { onOpenFeatureSheet(UniqueFeatureSheetType.BALASORE_AUTO_UPDATE_CENTER) }
+                    .testTag("auto_update_center_quick_banner"),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF0F172A)),
+                border = BorderStroke(1.dp, Color(0xFF38BDF8))
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFF0369A1)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(text = "🔄", fontSize = 18.sp)
+                    }
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = if (language == AppLanguage.ODIA) "ସ୍ୱୟଂକ୍ରିୟ ନବୀକରଣ କେନ୍ଦ୍ର" else "Auto-Update & Telemetry Hub",
+                                style = MaterialTheme.typography.titleSmall.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White
+                                )
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Box(
+                                modifier = Modifier
+                                    .size(6.dp)
+                                    .clip(CircleShape)
+                                    .background(Color(0xFF4ADE80))
+                            )
+                        }
+                        Text(
+                            text = if (language == AppLanguage.ODIA) "୧୫ ମିନିଟ୍ ବ୍ୟବଧାନରେ ତଥ୍ୟ ସିଙ୍କ୍ • ଆପ୍ ଅପଡେଟ୍ ଯାଞ୍ଚ" else "15-min background sync • Force sync now & Play updates",
+                            style = MaterialTheme.typography.bodySmall.copy(
+                                color = Color(0xFF94A3B8),
+                                fontSize = 11.sp
+                            )
+                        )
+                    }
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                        contentDescription = "Open",
+                        tint = Color(0xFF38BDF8),
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+            }
+        }
+
+        // Search Field with Dynamic Real-Time Filtering
+        item {
+            OutlinedTextField(
+                value = searchQuery,
+                onValueChange = { searchQuery = it },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 6.dp)
+                    .testTag("special_features_search_input"),
+                placeholder = {
+                    Text(
+                        text = if (language == AppLanguage.ODIA) "ଫିଚର୍ କିମ୍ବା ଖବର ଖୋଜନ୍ତୁ (ଯଥା: ଟାଇଡ୍, ବାତ୍ୟା, ଡାକ୍ତର, ରେଳ)..."
+                        else "Search features or news (e.g. tide, cyclone, hospital, train)...",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = BentoSlate400,
+                        fontSize = 13.sp
+                    )
+                },
+                leadingIcon = {
+                    Icon(
+                        imageVector = Icons.Default.Search,
+                        contentDescription = "Search",
+                        tint = OceanBlue
+                    )
+                },
+                trailingIcon = {
+                    if (searchQuery.isNotEmpty()) {
+                        IconButton(onClick = { searchQuery = "" }) {
+                            Icon(
+                                imageVector = Icons.Default.Clear,
+                                contentDescription = "Clear",
+                                tint = BentoSlate400
+                            )
+                        }
+                    }
+                },
+                shape = RoundedCornerShape(14.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = OceanBlue,
+                    unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
+                    focusedContainerColor = MaterialTheme.colorScheme.surface,
+                    unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                    focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                    unfocusedTextColor = MaterialTheme.colorScheme.onSurface
+                ),
+                singleLine = true
+            )
+        }
+
+        // Scope Filter Chips Row (All / Feature Cards / News Articles)
+        item {
+            LazyRow(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 2.dp),
+                contentPadding = PaddingValues(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                item {
+                    FilterChip(
+                        selected = selectedScope == FeaturesSearchScope.ALL,
+                        onClick = { selectedScope = FeaturesSearchScope.ALL },
+                        label = {
+                            Text(
+                                text = if (language == AppLanguage.ODIA) "ସବୁ (${filteredFeatures.size + filteredNews.size})" else "All (${filteredFeatures.size + filteredNews.size})",
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontWeight = if (selectedScope == FeaturesSearchScope.ALL) FontWeight.Bold else FontWeight.Normal
+                                )
+                            )
+                        },
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = OceanBlue,
+                            selectedLabelColor = Color.White,
+                            containerColor = MaterialTheme.colorScheme.surface,
+                            labelColor = MaterialTheme.colorScheme.onSurface
+                        ),
+                        border = BorderStroke(
+                            1.dp,
+                            if (selectedScope == FeaturesSearchScope.ALL) OceanBlue else MaterialTheme.colorScheme.outlineVariant
+                        ),
+                        shape = RoundedCornerShape(20.dp),
+                        modifier = Modifier.testTag("features_search_scope_all")
+                    )
+                }
+                item {
+                    FilterChip(
+                        selected = selectedScope == FeaturesSearchScope.FEATURE_CARDS,
+                        onClick = { selectedScope = FeaturesSearchScope.FEATURE_CARDS },
+                        label = {
+                            Text(
+                                text = if (language == AppLanguage.ODIA) "✨ ଫିଚର୍ କାର୍ଡ (${filteredFeatures.size})" else "✨ Feature Cards (${filteredFeatures.size})",
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontWeight = if (selectedScope == FeaturesSearchScope.FEATURE_CARDS) FontWeight.Bold else FontWeight.Normal
+                                )
+                            )
+                        },
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = OceanBlue,
+                            selectedLabelColor = Color.White,
+                            containerColor = MaterialTheme.colorScheme.surface,
+                            labelColor = MaterialTheme.colorScheme.onSurface
+                        ),
+                        border = BorderStroke(
+                            1.dp,
+                            if (selectedScope == FeaturesSearchScope.FEATURE_CARDS) OceanBlue else MaterialTheme.colorScheme.outlineVariant
+                        ),
+                        shape = RoundedCornerShape(20.dp),
+                        modifier = Modifier.testTag("features_search_scope_cards")
+                    )
+                }
+                item {
+                    FilterChip(
+                        selected = selectedScope == FeaturesSearchScope.NEWS_ARTICLES,
+                        onClick = { selectedScope = FeaturesSearchScope.NEWS_ARTICLES },
+                        label = {
+                            Text(
+                                text = if (language == AppLanguage.ODIA) "📰 ଖବର (${filteredNews.size})" else "📰 News Articles (${filteredNews.size})",
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontWeight = if (selectedScope == FeaturesSearchScope.NEWS_ARTICLES) FontWeight.Bold else FontWeight.Normal
+                                )
+                            )
+                        },
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = OceanBlue,
+                            selectedLabelColor = Color.White,
+                            containerColor = MaterialTheme.colorScheme.surface,
+                            labelColor = MaterialTheme.colorScheme.onSurface
+                        ),
+                        border = BorderStroke(
+                            1.dp,
+                            if (selectedScope == FeaturesSearchScope.NEWS_ARTICLES) OceanBlue else MaterialTheme.colorScheme.outlineVariant
+                        ),
+                        shape = RoundedCornerShape(20.dp),
+                        modifier = Modifier.testTag("features_search_scope_news")
+                    )
+                }
+            }
+        }
+
+        // Category Filter Chips Row
+        item {
+            LazyRow(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 4.dp),
+                contentPadding = PaddingValues(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                items(categories) { category ->
+                    val isSelected = category == selectedCategory
+                    FilterChip(
+                        selected = isSelected,
+                        onClick = { selectedCategory = category },
+                        label = {
+                            Text(
+                                text = category,
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                                )
+                            )
+                        },
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = OceanBlue,
+                            selectedLabelColor = Color.White,
+                            containerColor = MaterialTheme.colorScheme.surface,
+                            labelColor = MaterialTheme.colorScheme.onSurface
+                        ),
+                        border = BorderStroke(
+                            1.dp,
+                            if (isSelected) OceanBlue else MaterialTheme.colorScheme.outlineVariant
+                        ),
+                        shape = RoundedCornerShape(20.dp)
+                    )
+                }
+            }
+        }
+
+        // Dynamic Search Match Count Summary Banner
+        if (cleanQuery.isNotEmpty()) {
+            item {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 4.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = CardDefaults.cardColors(containerColor = OceanBlue.copy(alpha = 0.08f)),
+                    border = BorderStroke(1.dp, OceanBlue.copy(alpha = 0.3f))
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 14.dp, vertical = 8.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.ManageSearch,
+                                contentDescription = "Search Matches",
+                                tint = OceanBlue,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = if (language == AppLanguage.ODIA)
+                                    "\"$cleanQuery\" ପାଇଁ ${filteredFeatures.size}ଟି ଫିଚର୍ ଓ ${filteredNews.size}ଟି ଖବର ମିଳିଲା"
+                                else
+                                    "\"$cleanQuery\": Found ${filteredFeatures.size} features & ${filteredNews.size} news",
+                                style = MaterialTheme.typography.bodySmall.copy(
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    fontSize = 11.5.sp
+                                ),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+
+                        Text(
+                            text = if (language == AppLanguage.ODIA) "ସଫା କରନ୍ତୁ" else "Clear",
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                color = OceanBlue,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 11.sp
+                            ),
+                            modifier = Modifier
+                                .clickable { searchQuery = "" }
+                                .padding(start = 8.dp)
+                        )
+                    }
+                }
+            }
+        }
+
+        // Empty State when no results found for query
+        if (cleanQuery.isNotEmpty() && filteredFeatures.isEmpty() && filteredNews.isEmpty()) {
+            item {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 16.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Surface(
+                            shape = CircleShape,
+                            color = OceanBlue.copy(alpha = 0.15f),
+                            modifier = Modifier.size(52.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = Icons.Default.SearchOff,
+                                    contentDescription = "No Results",
+                                    tint = OceanBlue,
+                                    modifier = Modifier.size(26.dp)
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text(
+                            text = if (language == AppLanguage.ODIA) "କୌଣସି ଫଳାଫଳ ମିଳିଲା ନାହିଁ" else "No Features or News Found",
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = if (language == AppLanguage.ODIA)
+                                "\"$cleanQuery\" ସହିତ ମେଳ ଖାଉଥିବା କୌଣସି ଫିଚର୍ କାର୍ଡ ବା ଖବର ମିଳିଲାନାହିଁ।"
+                            else
+                                "No features or news articles matched your search query \"$cleanQuery\".",
+                            style = MaterialTheme.typography.bodySmall.copy(
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                fontSize = 12.sp
+                            ),
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                        )
+                        Spacer(modifier = Modifier.height(14.dp))
+                        Text(
+                            text = if (language == AppLanguage.ODIA) "ଏହି ଶବ୍ଦଗୁଡ଼ିକ ଚେଷ୍ଟା କରନ୍ତୁ:" else "Popular Balasore Topics:",
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontWeight = FontWeight.Bold,
+                                color = BentoSlate500
+                            )
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        // Suggested Query Quick Chips
+                        val suggestions = listOf("Chandipur", "Cyclone", "Hospital", "Tide", "DRDO", "Railway", "Nilagiri", "Blood", "Remuna", "Hilsa")
+                        LazyRow(
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            items(suggestions) { suggestion ->
+                                Surface(
+                                    shape = RoundedCornerShape(12.dp),
+                                    color = OceanBlue.copy(alpha = 0.12f),
+                                    border = BorderStroke(0.5.dp, OceanBlue.copy(alpha = 0.3f)),
+                                    modifier = Modifier.clickable { searchQuery = suggestion }
+                                ) {
+                                    Text(
+                                        text = suggestion,
+                                        style = MaterialTheme.typography.labelSmall.copy(
+                                            color = OceanBlue,
+                                            fontWeight = FontWeight.SemiBold,
+                                            fontSize = 11.sp
+                                        ),
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // SECTION 1: Feature Cards List
+        if (filteredFeatures.isNotEmpty()) {
+            item {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp, vertical = 6.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = if (language == AppLanguage.ODIA) "${filteredFeatures.size}ଟି ବିଶେଷ ସୁବିଧା ହବ୍" else "${filteredFeatures.size} SPECIAL HUBS AVAILABLE",
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            letterSpacing = 0.5.sp
+                        )
+                    )
+
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = MaterialTheme.colorScheme.primaryContainer
+                    ) {
+                        Text(
+                            text = "TOUCH TO OPEN SHEET",
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                        )
+                    }
+                }
+            }
+
+            items(filteredFeatures, key = { it.sheetType.name }) { feature ->
+                SpecialFeatureCardItem(
+                    item = feature,
+                    language = language,
+                    onClick = { onOpenFeatureSheet(feature.sheetType) },
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
+                )
+            }
+        }
+
+        // SECTION 2: Filtered News Articles List
+        if (filteredNews.isNotEmpty()) {
+            item {
+                Spacer(modifier = Modifier.height(10.dp))
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp, vertical = 6.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = if (language == AppLanguage.ODIA) "${filteredNews.size}ଟି ପ୍ରାସଙ୍ଗିକ ଜିଲ୍ଲା ଖବର" else "${filteredNews.size} MATCHED NEWS ARTICLES",
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            fontWeight = FontWeight.Bold,
+                            color = OceanBlueDark,
+                            letterSpacing = 0.5.sp
+                        )
+                    )
+
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = OceanBlue.copy(alpha = 0.15f)
+                    ) {
+                        Text(
+                            text = "LIVE BULLETINS",
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = OceanBlue
+                            )
+                        )
+                    }
+                }
+            }
+
+            items(filteredNews, key = { "news_${it.id}" }) { article ->
+                SpecialFeatureNewsCardItem(
+                    article = article,
+                    language = language,
+                    searchQuery = cleanQuery,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
+                )
+            }
+        }
+    }
+}
+
+private data class ExpandedFeatureDetails(
+    val detailedOverview: String,
+    val bulletPoints: List<String>,
+    val regionalCoverage: String,
+    val dataPipelineBadge: String
+)
+
+private fun resolveExpandedFeatureDetails(item: SpecialFeatureItem, isOdia: Boolean): ExpandedFeatureDetails {
+    val categoryLower = item.category.lowercase()
+    return when {
+        categoryLower.contains("transit") || categoryLower.contains("transport") -> ExpandedFeatureDetails(
+            detailedOverview = if (isOdia) {
+                "${item.titleOd} ମଡ୍ୟୁଲ୍ ବାଲେଶ୍ୱର ଜିଲ୍ଲାର ସହଦେବଖୁଣ୍ଟା ବସ୍ ଷ୍ଟାଣ୍ଡ, ବାଲେଶ୍ୱର ରେଳ ଷ୍ଟେସନ (BLS), ଚାନ୍ଦିପୁର, ରେମୁଣା ଓ ନୀଳଗିରି ମଧ୍ୟରେ ଲାଇଭ୍ ଯାତାୟାତ ସମୟସାରଣୀ, GPS ଗତିବିଧି ଏବଂ ଭଡ଼ା ତାଲିକା ପ୍ରଦାନ କରେ।"
+            } else {
+                "The ${item.titleEn} module connects commuters and tourists across Sahadevkhunta Central Stand, Balasore Railway Junction (BLS), Chandipur, Remuna, Nilagiri, and NH-16 corridors with live GPS arrival/departure telemetry and offline Room timetable caching."
+            },
+            bulletPoints = if (isOdia) {
+                listOf(
+                    "ପ୍ରମୁଖ ରୁଟ୍ ପାଇଁ ଲାଇଭ୍ ଆଗମନ ଓ ପ୍ରସ୍ଥାନ ସମୟ (ETA)",
+                    "ଅଫଲାଇନ୍ Room ଡାଟାବେସ୍ ସମୟସାରଣୀ ସିଙ୍କ୍",
+                    "ପ୍ଲାଟଫର୍ମ ବେ, ଭଡ଼ା ଓ ଷ୍ଟପ୍-ବାଇ-ଷ୍ଟପ୍ ଟ୍ରାକିଂ"
+                )
+            } else {
+                listOf(
+                    "Live arrival & departure countdowns with route progress tracking",
+                    "Offline-first Room database caching for zero-network resilience",
+                    "Platform bay assignments, verified fare charts & stop-by-stop timelines"
+                )
+            },
+            regionalCoverage = if (isOdia) "ବାଲେଶ୍ୱର ଟାଉନ୍ • ଚାନ୍ଦିପୁର • ରେମୁଣା • ନୀଳଗିରି • ଜଳେଶ୍ୱର" else "Balasore Town • Chandipur • Remuna • Nilagiri • Jaleswar",
+            dataPipelineBadge = "CRUT Mo Bus & OSRTC Telemetry + Room Cache"
+        )
+        categoryLower.contains("defense") || categoryLower.contains("wildlife") -> ExpandedFeatureDetails(
+            detailedOverview = if (isOdia) {
+                "${item.titleOd} ମଡ୍ୟୁଲ୍ ଚାନ୍ଦିପୁର ପ୍ରତିରକ୍ଷା କ୍ଷେତ୍ର, କୁଲଡିହା ବନ୍ୟପ୍ରାଣୀ ଅଭୟାରଣ୍ୟ ଏବଂ ପଞ୍ଚଲିଙ୍ଗେଶ୍ୱର ଇକୋ-କରିଡର ପାଇଁ ସୁରକ୍ଷା ସୂଚନା, ହାତୀ ଚଳାଚଳ ସତର୍କତା ଏବଂ ଜୈବବିବିଧତା ତଥ୍ୟ ପ୍ରଦାନ କରେ।"
+            } else {
+                "Designed for Balasore's unique coastal defense and forest sanctuary zones, ${item.titleEn} provides real-time safety advisories, eco-trail checkpoints, wildlife corridor monitoring, and intertidal conservation rules."
+            },
+            bulletPoints = if (isOdia) {
+                listOf(
+                    "ଚାନ୍ଦିପୁର ଓ କୁଲଡିହା ଇକୋ-ଜୋନ୍ ଲାଇଭ୍ ସୁରକ୍ଷା ନିର୍ଦ୍ଦେଶାବଳୀ",
+                    "ହାତୀ କରିଡର ଓ ସାମୁଦ୍ରିକ ନିଷିଦ୍ଧାଞ୍ଚଳ ସତର୍କତା",
+                    "ଅଫଲାଇନ୍ ଟ୍ରେଲ୍ ମ୍ୟାପ୍ ଓ ବନ ବିଭାଗ ହେଲ୍ପଲାଇନ୍"
+                )
+            } else {
+                listOf(
+                    "Real-time safety advisories for Chandipur coast & Kuldiha forest range",
+                    "Active wildlife corridor & maritime exclusion zone alerts",
+                    "Verified forest checkpost timings, permit rules & emergency hotlines"
+                )
+            },
+            regionalCoverage = if (isOdia) "ଚାନ୍ଦିପୁର ITR • କୁଲଡିହା • ପଞ୍ଚଲିଙ୍ଗେଶ୍ୱର • ନୀଳଗିରି" else "Chandipur ITR • Kuldiha Sanctuary • Panchalingeswar • Nilagiri",
+            dataPipelineBadge = "Forest & Coastal Safety Telemetry"
+        )
+        categoryLower.contains("health") || categoryLower.contains("medical") || categoryLower.contains("emergency") -> ExpandedFeatureDetails(
+            detailedOverview = if (isOdia) {
+                "${item.titleOd} ମଡ୍ୟୁଲ୍ ବାଲେଶ୍ୱର ଜିଲ୍ଲା ମୁଖ୍ୟ ଚିକିତ୍ସାଳୟ (DHH), ଏଫ୍.ଏମ୍. ମେଡିକାଲ କଲେଜ, ୨୪x୭ ଔଷଧାଳୟ ଏବଂ ଜରୁରୀକାଳୀନ ଉଦ୍ଧାର ସେବା ସହ ନାଗରିକଙ୍କୁ ତୁରନ୍ତ ସଂଯୋଗ କରେ।"
+            } else {
+                "${item.titleEn} provides 24x7 rapid-response access to Fakir Mohan Medical College (FM MCH), District Headquarters Hospital, blood bank inventory, trauma care, and DDMA disaster response protocols."
+            },
+            bulletPoints = if (isOdia) {
+                listOf(
+                    "୨୪x୭ ଜରୁରୀକାଳୀନ ଟ୍ରମା, ଆମ୍ବୁଲାନ୍ସ (୧୦୮) ଓ ରକ୍ତ ଭଣ୍ଡାର ସୂଚନା",
+                    "ବିଶେଷଜ୍ଞ ଡାକ୍ତର OPD ସମୟ ଓ ରାତ୍ରିକାଳୀନ ଔଷଧ ଦୋକାନ",
+                    "ୱାନ୍-ଟ୍ୟାପ୍ SOS ଡାଏଲ୍ ଓ GPS ଦିଗନିର୍ଦ୍ଦେଶ"
+                )
+            } else {
+                listOf(
+                    "24x7 trauma care, ambulance (108) & live blood bank availability",
+                    "Verified specialist OPD schedules & night-chemist directories",
+                    "One-tap emergency calling and GPS route navigation"
+                )
+            },
+            regionalCoverage = if (isOdia) "ଏଫ୍.ଏମ୍. ମେଡିକାଲ କଲେଜ • DHH ବାଲେଶ୍ୱର • ୧୨ ଟି ବ୍ଲକ" else "FM MCH Remuna • DHH Balasore • All 12 Blocks",
+            dataPipelineBadge = "24x7 Health & Emergency Directory"
+        )
+        else -> ExpandedFeatureDetails(
+            detailedOverview = if (isOdia) {
+                "${item.titleOd} ମଡ୍ୟୁଲ୍ ବାଲେଶ୍ୱରର ନାଗରିକ, ପର୍ଯ୍ୟଟକ ଓ ସ୍ଥାନୀୟ ସମୁଦାୟ ପାଇଁ ଲାଇଭ୍ ଡାଟା, ଅଫଲାଇନ୍ ଆକ୍ସେସ୍ ଏବଂ ଦ୍ୱିभाषी (ଓଡ଼ିଆ ଓ ଇଂରାଜୀ) ସୂଚନା ପ୍ରଦାନ କରେ।"
+            } else {
+                "${item.titleEn} delivers real-time regional intelligence, interactive visual analytics, and offline-ready local records tailored specifically for Balasore citizens and visitors."
+            },
+            bulletPoints = if (isOdia) {
+                listOf(
+                    "ଇଣ୍ଟରାକ୍ଟିଭ୍ ଡ୍ୟାସବୋର୍ଡ ଓ ଲାଇଭ୍ ରିଜିଓନାଲ୍ ଅପଡେଟ୍",
+                    "ସମ୍ପୂର୍ଣ୍ଣ ଓଡ଼ିଆ ଏବଂ ଇଂରାଜୀ ଭାଷା ସମର୍ଥନ",
+                    "ଅଫଲାଇନ୍ Room କ୍ୟାଶ୍ ଓ କ୍ଲାଉଡ୍ ସିଙ୍କ୍ ସୁବିଧା"
+                )
+            } else {
+                listOf(
+                    "Interactive analytics, live status filtering & search",
+                    "Seamless bilingual support across English & Odia (ଓଡ଼ିଆ)",
+                    "Backed by local Room persistence and automatic background sync"
+                )
+            },
+            regionalCoverage = if (isOdia) "ସମଗ୍ର ବାଲେଶ୍ୱର ଜିଲ୍ଲା ଓ ଉପକୂଳ ଅଞ୍ଚଳ" else "Balasore District & Coastal Belt",
+            dataPipelineBadge = "Live Regional Sync + Offline Room DB"
+        )
+    }
+}
+
+@Composable
+fun SpecialFeatureCardItem(
+    item: SpecialFeatureItem,
+    language: AppLanguage,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+    var isHoveredOrFocused by remember { mutableStateOf(false) }
+    var isExpanded by remember { mutableStateOf(false) }
+    var readingStage by remember { mutableIntStateOf(0) }
+    val isOdia = language == AppLanguage.ODIA
+    val expandedDetails = remember(item.sheetType, isOdia) {
+        resolveExpandedFeatureDetails(item, isOdia)
+    }
+
+    // Automatically and progressively advance reading progress as the user reads through expanded content
+    LaunchedEffect(isExpanded) {
+        if (isExpanded) {
+            readingStage = 1
+            delay(650)
+            if (isExpanded && readingStage < 2) readingStage = 2
+            delay(850)
+            if (isExpanded && readingStage < 3) readingStage = 3
+        } else {
+            readingStage = 0
+        }
+    }
+
+    val targetReadingProgress = when {
+        !isExpanded -> 0.25f
+        readingStage <= 1 -> 0.48f
+        readingStage == 2 -> 0.76f
+        else -> 1.0f
+    }
+
+    val animatedReadingProgress by androidx.compose.animation.core.animateFloatAsState(
+        targetValue = targetReadingProgress,
+        animationSpec = tween(
+            durationMillis = 420,
+            easing = FastOutSlowInEasing
+        ),
+        label = "special_feature_reading_progress"
+    )
+
+    val animatedElevation by androidx.compose.animation.core.animateDpAsState(
+        targetValue = if (isHoveredOrFocused || isExpanded) 10.dp else 2.dp,
+        animationSpec = androidx.compose.animation.core.tween(durationMillis = 220),
+        label = "special_feature_card_shadow"
+    )
+    val animatedBorderWidth by androidx.compose.animation.core.animateDpAsState(
+        targetValue = if (isHoveredOrFocused || isExpanded) 1.8.dp else 1.dp,
+        animationSpec = androidx.compose.animation.core.tween(durationMillis = 220),
+        label = "special_feature_card_border"
+    )
+    val animatedIconRotation by androidx.compose.animation.core.animateFloatAsState(
+        targetValue = if (isExpanded) 360f else 0f,
+        animationSpec = tween(
+            durationMillis = 480,
+            easing = FastOutSlowInEasing
+        ),
+        label = "special_feature_icon_rotation"
+    )
+    val animatedChevronRotation by androidx.compose.animation.core.animateFloatAsState(
+        targetValue = if (isExpanded) 180f else 0f,
+        animationSpec = tween(
+            durationMillis = 320,
+            easing = FastOutSlowInEasing
+        ),
+        label = "special_feature_chevron_rotation"
+    )
+
+    com.example.ui.components.AnimatedFeatureCard(
+        modifier = modifier,
+        shape = RoundedCornerShape(18.dp),
+        shadowAccentColor = item.borderColor
+    ) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .animateContentSize(
+                    animationSpec = spring(
+                        dampingRatio = Spring.DampingRatioNoBouncy,
+                        stiffness = Spring.StiffnessMediumLow
+                    )
+                )
+                .pointerInput(Unit) {
+                    awaitPointerEventScope {
+                        while (true) {
+                            val event = awaitPointerEvent(PointerEventPass.Initial)
+                            when (event.type) {
+                                PointerEventType.Enter,
+                                PointerEventType.Press -> isHoveredOrFocused = true
+                                PointerEventType.Exit,
+                                PointerEventType.Release -> isHoveredOrFocused = false
+                            }
+                        }
+                    }
+                }
+                .clip(RoundedCornerShape(18.dp))
+                .clickable(
+                    interactionSource = interactionSource,
+                    indication = androidx.compose.material3.ripple(),
+                    onClick = { isExpanded = !isExpanded }
+                )
+                .testTag("special_feature_card_${item.sheetType.name.lowercase()}"),
+            shape = RoundedCornerShape(18.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            border = BorderStroke(
+                animatedBorderWidth,
+                if (isHoveredOrFocused || isExpanded) OceanBlue.copy(alpha = 0.65f) else item.borderColor
+            ),
+            elevation = CardDefaults.cardElevation(
+                defaultElevation = animatedElevation,
+                hoveredElevation = 10.dp,
+                focusedElevation = 10.dp,
+                pressedElevation = 6.dp
+            )
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(
+                        modifier = Modifier.weight(1f),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(42.dp)
+                                .graphicsLayer { rotationZ = animatedIconRotation }
+                                .clip(CircleShape)
+                                .background(item.primaryColor)
+                                .testTag("special_feature_icon_${item.sheetType.name.lowercase()}"),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(text = item.iconEmoji, fontSize = 20.sp)
+                        }
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column {
+                            Text(
+                                text = if (isOdia) item.titleOd else item.titleEn,
+                                style = MaterialTheme.typography.titleMedium.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    fontSize = 15.sp
+                                )
+                            )
+                            Text(
+                                text = item.category,
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    fontSize = 11.sp
+                                )
+                            )
+                        }
+                    }
+
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = item.primaryColor,
+                            border = BorderStroke(1.dp, item.borderColor)
+                        ) {
+                            Text(
+                                text = item.tagText,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontWeight = FontWeight.ExtraBold,
+                                    fontSize = 9.sp,
+                                    color = BentoSlate800
+                                )
+                            )
+                        }
+                        Icon(
+                            imageVector = Icons.Default.ExpandMore,
+                            contentDescription = if (isExpanded) "Collapse feature details" else "Expand feature details",
+                            tint = OceanBlue,
+                            modifier = Modifier
+                                .size(20.dp)
+                                .graphicsLayer { rotationZ = animatedChevronRotation }
+                                .testTag("special_feature_expand_icon_${item.sheetType.name.lowercase()}")
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                Text(
+                    text = if (isOdia) item.descriptionOd else item.descriptionEn,
+                    style = MaterialTheme.typography.bodySmall.copy(
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        lineHeight = 18.sp
+                    )
+                )
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                // Visual Reading & Information Depth Progress Bar Indicator
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("special_feature_progress_container_${item.sheetType.name.lowercase()}"),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = if (!isExpanded) {
+                                if (isOdia) {
+                                    "📊 ସୂଚନା ଗଭୀରତା: ୨୫% ସାରାଂଶ • +୩ଟି ବିସ୍ତୃତ ବିଭାଗ ଉପଲବ୍ଧ"
+                                } else {
+                                    "📊 Info Depth: 25% Summary • +3 Sections Available"
+                                }
+                            } else {
+                                val pct = (animatedReadingProgress * 100).toInt()
+                                if (isOdia) {
+                                    "📖 ପଠନ ଅଗ୍ରଗତି: $pct% (${readingStage.coerceAtLeast(1)}/୩ ବିଭାଗ ପଠିତ)"
+                                } else {
+                                    "📖 Reading Progress: $pct% (${readingStage.coerceAtLeast(1)}/3 Sections Read)"
+                                }
+                            },
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = if (isExpanded) OceanBlueDark else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        )
+                        Text(
+                            text = if (isExpanded && readingStage >= 3) {
+                                if (isOdia) "୧୦୦% ସମ୍ପୂର୍ଣ୍ଣ ✓" else "100% Read ✓"
+                            } else {
+                                "${(animatedReadingProgress * 100).toInt()}%"
+                            },
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = if (readingStage >= 3) Color(0xFF15803D) else OceanBlue
+                            )
+                        )
+                    }
+
+                    LinearProgressIndicator(
+                        progress = { animatedReadingProgress },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(5.dp)
+                            .clip(RoundedCornerShape(999.dp))
+                            .testTag("special_feature_reading_progress_${item.sheetType.name.lowercase()}"),
+                        color = if (readingStage >= 3) Color(0xFF16A34A) else OceanBlue,
+                        trackColor = item.borderColor.copy(alpha = 0.35f)
+                    )
+                }
+
+                // Expandable Descriptive Information Panel with Smooth Layout & Fade Transition
+                AnimatedVisibility(
+                    visible = isExpanded,
+                    enter = expandVertically(
+                        expandFrom = Alignment.Top,
+                        animationSpec = tween(
+                            durationMillis = 320,
+                            easing = FastOutSlowInEasing
+                        )
+                    ) + fadeIn(
+                        animationSpec = tween(
+                            durationMillis = 340,
+                            delayMillis = 40,
+                            easing = LinearOutSlowInEasing
+                        )
+                    ) + scaleIn(
+                        initialScale = 0.97f,
+                        transformOrigin = TransformOrigin(0.5f, 0f),
+                        animationSpec = tween(
+                            durationMillis = 320,
+                            easing = FastOutSlowInEasing
+                        )
+                    ),
+                    exit = shrinkVertically(
+                        shrinkTowards = Alignment.Top,
+                        animationSpec = tween(
+                            durationMillis = 260,
+                            easing = FastOutSlowInEasing
+                        )
+                    ) + fadeOut(
+                        animationSpec = tween(
+                            durationMillis = 200,
+                            easing = FastOutLinearInEasing
+                        )
+                    ) + scaleOut(
+                        targetScale = 0.97f,
+                        transformOrigin = TransformOrigin(0.5f, 0f),
+                        animationSpec = tween(
+                            durationMillis = 240,
+                            easing = FastOutLinearInEasing
+                        )
+                    )
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 12.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(item.primaryColor.copy(alpha = 0.55f))
+                            .padding(12.dp)
+                            .pointerInput(Unit) {
+                                awaitPointerEventScope {
+                                    while (true) {
+                                        val event = awaitPointerEvent(PointerEventPass.Initial)
+                                        if (event.type == PointerEventType.Press || event.type == PointerEventType.Move) {
+                                            readingStage = 3
+                                        }
+                                    }
+                                }
+                            }
+                            .testTag("special_feature_expanded_content_${item.sheetType.name.lowercase()}"),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        // Interactive Section Checkpoints
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            val sectionLabels = if (isOdia) {
+                                listOf("୧. ବିବରଣୀ", "୨. ବୈଶିଷ୍ଟ୍ୟ", "୩. ଆଞ୍ଚଳିକ ବ୍ୟାପ୍ତି")
+                            } else {
+                                listOf("1. Overview", "2. Capabilities", "3. Coverage")
+                            }
+                            sectionLabels.forEachIndexed { index, label ->
+                                val stageNum = index + 1
+                                val isReached = readingStage >= stageNum
+                                Surface(
+                                    shape = RoundedCornerShape(6.dp),
+                                    color = if (isReached) OceanBlue.copy(alpha = 0.14f) else MaterialTheme.colorScheme.surface.copy(alpha = 0.7f),
+                                    border = BorderStroke(
+                                        0.8.dp,
+                                        if (isReached) OceanBlue.copy(alpha = 0.5f) else item.borderColor
+                                    ),
+                                    modifier = Modifier.clickable { readingStage = stageNum }
+                                ) {
+                                    Text(
+                                        text = if (isReached) "✓ $label" else label,
+                                        fontSize = 9.5.sp,
+                                        fontWeight = if (isReached) FontWeight.ExtraBold else FontWeight.Medium,
+                                        color = if (isReached) OceanBlueDark else MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
+                                    )
+                                }
+                            }
+                        }
+
+                        Text(
+                            text = if (isOdia) "📖 ବିସ୍ତୃତ ବିବରଣୀ ଓ ମୁଖ୍ୟ ବୈଶିଷ୍ଟ୍ୟ:" else "📖 In-Depth Overview & Capabilities:",
+                            style = MaterialTheme.typography.labelMedium.copy(
+                                fontWeight = FontWeight.ExtraBold,
+                                color = OceanBlueDark,
+                                fontSize = 11.5.sp
+                            )
+                        )
+
+                        Text(
+                            text = expandedDetails.detailedOverview,
+                            style = MaterialTheme.typography.bodySmall.copy(
+                                color = MaterialTheme.colorScheme.onSurface,
+                                lineHeight = 17.sp,
+                                fontSize = 12.sp
+                            ),
+                            modifier = Modifier.clickable { if (readingStage < 2) readingStage = 2 }
+                        )
+
+                        Column(
+                            verticalArrangement = Arrangement.spacedBy(4.dp),
+                            modifier = Modifier.clickable { readingStage = 3 }
+                        ) {
+                            expandedDetails.bulletPoints.forEach { bullet ->
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.Top
+                                ) {
+                                    Text(
+                                        text = "✓ ",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        color = Color(0xFF15803D)
+                                    )
+                                    Text(
+                                        text = bullet,
+                                        fontSize = 11.5.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        lineHeight = 16.sp
+                                    )
+                                }
+                            }
+                        }
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "📍 ${expandedDetails.regionalCoverage}",
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = OceanBlueDark
+                            )
+                            Surface(
+                                shape = RoundedCornerShape(6.dp),
+                                color = MaterialTheme.colorScheme.surface
+                            ) {
+                                Text(
+                                    text = expandedDetails.dataPipelineBadge,
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = BentoSlate800,
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                )
+                            }
+                        }
+
+                        val featureShareContext = LocalContext.current
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 4.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            androidx.compose.material3.Button(
+                                onClick = onClick,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .testTag("special_feature_launch_btn_${item.sheetType.name.lowercase()}"),
+                                shape = RoundedCornerShape(10.dp),
+                                colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = OceanBlue)
+                            ) {
+                                Text(
+                                    text = if (isOdia) "ଇଣ୍ଟରାକ୍ଟିଭ୍ ହବ୍ ଖୋଲନ୍ତୁ" else "Launch Interactive Hub",
+                                    fontSize = 11.5.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                                    contentDescription = null,
+                                    tint = Color.White,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                            }
+
+                            Surface(
+                                onClick = {
+                                    com.example.util.ShareHelper.shareFeatureBoxDeepLink(
+                                        context = featureShareContext,
+                                        featureKey = item.sheetType.name,
+                                        title = item.titleEn,
+                                        odiaTitle = item.titleOd,
+                                        description = expandedDetails.detailedOverview,
+                                        category = item.category,
+                                        isOdia = isOdia
+                                    )
+                                },
+                                shape = RoundedCornerShape(10.dp),
+                                color = OceanBlue.copy(alpha = 0.1f),
+                                border = BorderStroke(1.dp, OceanBlue.copy(alpha = 0.35f)),
+                                modifier = Modifier.testTag("special_feature_share_btn_${item.sheetType.name.lowercase()}")
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Share,
+                                        contentDescription = "Share Feature Deep Link",
+                                        tint = OceanBlue,
+                                        modifier = Modifier.size(15.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(5.dp))
+                                    Text(
+                                        text = if (isOdia) "ସେୟାର୍" else "Share",
+                                        fontSize = 11.5.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = OceanBlue
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.clickable { isExpanded = !isExpanded }
+                    ) {
+                        Surface(
+                            shape = CircleShape,
+                            color = Color(0xFF22C55E),
+                            modifier = Modifier.size(6.dp)
+                        ) {}
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Crossfade(
+                            targetState = isExpanded,
+                            animationSpec = tween(durationMillis = 220),
+                            label = "special_feature_toggle_label_crossfade"
+                        ) { expandedState ->
+                            Text(
+                                text = if (expandedState) {
+                                    if (isOdia) "ସଂକ୍ଷିପ୍ତ କରନ୍ତୁ ▲" else "Tap to Collapse ▲"
+                                } else {
+                                    if (isOdia) "ଅଧିକ ଜାଣିବା ପାଇଁ ଟ୍ୟାପ୍ କରନ୍ତୁ ▾" else "Tap for More Info ▾"
+                                },
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    color = Color(0xFF15803D),
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            )
+                        }
+                    }
+
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .clickable { onClick() }
+                            .testTag("special_feature_open_hub_${item.sheetType.name.lowercase()}")
+                    ) {
+                        Text(
+                            text = if (isOdia) "ଖୋଲନ୍ତୁ" else "Open Hub",
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontWeight = FontWeight.Bold,
+                                color = OceanBlue
+                            )
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                            contentDescription = null,
+                            tint = OceanBlue,
+                            modifier = Modifier.size(13.dp)
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun SpecialFeatureNewsCardItem(
+    article: NewsArticle,
+    language: AppLanguage,
+    searchQuery: String,
+    modifier: Modifier = Modifier
+) {
+    val context = LocalContext.current
+    var isExpanded by remember { mutableStateOf(false) }
+
+    val titleText = if (language == AppLanguage.ODIA) article.odiaTitle else article.title
+    val snippetText = if (language == AppLanguage.ODIA) article.odiaSnippet else article.snippet
+    val contentText = if (language == AppLanguage.ODIA) article.odiaContent else article.content
+    val effectiveContent = if (contentText.isNotBlank()) contentText else snippetText
+
+    Card(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .testTag("features_news_card_${article.id}"),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            // Top Row: Category chip & Source/Time
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Surface(
+                    shape = RoundedCornerShape(6.dp),
+                    color = OceanBlue.copy(alpha = 0.12f),
+                    border = BorderStroke(0.5.dp, OceanBlue.copy(alpha = 0.3f))
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Article,
+                            contentDescription = null,
+                            tint = OceanBlue,
+                            modifier = Modifier.size(12.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = article.category.uppercase(),
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontWeight = FontWeight.ExtraBold,
+                                color = OceanBlue,
+                                fontSize = 9.sp
+                            )
+                        )
+                    }
+                }
+
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.Schedule,
+                        contentDescription = null,
+                        tint = BentoSlate400,
+                        modifier = Modifier.size(12.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = "${article.source} • ${article.timeAgo}",
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontSize = 10.sp
+                        )
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // Article Title
+            Text(
+                text = titleText,
+                style = MaterialTheme.typography.titleMedium.copy(
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    lineHeight = 20.sp,
+                    fontSize = 14.5.sp
+                )
+            )
+
+            Spacer(modifier = Modifier.height(6.dp))
+
+            // Article Snippet / Expanded Content
+            Text(
+                text = if (isExpanded) effectiveContent else snippetText,
+                style = MaterialTheme.typography.bodySmall.copy(
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    lineHeight = 18.sp,
+                    fontSize = 12.sp
+                )
+            )
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // Action Row: Expand / Read full, and Share
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Expand toggle button
+                Surface(
+                    onClick = { isExpanded = !isExpanded },
+                    shape = RoundedCornerShape(8.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                    border = BorderStroke(0.5.dp, MaterialTheme.colorScheme.outlineVariant)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = if (isExpanded) {
+                                if (language == AppLanguage.ODIA) "ସଂକ୍ଷିପ୍ତ କରନ୍ତୁ" else "Show Less"
+                            } else {
+                                if (language == AppLanguage.ODIA) "ସମ୍ପୂର୍ଣ୍ଣ ଖବର ପଢ଼ନ୍ତୁ" else "Read Full Article"
+                            },
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontWeight = FontWeight.Bold,
+                                color = OceanBlue,
+                                fontSize = 10.5.sp
+                            )
+                        )
+                        Spacer(modifier = Modifier.width(3.dp))
+                        Icon(
+                            imageVector = if (isExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                            contentDescription = "Toggle article content",
+                            tint = OceanBlue,
+                            modifier = Modifier.size(14.dp)
+                        )
+                    }
+                }
+
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Specialized WhatsApp Share button
+                    Surface(
+                        onClick = {
+                            com.example.util.ShareHelper.shareNewsViaWhatsApp(
+                                context = context,
+                                article = article,
+                                isOdia = language == AppLanguage.ODIA
+                            )
+                        },
+                        shape = RoundedCornerShape(8.dp),
+                        color = Color(0xFFDCFCE7),
+                        border = BorderStroke(1.dp, Color(0xFF22C55E)),
+                        modifier = Modifier.testTag("special_news_whatsapp_button_${article.id}")
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                        ) {
+                            Text("💬", fontSize = 11.sp)
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = "WhatsApp",
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = Color(0xFF15803D),
+                                    fontSize = 10.5.sp
+                                )
+                            )
+                        }
+                    }
+
+                    // Deep-link Share button
+                    Surface(
+                        onClick = {
+                            com.example.util.ShareHelper.shareNews(
+                                context = context,
+                                article = article,
+                                isOdia = language == AppLanguage.ODIA
+                            )
+                        },
+                        shape = RoundedCornerShape(8.dp),
+                        color = OceanBlue.copy(alpha = 0.08f),
+                        border = BorderStroke(1.dp, OceanBlue.copy(alpha = 0.25f)),
+                        modifier = Modifier.testTag("special_news_share_button_${article.id}")
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Share,
+                                contentDescription = "Share Article",
+                                tint = OceanBlue,
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = if (language == AppLanguage.ODIA) "ସେୟାର୍" else "Share",
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    color = OceanBlue,
+                                    fontSize = 11.sp
+                                )
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

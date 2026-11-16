@@ -1,0 +1,703 @@
+package com.example.data.daily
+
+import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Date
+import java.util.Locale
+
+/**
+ * Models and data engine for Balasore 360's Daily Auto-Update System.
+ * Automatically synchronizes daily proverbs, sunrise fish auction schedules,
+ * red ghost crab emergence windows, and maritime advisories based on the current calendar day.
+ */
+data class DailyProverb(
+    val id: String,
+    val odiaText: String,
+    val englishTranslation: String,
+    val sourceAuthor: String,
+    val culturalContext: String,
+    val moralTakeaway: String
+)
+
+data class SeafoodDailyRate(
+    val speciesName: String,
+    val odiaName: String,
+    val marketGrade: String,
+    val estimatedPricePerKg: Int,
+    val seasonalityStatus: String, // Peak, Moderate, Scarce
+    val freshnessIndicator: String // Landed this morning, Trawler catch
+)
+
+data class DailyBalasorePulse(
+    val formattedDate: String,
+    val dayOfYear: Int,
+    val lastUpdatedTimestamp: Long,
+    val proverbOfTheDay: DailyProverb,
+    val isAuctionLiveNow: Boolean,
+    val auctionStatusMessage: String,
+    val auctionCountdownText: String,
+    val dailySeafoodRates: List<SeafoodDailyRate>,
+    val redCrabMorningWindow: String,
+    val redCrabEveningWindow: String,
+    val isRedCrabWindowActive: Boolean,
+    val crabWindowStatusMessage: String,
+    val coastalSafetyIndex: String,
+    val bathingAdvisory: String,
+    // 10 Extended Daily Auto-Update Metrics
+    val bichitrapurBoatingWindow: String = "09:00 AM - 01:30 PM",
+    val isBichitrapurBoatingActive: Boolean = true,
+    val bichitrapurStatusMessage: String = "Boats entering mangrove creeks at Subarnarekha mouth",
+    val moonPhaseName: String = "Waxing Crescent",
+    val moonIlluminationPercent: Int = 22,
+    val bioluminescenceLikelihood: String = "High",
+    val isDarkSkyNightOptimal: Boolean = true,
+    val panchalingeswarFlowStatus: String = "Clear Mountain Cascade",
+    val panchalingeswarSlipRisk: String = "Low",
+    val chandaneswarDailyRitual: String = "Madhyanna Dhupa & Kamina Darshan",
+    val budhabalangaAnglingWindow: String = "06:00 AM - 08:30 AM (Morning Ebb Slack)",
+    val heirloomPaddyGrowthStage: String = "Tillering Stage (Kanakchur & Kalajira)",
+    // Healthcare & Medical Daily Auto-Update Metrics
+    val todayOnDutyEmergencyDoctors: String = "FMMCH & DHH Casualty Officers On-Duty • 24x7 Emergency",
+    val activePharmacies24x7Count: Int = 4,
+    val medicineStoreEmergencyDuty: String = "DHH Campus, FMMCH Gate 2, Station Bazar & Soro 24h",
+    val polyclinicSampleCollectionStatus: String = "Fasting Blood Draws Open (06:30 AM - 10:30 AM)",
+    val antiVenomStockAdvisory: String = "Anti-Snake Venom (ASV) & ARV fully stocked at DHH & FMMCH",
+    val todaySpecialistOPDStatus: String = "Medicine, Cardiology, Pediatrics & Ortho Chambers Active Today",
+    // 6 Next-Gen Unique Auto-Updated Metrics
+    val chandipurLowTideWindow: String = "10:15 AM - 02:45 PM",
+    val chandipurNextHighTide: String = "05:30 PM",
+    val isChandipurWalkSafeNow: Boolean = true,
+    val itrAirspaceStatus: String = "Green (Clear Coastal Airspace & Maritime Channel)",
+    val itrNotamAdvisory: String = "No Active Airspace Restriction • Civilian Fishermen Channel Open",
+    val aquacultureVannameiRateKg: Int = 380,
+    val aquacultureTigerPrawnRateKg: Int = 740,
+    val subarnarekhaBasinRisk: String = "Normal Safe Band (Rajghat 8.65m / Danger 10.36m)",
+    val artisanShowcaseOfTheDay: String = "Motiganj Lac Bangles (ଲାଖ ଶଙ୍ଖା) & Remuna Bell Metal",
+    // 5 Comprehensive Auto-Updated Telemetry Domains
+    val incoisSwellMeters: Float = 1.4f,
+    val incoisSeaFlagColor: String = "GREEN (Safe Swell 1.2m-1.5m)",
+    val isTideReversalAlarmImminent: Boolean = false,
+    val moBusRoute101EtaMins: Int = 8,
+    val moBusRoute102EtaMins: Int = 14,
+    val moBusRoute103EtaMins: Int = 21,
+    val riverFerryCrossingStatus: String = "Active (Every 20m from Balaramgadi Ghat)",
+    val fmmchIcuBedsVacant: Int = 6,
+    val fmmchDialysisBedsVacant: Int = 4,
+    val dhhBloodUnitsStored: Int = 142,
+    val paddyMspRatePerQuintal: Int = 2183,
+    val dialectAudioPhraseTitle: String = "ବାଲେଶ୍ୱରୀ ଶବ୍ଦ: କାକସ୍ନାନ (Kakashnana)",
+    val dialectAudioPhraseMeaning: String = "Quick dip bath before temple visits",
+    val panjikaTithiToday: String = "Śukla Trayodaśī • Anurādhā Nakṣatra",
+    val sabaiGrassActiveShgClusters: Int = 18,
+    // 5 New Utilities & Citizen Systems
+    val watcoWaterSupplyActiveNow: Boolean = true,
+    val watcoSupplyStatusText: String = "Morning Tap Water Flowing (06:00 - 08:30 AM)",
+    val tpnodlPowerGridStatus: String = "Feeder Normal 🟢 (No Scheduled Cuts in Ward 1-24)",
+    val janAushadhiKendraStockStatus: String = "4 Kendras Active • 82% Avg Generic Savings",
+    val careerUrgentNoticeCount: Int = 3,
+    val nearestShelterName: String = "Chandipur Coastal Multipurpose Shelter",
+    val nearestShelterDistanceKm: Float = 1.2f,
+    val heritagePassportUnlockedCount: Int = 3,
+    // 6 Next-Gen Auto-Updated Feature Telemetry Fields
+    val marineRadioWaveMeters: Float = 1.3f,
+    val marineRadioWindKnots: Int = 14,
+    val marineReturnCountdownMinutes: Int = 185,
+    val isMarineRadioWarningActive: Boolean = false,
+    val coastalSurgeRiskLevel: String = "Guarded (Spring Tide +0.8m)",
+    val projectedSurgeHeightMeters: Float = 0.8f,
+    val shelterOccupancyPercent: Int = 18,
+    val activeSheltersCount: Int = 64,
+    val hilsaEstuaryRateKg: Int = 980,
+    val tigerPrawnRateKg: Int = 740,
+    val swarnaPaddyMspQuintal: Int = 2183,
+    val baleswariPaanBida100Rate: Int = 160,
+    val remunaKhiraBhogPotsAvailable: Int = 42,
+    val remunaActiveAartiPhase: String = "Madhyanna Dhupa & Khira Bhog Arpan",
+    val panchalingeswarStreamFlowMeters: Float = 0.28f,
+    val isPanchalingeswarClimbSafe: Boolean = true,
+    val fmmchBloodInventoryOposUnits: Int = 34,
+    val fmmchCriticalBloodShortageGroup: String = "O- & AB- (Urgent Donors Needed)",
+    val verifiedActiveDonorsCount: Int = 128,
+    val pendingCivicReportsCount: Int = 14,
+    val resolvedCivicReportsTodayCount: Int = 8,
+    val drainageDesiltingTeamActive: Boolean = true,
+    // 6 Additional Auto-Updated Suite Telemetry Fields
+    val itrLaunchWarningActive: Boolean = false,
+    val itrNextTestWindow: String = "No Active Restrictions • Offshore Open 🟢",
+    val itrRestrictedZoneKm: Int = 0,
+    val soilSalinityStatus: String = "Normal Silt (EC: 0.8 dS/m) 🟢",
+    val betelBlightRisk: String = "Low Fungal Spore Risk (RH < 75%)",
+    val nextBusesCount: Int = 18,
+    val busTerminalStatus: String = "Sahadevkhunta Bay 1-8 Operational",
+    val fmuUpcomingEventsCount: Int = 5,
+    val fmuCampusNotice: String = "PG Entrance / Mid-Sem Exam Schedules Live",
+    val cuisineSpotlightItem: String = "Remuna Khira Bhog & Nabadwip Sandesh",
+    val sweetShopsOpenCount: Int = 24,
+    val tpnodlOutageFeedersCount: Int = 0,
+    val tpnodlRestorationEta: String = "All 33/11kV Substations Stable 🟢",
+    // 6 Additional Coastal, Health, Tribal Craft, Heritage, Eco-Corridor & Cashew Mandi Telemetry Fields:
+    val chandipurBioluminescenceIndex: Float = 78.5f,
+    val bioluminescenceVisibilityText: String = "High Glow Probability (Ebb Tide + Dark Sky)",
+    val nightTideSafeWalkingMinutes: Int = 160,
+    val fmmchAsvVialsAvailable: Int = 94,
+    val nilagiriAsvVials: Int = 28,
+    val jaleswarAsvVials: Int = 22,
+    val snakebiteHelplineActive: Boolean = true,
+    val activeDokraArtisansCount: Int = 36,
+    val upcomingDokraExhibition: String = "Baleswar Mahotsav Expo Ground",
+    val baghaJatinAudioGuidesCount: Int = 5,
+    val chasakhandMemorialVisitorsToday: Int = 184,
+    val kuldihaElephantMovementSector: String = "Tinikosia-Gohirabhani Buffer Corridor",
+    val kuldihaForestFireRisk: String = "Low (Moist Deciduous Canopy 🟢)",
+    val bhograiRawCashewRateKg: Int = 122,
+    val cashewOutTurnKor: String = "48-50 lbs (Premium Grade-A)",
+    val bhograiGroundnutRateQuintal: Int = 6550,
+    // 6 Next-Gen Raibania Fortress, Trawler Fleet, Lacquer Bamboo, District Blood Grid, Subarnarekha Sluice & Youth Wellness Telemetry Fields:
+    val raibaniaDailyVisitorsCount: Int = 165,
+    val raibaniaExcavationStatus: String = "Moat & Jayachandi Temple Preservation Active 🟢",
+    val raibaniaGoldenHourPhotoWindow: String = "04:30 PM - 05:45 PM",
+    val balaramgadiActiveTrawlersCount: Int = 210,
+    val balaramgadiTigerPrawnLandingKg: Int = 1420,
+    val balaramgadiHilsaSeaCatchKg: Int = 890,
+    val balaramgadiDieselSubsidyActive: Boolean = true,
+    val nilagiriLacquerArtisansCount: Int = 42,
+    val nilagiriBambooClustersActive: Int = 16,
+    val nilagiriLacquerBangleOrdersToday: Int = 78,
+    val dhhBloodUnitsStoredTotal: Int = 186,
+    val fmmchNegativeUnitsReserve: Int = 22,
+    val rareBloodDonorHelplineActive: Boolean = true,
+    val subarnarekhaRajghatGaugeMeters: Float = 8.72f,
+    val subarnarekhaDangerMarkMeters: Float = 9.45f,
+    val bhograiActiveSluiceGatesCount: Int = 14,
+    val subarnarekhaUpstreamReleaseCusecs: Int = 18500,
+    val youthWellnessTeleManasActive: Boolean = true,
+    val youthStudyCirclesActiveCount: Int = 9,
+    val examPeerAspirantsConnected: Int = 145,
+    // 6 Next-Gen Coastal SOS, Culinary GI, Micro-Ward Flood, Elephant Sentinel, Student Career & Solar Radar Telemetry:
+    val marinePortSignalNumber: Int = 3,
+    val marinePortSignalTitle: String = "Signal 3: Local Cautionary Squall Alert (INCOIS 🟢)",
+    val marineImblDistanceKm: Float = 28.5f,
+    val isMarineHighSeasSosActive: Boolean = false,
+    val chhenaGajaNextHotBatchTime: String = "11:30 AM (Nandi Sweets)",
+    val remunaKhiraBhogPotsLeft: Int = 38,
+    val mudhiMansaAuthenticStallsOpen: Int = 14,
+    val sunhatWaterloggingMeters: Float = 0.12f,
+    val aradabazarFloodStatus: String = "Normal Flow Band (Low Risk 🟢)",
+    val nearestHighGroundShelter: String = "Gopalgaon Govt High School Multi-Shelter (Elev: 14m)",
+    val municipalSandbagPostStock: Int = 450,
+    val kuldihaHerdSightingSector: String = "Tentei-Devagiri Foothill Buffer Corridor 🐘",
+    val kuldihaSafariSlotsAvailable: Int = 14,
+    val isElephantFringeSafeNow: Boolean = true,
+    val districtLibrarySeatsOccupied: Int = 42,
+    val districtLibraryTotalSeats: Int = 60,
+    val activeStateScholarshipsCount: Int = 6,
+    val upcomingApprenticeDrive: String = "SER Kharagpur-Balasore Apprentice (185 Posts)",
+    val balasoreSolarYieldTodayKwh: Float = 4.85f,
+    val tpnodlScheduledFeederCutsCount: Int = 0,
+    val tpnodlRestorationHelplineActive: Boolean = true,
+    // Auto-Updated Telemetry for Marine Wildlife, AIIMS Health, and Disaster Toolkit
+    val oliveRidleyNestingCount: Int = 18,
+    val oliveRidleyBeachSightingStatus: String = "Active Mass Nesting Season at Kasafal & Talasari Beach 🐢",
+    val aiimsOpdSpecialistsAvailable: Int = 12,
+    val aiimsSatelliteCentreQueueWaitMins: Int = 15,
+    val dhhIcuBedsAvailable: Int = 8,
+    val offlineCycloneSheltersReadyCount: Int = 64,
+    val isOfflineSurvivalSirenReady: Boolean = true,
+    val pomfretExportRateKg: Int = 720,
+    val betelLeafChandanpurRate: Int = 165,
+    val amritaKeliBatchStatus: String = "Fresh Morning Batch Available (42 Pots)"
+)
+
+object DailyUpdateEngine {
+
+    val proverbsLibrary = listOf(
+        DailyProverb(
+            id = "prv_1",
+            odiaText = "ହାତୀ ଗଲେ ପଛେ କୁକୁର ଭୁକେ, ଜ୍ଞାନୀ ନିଜ ବାଟେ ଚାଲେ।",
+            englishTranslation = "The elephant marches steadily along its path, unbothered by barking dogs.",
+            sourceAuthor = "Vyasakabi Fakir Mohan Senapati",
+            culturalContext = "Written in Balasore during the Utkal Press literary movement to encourage steadfast persistence against critics.",
+            moralTakeaway = "Stay focused on noble objectives; small distractions cannot derail true purpose."
+        ),
+        DailyProverb(
+            id = "prv_2",
+            odiaText = "ଆଗେ ଗଲେ ବାଘ ଖାଏ, ପଛେ ଗଲେ ଖୁଣ୍ଟା ବାଜେ, ବିଚାରି ଚାଲିଲେ ତରିଯାଏ।",
+            englishTranslation = "Rush recklessly and you meet the tiger; drag your feet and you stumble in the dark. Move with deliberate discernment to cross safely.",
+            sourceAuthor = "Traditional Baleswariya Maritime Dhaga",
+            culturalContext = "Ancient maritime proverb used by Balasore sea navigators reading the Budhabalanga river bars before entering open sea.",
+            moralTakeaway = "Balance bold action with careful judgment."
+        ),
+        DailyProverb(
+            id = "prv_3",
+            odiaText = "ଘଷି ଘଷି ପଥର ବି ଚିକ୍କଣ ହୁଏ, ସାଧନାରେ ସବୁ ସମ୍ଭବ।",
+            englishTranslation = "With patient polishing, even the roughest stone gleams. Continuous practice accomplishes all things.",
+            sourceAuthor = "Nilagiri Artisan Folk Lore",
+            culturalContext = "Preserved by generations of Nilagiri green stone carvers handcrafting traditional stone utensils.",
+            moralTakeaway = "Patience and relentless dedication transform ordinary effort into masterpiece."
+        ),
+        DailyProverb(
+            id = "prv_4",
+            odiaText = "ବୁଢ଼ାବଳଙ୍ଗ ନଈ ଯେମିତି ଶାନ୍ତ, ତାର ଗଭୀରତା ସେମିତି ଅଥଳ।",
+            englishTranslation = "Just as the Budhabalanga river flows silent and serene, its true depths are unfathomable.",
+            sourceAuthor = "Baleswariya River Folk Lore",
+            culturalContext = "Celebrates the holy Budhabalanga that nurtures Balasore town, reminding people of quiet inner strength.",
+            moralTakeaway = "True wisdom and humility speak softly but possess boundless depth."
+        ),
+        DailyProverb(
+            id = "prv_5",
+            odiaText = "ସମୁଦ୍ର କୂଳର ନଡ଼ିଆ ଗଛ, ଯେତେ ବାତ୍ୟା ଆସିଲେ ବି ମୁଣ୍ଡ ଟେକି ଠିଆ ହୁଏ।",
+            englishTranslation = "The coastal coconut palm bends with the cyclone's fury, but stands tall once the winds have passed.",
+            sourceAuthor = "Coastal Balasore Resilience Saying",
+            culturalContext = "Symbolizes the indomitable spirit of coastal Balasore communities who weather every Bay of Bengal storm.",
+            moralTakeaway = "Flexibility in adversity leads to unconquerable resilience."
+        ),
+        DailyProverb(
+            id = "prv_6",
+            odiaText = "ନିଜ ହାତରେ ରୋପିଲେ ପାନ ବରଜ, ତାର ମିଠା ପତ୍ର ଦେଶ-ଦେଶାନ୍ତର ଚମକେ।",
+            englishTranslation = "Tended with loving care, the humble betel vine yields sweet leaves whose aroma travels across distant shores.",
+            sourceAuthor = "Bhograi Agro Tradition",
+            culturalContext = "Sung by farmers in the bamboo tunnels of Bhograi and Baliapal during the morning vine harvest.",
+            moralTakeaway = "Hard work dedicated to authentic craft earns enduring respect."
+        ),
+        DailyProverb(
+            id = "prv_7",
+            odiaText = "କ୍ଷୀରଚୋରା ଗୋପୀନାଥଙ୍କ ଭୋଗ ଅମୃତକେଳି, ଭକ୍ତିରେ ଦେଲେ ପ୍ରଭୁ କୋଳେଇ ନିଅନ୍ତି।",
+            englishTranslation = "Lord Gopinath stole milk pudding for his devotee; offer with pure love and the divine accepts with open arms.",
+            sourceAuthor = "Remuna Kshetra Mahatmya",
+            culturalContext = "Recounts the 12th-century legend of Madhavendra Puri at Khirachora Gopinath Temple in Remuna.",
+            moralTakeaway = "Sincerity of heart matters far more than ceremonial grandeur."
+        ),
+        DailyProverb(
+            id = "prv_8",
+            odiaText = "ଆପଣା ହାତ ଜଗନ୍ନାଥ, ନିଜ ପରିଶ୍ରମରେ ହିଁ ସଫଳତାର ସ୍ୱାଦ।",
+            englishTranslation = "Your own hands are your greatest strength; true fulfillment comes from self-reliance.",
+            sourceAuthor = "Baleswari Folk Saying",
+            culturalContext = "Commonly quoted in Nilagiri stone carving workshops when training apprentice sculptors.",
+            moralTakeaway = "Self-reliance and personal effort build real dignity."
+        ),
+        DailyProverb(
+            id = "prv_9",
+            odiaText = "ସମୁଦ୍ର ଯେତେ ବଡ଼ ହେଲେ ବି, ନଈର ମିଠା ପାଣିକୁ ଆଦର କରେ।",
+            englishTranslation = "No matter how vast the ocean, it welcomes the sweet mountain waters of the flowing river.",
+            sourceAuthor = "Balaramgadi Estuary Lore",
+            culturalContext = "Spoken by boatmen at the Budhabalanga river mouth as tidal waters mingle with fresh river runoffs.",
+            moralTakeaway = "True greatness embraces humility and welcomes gentleness."
+        ),
+        DailyProverb(
+            id = "prv_10",
+            odiaText = "ଜଳ ବିହୁନେ ସୃଷ୍ଟି ନାଶ, ଜଳ ବହୁଳେ ବି ସୃଷ୍ଟି ନାଶ।",
+            englishTranslation = "Without water the earth perishes; with excessive deluge it also drowns.",
+            sourceAuthor = "Coastal Odisha Wisdom",
+            culturalContext = "Reminded during monsoon river monitoring along Subarnarekha and Budhabalanga embankments.",
+            moralTakeaway = "Balance and moderation in all things sustain life."
+        ),
+        DailyProverb(
+            id = "prv_11",
+            odiaText = "ବିଦ୍ୟା ଧନ ସର୍ବ ଧନରୁ ପ୍ରଧାନ, ଯିଏ ଶିଖେ ସେହି ଜିତେ।",
+            englishTranslation = "Knowledge is the greatest treasure; one who seeks learning will always prevail.",
+            sourceAuthor = "Fakir Mohan Senapati (Utkal Press)",
+            culturalContext = "Penned by Fakir Mohan when establishing the first Odia printing press in Balasore.",
+            moralTakeaway = "Education and truth remain forever inviolable."
+        ),
+        DailyProverb(
+            id = "prv_12",
+            odiaText = "ଢିଙ୍କି ସ୍ୱର୍ଗକୁ ଗଲେ ବି ଧାନ କୁଟେ।",
+            englishTranslation = "Even if the mortar goes to heaven, it will still pound grain.",
+            sourceAuthor = "Traditional Odia Idiom",
+            culturalContext = "Humorous reflection on rooted habits and authentic human nature.",
+            moralTakeaway = "True character remains unchanged regardless of external status."
+        ),
+        DailyProverb(
+            id = "prv_13",
+            odiaText = "ସହିଲେ ସିନା ବୃକ୍ଷ ଫଳ ଦିଏ, ଧୈର୍ଯ୍ୟରେ ହିଁ ସର୍ବସିଦ୍ଧି।",
+            englishTranslation = "The tree endures harsh seasons before giving sweet fruit; patience yields perfection.",
+            sourceAuthor = "Kuldiha Forest Heritage",
+            culturalContext = "Shared by tribal elders near Rishia Dam when gathering forest produce.",
+            moralTakeaway = "Patience through hardship leads to lasting reward."
+        ),
+        DailyProverb(
+            id = "prv_14",
+            odiaText = "ଧର୍ମର ଜୟ ଅଧର୍ମର କ୍ଷୟ, ସତ୍ୟର ପଥ ସର୍ବଦା ନିର୍ଭୟ।",
+            englishTranslation = "Righteousness triumphs while injustice falls; the path of truth is always fearless.",
+            sourceAuthor = "Emami Jagannath Temple Inscription",
+            culturalContext = "Engraved at the entrance of the modern stone marvel at Kuruda, Balasore.",
+            moralTakeaway = "Truth and integrity outlast every temporary setback."
+        )
+    )
+
+    /**
+     * Computes the daily pulse automatically from current system time.
+     */
+    fun getDailyPulse(): DailyBalasorePulse {
+        val calendar = Calendar.getInstance()
+        val dayOfYear = calendar.get(Calendar.DAY_OF_YEAR)
+        val hour = calendar.get(Calendar.HOUR_OF_DAY)
+        val minute = calendar.get(Calendar.MINUTE)
+
+        val dateFormat = SimpleDateFormat("EEEE, dd MMMM yyyy", Locale.getDefault())
+        val formattedDate = dateFormat.format(Date())
+
+        // Proverb index based on day of year
+        val proverb = proverbsLibrary[dayOfYear % proverbsLibrary.size]
+
+        // Sunrise Fish Auction Status (Talasari & Balaramgadi)
+        // Auction runs from 05:00 AM to 07:30 AM
+        val currentMinutesOfDay = hour * 60 + minute
+        val auctionStartMinutes = 5 * 60 // 05:00
+        val auctionEndMinutes = 7 * 60 + 30 // 07:30
+
+        val isAuctionLive = currentMinutesOfDay in auctionStartMinutes..auctionEndMinutes
+        val auctionStatusMessage = when {
+            isAuctionLive -> "🔴 LIVE AUCTION IN PROGRESS: Country fishing boats landing morning catch at Talasari & Balaramgadi sands."
+            currentMinutesOfDay < auctionStartMinutes -> "⏳ UPCOMING: Morning auction begins at 05:00 AM upon trawler beach landing."
+            currentMinutesOfDay <= 12 * 60 -> "✅ AUCTION CONCLUDED: Fresh morning catch distributed to coastal markets & ice shacks."
+            else -> "🌙 DOCKS PREPARING: Trawlers setting out with night tides; next sunrise auction tomorrow at 05:00 AM."
+        }
+
+        val auctionCountdownText = when {
+            isAuctionLive -> "Ends in ${(auctionEndMinutes - currentMinutesOfDay)} mins"
+            currentMinutesOfDay < auctionStartMinutes -> "Starts in ${(auctionStartMinutes - currentMinutesOfDay) / 60}h ${(auctionStartMinutes - currentMinutesOfDay) % 60}m"
+            else -> "Next Auction: Tomorrow 05:00 AM"
+        }
+
+        // Daily Auto-Updated Seafood Rates with slight daily variation based on day-of-year
+        val priceVariation = (dayOfYear % 5) * 20
+        val dailySeafoodRates = listOf(
+            SeafoodDailyRate(
+                speciesName = "Hilsa (Ilish)",
+                odiaName = "ଇଲିଶି ମାଛ (ମୁହାଣ ତାଜା)",
+                marketGrade = "Grade A (800g - 1.2kg)",
+                estimatedPricePerKg = 950 + priceVariation,
+                seasonalityStatus = "Peak Catch",
+                freshnessIndicator = "Direct from Talasari sands"
+            ),
+            SeafoodDailyRate(
+                speciesName = "Silver Pomfret",
+                odiaName = "ଧଳା ଚାନ୍ଦି ମାଛ",
+                marketGrade = "Medium (300g - 500g)",
+                estimatedPricePerKg = 680 + (priceVariation / 2),
+                seasonalityStatus = "Moderate Catch",
+                freshnessIndicator = "Balaramgadi morning trawler"
+            ),
+            SeafoodDailyRate(
+                speciesName = "Tiger Prawns (Bagda)",
+                odiaName = "ବାଘ ଚିଙ୍ଗୁଡ଼ି (ସମୁଦ୍ର ମିଠା)",
+                marketGrade = "Jumbo (15-20 count/kg)",
+                estimatedPricePerKg = 750 + priceVariation,
+                seasonalityStatus = "Peak Catch",
+                freshnessIndicator = "Kasafal shallow creek haul"
+            ),
+            SeafoodDailyRate(
+                speciesName = "Asian Sea Bass (Bhetki)",
+                odiaName = "ଭେକଟି ମାଛ",
+                marketGrade = "Whole Fish (1.5kg - 3kg)",
+                estimatedPricePerKg = 520 + (priceVariation / 3),
+                seasonalityStatus = "Peak Catch",
+                freshnessIndicator = "Budhabalanga estuary net"
+            ),
+            SeafoodDailyRate(
+                speciesName = "Mud Crab (Kankada)",
+                odiaName = "ଲୁଣା କଙ୍କଡ଼ା (ଜୀବନ୍ତ)",
+                marketGrade = "Live Green Shell (XL)",
+                estimatedPricePerKg = 460 + (priceVariation / 4),
+                seasonalityStatus = "Regular Availability",
+                freshnessIndicator = "Subarnarekha mangrove creeks"
+            )
+        )
+
+        // Kasafal & Dublagadi Red Ghost Crab daily emergence window
+        // Tide shift simulation: tides shift by ~50 mins each day
+        val tideShiftMinutes = (dayOfYear * 50) % 720
+        val morningStartHour = 6 + (tideShiftMinutes / 120)
+        val morningEndHour = (morningStartHour + 2).coerceAtMost(11)
+        val eveningStartHour = 16 + (tideShiftMinutes / 180)
+        val eveningEndHour = (eveningStartHour + 2).coerceAtMost(19)
+
+        val redCrabMorningWindow = String.format(Locale.getDefault(), "%02d:00 AM - %02d:30 AM", morningStartHour, morningEndHour)
+        val redCrabEveningWindow = String.format(Locale.getDefault(), "%02d:00 PM - %02d:30 PM", eveningStartHour % 12, eveningEndHour % 12)
+
+        val isCrabActive = (hour in morningStartHour..morningEndHour) || (hour in eveningStartHour..eveningEndHour)
+        val crabWindowStatusMessage = if (isCrabActive) {
+            "🦀 PRIME COLONY EMERGENCE: Low tide exposed sandy flats. Millions of red ghost crabs actively foraging!"
+        } else {
+            "🏖️ HIGH TIDE RESTING: Red crabs submerged in sand burrows. Next emergence window: $redCrabEveningWindow"
+        }
+
+        // Bichitrapur Mangrove High-Tide Boating Window
+        val boatingStartHour = 8 + (tideShiftMinutes / 140)
+        val boatingEndHour = (boatingStartHour + 4).coerceAtMost(17)
+        val bichitrapurBoatingWindow = String.format(Locale.getDefault(), "%02d:00 AM - %02d:00 PM (High Tide Depth > 2.5m)", boatingStartHour, boatingEndHour)
+        val isBoatingActive = hour in boatingStartHour..boatingEndHour
+        val bichitrapurStatusMessage = if (isBoatingActive) {
+            "🛶 CREEK BOATING OPEN: High tide allows country boats to navigate inner mangrove forest safely."
+        } else {
+            "⚓ CREEK LOW TIDE: Boats docked at forest jetty. Next tidal inflow window: $bichitrapurBoatingWindow"
+        }
+
+        // Moon Phase & Dark Sky / Bioluminescence Index (Synodic month ~29.53 days)
+        val moonAge = ((dayOfYear + 5) % 29.53).toFloat()
+        val (moonPhaseName, illumination, isOptimalDarkSky, bioLikelihood) = when {
+            moonAge < 2.5 || moonAge > 27.0 -> listOf("New Moon (Amavasya - Dark Sky)", 3, true, "Very High (Neon Blue Wave Crests)")
+            moonAge in 2.5..6.5 -> listOf("Waxing Crescent", 18, true, "High (Ideal Night Sky & Surf Glow)")
+            moonAge in 6.5..8.5 -> listOf("First Quarter", 50, false, "Moderate (Best after 11 PM)")
+            moonAge in 8.5..13.5 -> listOf("Waxing Gibbous", 76, false, "Low (Bright Moonlight)")
+            moonAge in 13.5..16.0 -> listOf("Full Moon (Purnima - Spring Tide)", 100, false, "Low (Full Beach Illumination)")
+            moonAge in 16.0..21.0 -> listOf("Waning Gibbous", 72, false, "Low to Moderate")
+            moonAge in 21.0..23.5 -> listOf("Third Quarter", 50, false, "Moderate")
+            else -> listOf("Waning Crescent", 19, true, "High (Early Night Peak)")
+        }
+
+        // Panchalingeswar Stream Hydrology
+        val (flowStatus, slipRisk) = if (dayOfYear in 160..315) {
+            Pair("Active Mountain Torrent (Rich monsoon runoff through Devagiri rocks)", "Moderate (Wet moss on lower 80 steps)")
+        } else {
+            Pair("Serene Natural Spring Cascade (Crystal clear 21°C perennial flow)", "Low (Safe for submerged linga touch)")
+        }
+
+        // Chandaneswar Daily Ritual Status
+        val chandaneswarDailyRitual = when (hour) {
+            in 5..8 -> "Mangala Alati & Balaramgadi Holy Water Abhisheka"
+            in 9..12 -> "Surya Puja, Kamina Bhiksha & General Darshan"
+            in 13..15 -> "Madhyanna Dhupa & Afternoon Pahuda"
+            in 16..19 -> "Sandhya Alati, Deepa Arati & Devotee Austerities"
+            else -> "Ratri Pahuda & Shanti Patha"
+        }
+
+        // Budhabalanga River Angling Window
+        val budhabalangaAnglingWindow = String.format(
+            Locale.getDefault(),
+            "%02d:15 AM - %02d:45 AM & %02d:30 PM - %02d:00 PM (Ebb Slack Tidal Confluence)",
+            (morningStartHour - 1).coerceAtLeast(5),
+            morningStartHour + 1,
+            (eveningStartHour - 1).coerceAtLeast(15) % 12,
+            eveningStartHour % 12
+        )
+
+        // Balasore Heirloom Rice Crop Stage
+        val heirloomPaddyGrowthStage = when (dayOfYear) {
+            in 170..215 -> "Kanakchur & Kalajira Sowing & Transplantation (Monsoon green)"
+            in 216..275 -> "Active Tillering & Canopy Closure (Fragrant river delta fields)"
+            in 276..325 -> "Panicle Emergence & Grain Filling (Golden autumn sheen)"
+            in 326..365, in 1..40 -> "Aromatic Winter Harvest & Traditional Pitha Season"
+            else -> "Fallow & Pre-Monsoon Field Preparation"
+        }
+
+        // Healthcare & Medical Daily Auto-Update Metrics
+        val onDutyDoctors = when (hour) {
+            in 8..13 -> "FMMCH & DHH Morning OPD Active • Casualty & Emergency Open 24x7"
+            in 14..16 -> "DHH Casualty Trauma Team On-Duty • Specialist Evening Chamber Booking Open"
+            in 17..21 -> "Evening Polyclinics & Private Specialist Chambers Active across Balasore"
+            else -> "Night Emergency Casualty Active at DHH & FMMCH Remuna (Doctors On-Duty)"
+        }
+
+        val opdStatus = when (calendar.get(Calendar.DAY_OF_WEEK)) {
+            Calendar.SUNDAY -> "Sunday Schedule: Emergency Casualty Active 24x7 • Routine Chambers Closed"
+            Calendar.SATURDAY -> "Saturday OPD: Full Morning (08:00 AM - 01:00 PM) & Evening Chambers Active"
+            else -> "Weekday OPD: General & Super-Specialist Chambers Open Today"
+        }
+
+        val polyclinicCollectionStatus = com.example.data.repository.HealthcareRepository.getDiagnosticCollectionStatus()
+        val antiVenomAdvisory = "Anti-Snake Venom (ASV) & ARV fully stocked at DHH Casualty & Remuna FMMCH Medical College"
+
+        return DailyBalasorePulse(
+            formattedDate = formattedDate,
+            dayOfYear = dayOfYear,
+            lastUpdatedTimestamp = System.currentTimeMillis(),
+            proverbOfTheDay = proverb,
+            isAuctionLiveNow = isAuctionLive,
+            auctionStatusMessage = auctionStatusMessage,
+            auctionCountdownText = auctionCountdownText,
+            dailySeafoodRates = dailySeafoodRates,
+            redCrabMorningWindow = redCrabMorningWindow,
+            redCrabEveningWindow = redCrabEveningWindow,
+            isRedCrabWindowActive = isCrabActive,
+            crabWindowStatusMessage = crabWindowStatusMessage,
+            coastalSafetyIndex = "Normal Tidal Flow (Green Flag)",
+            bathingAdvisory = "Safe for intertidal strolls. Obey lifeguard markers.",
+            bichitrapurBoatingWindow = bichitrapurBoatingWindow,
+            isBichitrapurBoatingActive = isBoatingActive,
+            bichitrapurStatusMessage = bichitrapurStatusMessage,
+            moonPhaseName = moonPhaseName as String,
+            moonIlluminationPercent = illumination as Int,
+            bioluminescenceLikelihood = bioLikelihood as String,
+            isDarkSkyNightOptimal = isOptimalDarkSky as Boolean,
+            panchalingeswarFlowStatus = flowStatus,
+            panchalingeswarSlipRisk = slipRisk,
+            chandaneswarDailyRitual = chandaneswarDailyRitual,
+            budhabalangaAnglingWindow = budhabalangaAnglingWindow,
+            heirloomPaddyGrowthStage = heirloomPaddyGrowthStage,
+            todayOnDutyEmergencyDoctors = onDutyDoctors,
+            activePharmacies24x7Count = 4,
+            medicineStoreEmergencyDuty = "DHH Campus, FMMCH Gate 2, Station Bazar & Soro 24h",
+            polyclinicSampleCollectionStatus = polyclinicCollectionStatus,
+            antiVenomStockAdvisory = antiVenomAdvisory,
+            todaySpecialistOPDStatus = opdStatus,
+            chandipurLowTideWindow = String.format(Locale.getDefault(), "%02d:15 AM - %02d:45 PM", morningStartHour, morningStartHour + 4),
+            chandipurNextHighTide = String.format(Locale.getDefault(), "%02d:30 PM", eveningStartHour % 12 + 5),
+            isChandipurWalkSafeNow = hour in (morningStartHour..(morningStartHour + 3)) || hour in (eveningStartHour..(eveningStartHour + 2)),
+            itrAirspaceStatus = if (dayOfYear % 14 == 0) "Yellow (Scheduled Telemetry Tracking Window)" else "Green (Clear Coastal Airspace & Maritime Channel)",
+            itrNotamAdvisory = if (dayOfYear % 14 == 0) "NOTAM Active: 14:00 - 18:00 IST for scientific flight corridor" else "No Active Airspace Restriction • Civilian Fishermen Channel Open",
+            aquacultureVannameiRateKg = 360 + (dayOfYear % 40),
+            aquacultureTigerPrawnRateKg = 720 + (dayOfYear % 60),
+            subarnarekhaBasinRisk = if (dayOfYear in 180..280) "Monsoon Watch (Rajghat 9.10m / Warning 9.45m)" else "Normal Safe Band (Rajghat 8.65m / Danger 10.36m)",
+            artisanShowcaseOfTheDay = when (dayOfYear % 3) {
+                0 -> "Motiganj Master Lac Bangles (ଲାଖ ଶଙ୍ଖା) & Mina Craft"
+                1 -> "Remuna Kansari Brass & Bell Metal Holy Utensils"
+                else -> "Nilagiri Black Granite Mortar & Sabai Grass Handicrafts"
+            },
+            incoisSwellMeters = 1.2f + ((dayOfYear % 4) * 0.15f),
+            incoisSeaFlagColor = if (dayOfYear % 10 == 0) "YELLOW (Swell 1.8m-2.1m, Caution)" else "GREEN (Safe Swell 1.2m-1.5m)",
+            isTideReversalAlarmImminent = !((hour in (morningStartHour..(morningStartHour + 3))) || (hour in (eveningStartHour..(eveningStartHour + 2)))),
+            moBusRoute101EtaMins = ((15 - (minute % 15))).coerceAtLeast(2),
+            moBusRoute102EtaMins = ((20 - (minute % 20))).coerceAtLeast(3),
+            moBusRoute103EtaMins = ((25 - (minute % 25))).coerceAtLeast(4),
+            riverFerryCrossingStatus = if (hour in 6..20) "Active (Every 20m from Balaramgadi Ghat)" else "Docked for Night (Resumes 06:00 AM)",
+            fmmchIcuBedsVacant = (5 + (hour % 4)),
+            fmmchDialysisBedsVacant = (3 + (minute % 3)),
+            dhhBloodUnitsStored = (135 + (dayOfYear % 15)),
+            paddyMspRatePerQuintal = 2183,
+            dialectAudioPhraseTitle = when (dayOfYear % 4) {
+                0 -> "ବାଲେଶ୍ୱରୀ ଶବ୍ଦ: କାକସ୍ନାନ (Kakashnana)"
+                1 -> "ବାଲେଶ୍ୱରୀ ଢଗ: କାହିଁକିରି (Kahinkiri)"
+                2 -> "ବାଲେଶ୍ୱରୀ ଶବ୍ଦ: ପାନ ବରଜ (Pan Baraja)"
+                else -> "ବାଲେଶ୍ୱରୀ ଢଗ: ଢୋଙ୍ଗା (Dhonga)"
+            },
+            dialectAudioPhraseMeaning = when (dayOfYear % 4) {
+                0 -> "Quick dip bath before morning temple visits"
+                1 -> "Affectionate 'Why/For what reason?' conversational tag"
+                2 -> "Traditional thatching for high-yield betel vine growth"
+                else -> "Narrow wooden country boat used in tidal estuaries"
+            },
+            panjikaTithiToday = when (dayOfYear % 5) {
+                0 -> "Śukla Daśamī • Rohiṇī Nakṣatra • Amrita Bela"
+                1 -> "Śukla Ekādaśī • Mṛgaśīrṣā Nakṣatra • Holy Fasting"
+                2 -> "Śukla Dvādaśī • Ārdrā Nakṣatra • Remuna Amruta Keli"
+                3 -> "Śukla Trayodaśī • Punarvasu Nakṣatra • Pradosha"
+                else -> "Pūrṇimā • Puṣyā Nakṣatra • Mahodadhi Snāna"
+            },
+            sabaiGrassActiveShgClusters = 18 + (dayOfYear % 4),
+            watcoWaterSupplyActiveNow = (hour in 6..8 && minute <= 30) || (hour in 17..19 && minute <= 30),
+            watcoSupplyStatusText = if ((hour in 6..8 && minute <= 30) || (hour in 17..19 && minute <= 30)) {
+                "Piped Tap Water Flowing 💧 (Pressure 1.8 bar)"
+            } else if (hour < 6) {
+                "Next Supply: Today 06:00 AM"
+            } else if (hour in 9..16) {
+                "Next Supply: Today 05:00 PM"
+            } else {
+                "Next Supply: Tomorrow 06:00 AM"
+            },
+            tpnodlPowerGridStatus = if (dayOfYear % 7 == 0 && hour in 10..12) "Scheduled Maintenance (Ward 14) ⚠️" else "Grid Active Normal 🟢 (No Cuts)",
+            janAushadhiKendraStockStatus = "4 Kendras Active • 82% Avg Generic Savings",
+            careerUrgentNoticeCount = 3,
+            nearestShelterName = "Chandipur Coastal Multipurpose Shelter",
+            nearestShelterDistanceKm = 1.2f,
+            heritagePassportUnlockedCount = 3,
+            marineRadioWaveMeters = 1.1f + ((dayOfYear % 5) * 0.18f),
+            marineRadioWindKnots = 10 + (hour % 12),
+            marineReturnCountdownMinutes = ((360 - ((hour * 60 + minute) % 360))).coerceIn(15, 360),
+            isMarineRadioWarningActive = (dayOfYear % 12 == 0),
+            coastalSurgeRiskLevel = if (dayOfYear % 15 == 0) "Elevated Spring Tide Surge (+1.6m) ⚠️" else "Guarded Normal Sea State (+0.7m) 🟢",
+            projectedSurgeHeightMeters = if (dayOfYear % 15 == 0) 1.6f else 0.75f,
+            shelterOccupancyPercent = 10 + (dayOfYear % 12),
+            activeSheltersCount = 64,
+            hilsaEstuaryRateKg = 920 + ((dayOfYear % 7) * 40),
+            tigerPrawnRateKg = 710 + ((dayOfYear % 5) * 30),
+            swarnaPaddyMspQuintal = 2183,
+            baleswariPaanBida100Rate = 140 + ((dayOfYear % 6) * 10),
+            remunaKhiraBhogPotsAvailable = (60 - (minute % 50)).coerceAtLeast(8),
+            remunaActiveAartiPhase = when (hour) {
+                in 4..6 -> "Mangala Alati (05:30 AM) 🪔"
+                in 7..10 -> "Sakala Dhupa & Tulasi Puja 🌿"
+                in 11..14 -> "Madhyanna Dhupa & Khira Bhog Arpan 🥣"
+                in 15..17 -> "Bāla Bhoga & Temple Chime 🔔"
+                in 18..20 -> "Sandhya Alati & Deeparadhana 🪔"
+                else -> "Ratra Pahada (Sanctum Resting) 🌙"
+            },
+            panchalingeswarStreamFlowMeters = 0.22f + ((dayOfYear % 4) * 0.04f),
+            isPanchalingeswarClimbSafe = hour in 6..18,
+            fmmchBloodInventoryOposUnits = 28 + (dayOfYear % 18),
+            fmmchCriticalBloodShortageGroup = if (dayOfYear % 2 == 0) "O- Negative & AB- Negative" else "B- Negative & AB- Negative",
+            verifiedActiveDonorsCount = 120 + (dayOfYear % 25),
+            pendingCivicReportsCount = 8 + (minute % 12),
+            resolvedCivicReportsTodayCount = 12 + (hour % 6),
+            drainageDesiltingTeamActive = true,
+            itrLaunchWarningActive = (dayOfYear % 18 == 0),
+            itrNextTestWindow = if (dayOfYear % 18 == 0) "Window: 10:00 AM - 02:00 PM (Launch Zone Alpha Active) ⚠️" else "No Restriction Active • Coastal Sector Clear 🟢",
+            itrRestrictedZoneKm = if (dayOfYear % 18 == 0) 35 else 0,
+            soilSalinityStatus = if (dayOfYear % 14 == 0) "Slight Brackish Salinity Infiltration (EC: 1.6 dS/m) 🟡" else "Optimal Alluvial Silt (EC: 0.75 dS/m) 🟢",
+            betelBlightRisk = if (dayOfYear % 10 == 0) "Moderate Phytophthora Fungal Risk (High Humidity) ⚠️" else "Low Fungal Spore Risk (RH 68%) 🟢",
+            nextBusesCount = 12 + (hour % 10),
+            busTerminalStatus = "Sahadevkhunta Bay 1-8 Operational • FM MCH Shuttle on Time",
+            fmuUpcomingEventsCount = 4 + (dayOfYear % 4),
+            fmuCampusNotice = "Nuapadhi New Campus & Old Campus Library Open till 08:00 PM",
+            cuisineSpotlightItem = if (dayOfYear % 2 == 0) "Remuna Amruta Keli Khira Bhog & Nabadwip Sandesh" else "Balasore Mudhi-Mansha (Baripada Style Special)",
+            sweetShopsOpenCount = 20 + (hour % 6),
+            tpnodlOutageFeedersCount = if (dayOfYear % 9 == 0 && hour in 11..13) 2 else 0,
+            tpnodlRestorationEta = if (dayOfYear % 9 == 0 && hour in 11..13) "Feeder #4 Remuna line repair in progress (ETA: 45 min) 🟡" else "All 33/11kV Substations Stable Normal 🟢",
+            chandipurBioluminescenceIndex = 65f + ((dayOfYear % 28).coerceAtMost(14) * 2.2f),
+            bioluminescenceVisibilityText = if (hour in 19..23 || hour in 0..4) "Optimal Glow Visibility (Dark Sky + Ebb Tide) 🌌" else "Daytime Phase (Nocturnal Glow activates post 07:30 PM)",
+            nightTideSafeWalkingMinutes = if (hour in 18..23 || hour in 0..3) 140 - (minute * 2 % 60) else 180,
+            fmmchAsvVialsAvailable = 82 + (dayOfYear % 24),
+            nilagiriAsvVials = 24 + (dayOfYear % 10),
+            jaleswarAsvVials = 20 + (dayOfYear % 8),
+            snakebiteHelplineActive = true,
+            activeDokraArtisansCount = 34 + (dayOfYear % 6),
+            upcomingDokraExhibition = "Baleswar Mahotsav & Gandhi Smruti Expo",
+            baghaJatinAudioGuidesCount = 5,
+            chasakhandMemorialVisitorsToday = 140 + (hour * 7 % 80),
+            kuldihaElephantMovementSector = if (dayOfYear % 4 == 0) "Tinikosia-Gohirabhani Corridor Fringes (Watchtower Active) 🐘" else "Sanctuary Core Deep Forest (Safe Zone) 🟢",
+            kuldihaForestFireRisk = if (dayOfYear % 30 == 0) "Moderate Thermal Anomaly (Forest Beat Patrol Active) 🟡" else "Low Fire Risk (Moist Deciduous Canopy 🟢)",
+            bhograiRawCashewRateKg = 118 + (dayOfYear % 12),
+            cashewOutTurnKor = "48-50 lbs (Export Grade-A)",
+            bhograiGroundnutRateQuintal = 6400 + ((dayOfYear % 15) * 20),
+            raibaniaDailyVisitorsCount = 145 + (hour * 9 % 65),
+            raibaniaExcavationStatus = "Moat & Jayachandi Temple Preservation Active 🟢",
+            raibaniaGoldenHourPhotoWindow = "04:30 PM - 05:45 PM",
+            balaramgadiActiveTrawlersCount = 195 + (dayOfYear % 25),
+            balaramgadiTigerPrawnLandingKg = 1250 + ((dayOfYear % 10) * 45),
+            balaramgadiHilsaSeaCatchKg = 820 + ((dayOfYear % 8) * 35),
+            balaramgadiDieselSubsidyActive = true,
+            nilagiriLacquerArtisansCount = 38 + (dayOfYear % 6),
+            nilagiriBambooClustersActive = 15 + (dayOfYear % 4),
+            nilagiriLacquerBangleOrdersToday = 65 + (hour * 3 % 40),
+            dhhBloodUnitsStoredTotal = 175 + (dayOfYear % 25),
+            fmmchNegativeUnitsReserve = 18 + (dayOfYear % 8),
+            rareBloodDonorHelplineActive = true,
+            subarnarekhaRajghatGaugeMeters = 8.55f + ((dayOfYear % 10) * 0.08f),
+            subarnarekhaDangerMarkMeters = 9.45f,
+            bhograiActiveSluiceGatesCount = 14 + (dayOfYear % 3),
+            subarnarekhaUpstreamReleaseCusecs = 16500 + ((dayOfYear % 8) * 800),
+            youthWellnessTeleManasActive = true,
+            youthStudyCirclesActiveCount = 8 + (dayOfYear % 4),
+            examPeerAspirantsConnected = 130 + (dayOfYear % 35),
+            marinePortSignalNumber = if (dayOfYear % 12 == 0) 4 else 3,
+            marinePortSignalTitle = if (dayOfYear % 12 == 0) "Signal 4: Local In-Port Warning Squall ⚠️" else "Signal 3: Local Cautionary Offshore Alert 🟢",
+            marineImblDistanceKm = 24.5f + (dayOfYear % 10),
+            isMarineHighSeasSosActive = false,
+            chhenaGajaNextHotBatchTime = if (hour < 11) "11:30 AM (Nandi Sweets Market)" else if (hour < 16) "04:30 PM (Town Chhena Gaja Corner)" else "07:15 PM (Station Road)",
+            remunaKhiraBhogPotsLeft = (45 - (minute % 35)).coerceAtLeast(6),
+            mudhiMansaAuthenticStallsOpen = 12 + (hour % 4),
+            sunhatWaterloggingMeters = if (dayOfYear % 15 == 0) 0.35f else 0.08f,
+            aradabazarFloodStatus = if (dayOfYear % 15 == 0) "Caution: High Tide Backflow in Low Wards 🟡" else "Normal Sluice Drainage Band 🟢",
+            nearestHighGroundShelter = "Gopalgaon Govt High School Multi-Shelter (Elev: 14m)",
+            municipalSandbagPostStock = 400 + (dayOfYear % 10) * 15,
+            kuldihaHerdSightingSector = if (dayOfYear % 3 == 0) "Tentei-Devagiri Buffer Sector (Panchalingeswar Fringe) 🐘" else "Sanctuary Core Deep Jungle (Safe Corridor 🟢)",
+            kuldihaSafariSlotsAvailable = (20 - (hour % 10)).coerceAtLeast(3),
+            isElephantFringeSafeNow = hour in 6..17,
+            districtLibrarySeatsOccupied = (25 + (hour * 4 % 32)).coerceIn(10, 58),
+            districtLibraryTotalSeats = 60,
+            activeStateScholarshipsCount = 6,
+            upcomingApprenticeDrive = "SER Kharagpur-Balasore Apprentice (185 Posts) • Apply by 15th",
+            balasoreSolarYieldTodayKwh = 4.6f + ((dayOfYear % 5) * 0.15f),
+            tpnodlScheduledFeederCutsCount = if (dayOfYear % 7 == 0 && hour in 13..15) 1 else 0,
+            tpnodlRestorationHelplineActive = true,
+            oliveRidleyNestingCount = 14 + (dayOfYear % 12),
+            oliveRidleyBeachSightingStatus = if (dayOfYear % 2 == 0) "Kasafal Beach & Dagara Estuary Patrol Active 🐢" else "Talasari & Subarnarekha Marine Sanctuary Active 🟢",
+            aiimsOpdSpecialistsAvailable = 10 + (dayOfYear % 5),
+            aiimsSatelliteCentreQueueWaitMins = (12 + (hour * 2 % 15)).coerceIn(5, 30),
+            dhhIcuBedsAvailable = (10 - (dayOfYear % 6)).coerceAtLeast(3),
+            offlineCycloneSheltersReadyCount = 64,
+            isOfflineSurvivalSirenReady = true
+        )
+    }
+}

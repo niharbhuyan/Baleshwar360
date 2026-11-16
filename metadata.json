@@ -1,0 +1,8 @@
+{
+  "name": "Baleshwar 360",
+  "description": "Comprehensive hyper-local community app for Baleshwar (Balasore), Odisha with real-time news, emergency directory, essential utilities, bus/train alerts, offline caching, and AdMob integration.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

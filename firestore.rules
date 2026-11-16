@@ -1,0 +1,416 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global Safety Net: default-deny all unmatched paths
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isSignedIn() &&
+        request.auth.token.email == 'niharbhuyan@gmail.com' &&
+        request.auth.token.email_verified == true;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-\\.]+$');
+    }
+
+    // Entity validation helpers
+    function isValidUserProfile(data) {
+      return data.keys().hasAll(['userId', 'displayName', 'email', 'createdAt', 'updatedAt']) &&
+        data.keys().hasOnly(['userId', 'displayName', 'email', 'photoUrl', 'bio', 'locality', 'phoneNumber', 'createdAt', 'updatedAt']) &&
+        data.userId is string && data.userId.size() <= 128 &&
+        data.displayName is string && data.displayName.size() > 0 && data.displayName.size() <= 120 &&
+        data.email is string && data.email.size() <= 200 &&
+        (!('photoUrl' in data) || data.photoUrl == null || (data.photoUrl is string && data.photoUrl.size() <= 1000)) &&
+        (!('bio' in data) || data.bio == null || (data.bio is string && data.bio.size() <= 500)) &&
+        (!('locality' in data) || data.locality == null || (data.locality is string && data.locality.size() <= 100)) &&
+        (!('phoneNumber' in data) || data.phoneNumber == null || (data.phoneNumber is string && data.phoneNumber.size() <= 30)) &&
+        data.createdAt is int &&
+        data.updatedAt is int;
+    }
+
+    function isValidWeatherPreferences(data) {
+      return data.keys().hasAll(['userId', 'notifyCyclone', 'notifyHighTide', 'notifySevereHeat', 'notifyRainfall', 'updatedAt']) &&
+        data.keys().hasOnly([
+          'userId',
+          'notifyCyclone',
+          'notifyHighTide',
+          'notifySevereHeat',
+          'notifyRainfall',
+          'notifyLocalEvents',
+          'notifyTempleFestivals',
+          'notifyBreakingNews',
+          'notifyTourismHotspots',
+          'notifyDefenseAdvisories',
+          'notifyFloodAlerts',
+          'notifyKuldihaSafari',
+          'notifyPanchalingeswar',
+          'notifySafeTideWindow',
+          'highTideAlertHoursBefore',
+          'minTempThreshold',
+          'maxTempThreshold',
+          'preferredNewsCategories',
+          'updatedAt'
+        ]) &&
+        data.userId is string && data.userId.size() <= 128 &&
+        data.notifyCyclone is bool &&
+        data.notifyHighTide is bool &&
+        data.notifySevereHeat is bool &&
+        data.notifyRainfall is bool &&
+        (!('notifyLocalEvents' in data) || data.notifyLocalEvents is bool) &&
+        (!('notifyTempleFestivals' in data) || data.notifyTempleFestivals is bool) &&
+        (!('notifyBreakingNews' in data) || data.notifyBreakingNews is bool) &&
+        (!('notifyTourismHotspots' in data) || data.notifyTourismHotspots is bool) &&
+        (!('notifyDefenseAdvisories' in data) || data.notifyDefenseAdvisories is bool) &&
+        (!('notifyFloodAlerts' in data) || data.notifyFloodAlerts is bool) &&
+        (!('notifyKuldihaSafari' in data) || data.notifyKuldihaSafari is bool) &&
+        (!('notifyPanchalingeswar' in data) || data.notifyPanchalingeswar is bool) &&
+        (!('notifySafeTideWindow' in data) || data.notifySafeTideWindow is bool) &&
+        (!('highTideAlertHoursBefore' in data) || data.highTideAlertHoursBefore is int) &&
+        (!('minTempThreshold' in data) || data.minTempThreshold is int) &&
+        (!('maxTempThreshold' in data) || data.maxTempThreshold is int) &&
+        (!('preferredNewsCategories' in data) || (
+          data.preferredNewsCategories is list &&
+          data.preferredNewsCategories.size() <= 20 &&
+          (data.preferredNewsCategories.size() == 0 || data.preferredNewsCategories[0] is string)
+        )) &&
+        data.updatedAt is int;
+    }
+
+    function isValidUserGeneralPreferences(data) {
+      return data.keys().hasAll(['userId', 'language', 'weatherAlertsEnabled', 'breakingNewsEnabled', 'locality', 'lastSyncedAt']) &&
+        data.keys().hasOnly(['userId', 'language', 'weatherAlertsEnabled', 'breakingNewsEnabled', 'locality', 'lastSyncedAt']) &&
+        data.userId is string && data.userId.size() <= 128 &&
+        data.language is string && data.language.size() <= 50 &&
+        data.weatherAlertsEnabled is bool &&
+        data.breakingNewsEnabled is bool &&
+        data.locality is string && data.locality.size() <= 100 &&
+        data.lastSyncedAt is int;
+    }
+
+    function isValidGroundedQueryLog(data) {
+      return data.keys().hasAll(['userId', 'query', 'groundingType', 'timestamp']) &&
+        data.keys().hasOnly(['userId', 'query', 'groundingType', 'timestamp']) &&
+        data.userId is string && data.userId.size() <= 128 &&
+        data.query is string && data.query.size() <= 500 &&
+        data.groundingType is string && data.groundingType.size() <= 100 &&
+        data.timestamp is int;
+    }
+
+    function isValidFavoriteNews(data) {
+      return data.keys().hasAll(['newsId', 'userId', 'title', 'source', 'category', 'savedAt']) &&
+        data.keys().hasOnly(['newsId', 'userId', 'title', 'source', 'category', 'publishedAt', 'url', 'savedAt']) &&
+        data.newsId is string && data.newsId.size() <= 128 &&
+        data.userId is string && data.userId.size() <= 128 &&
+        data.title is string && data.title.size() > 0 && data.title.size() <= 300 &&
+        data.source is string && data.source.size() <= 100 &&
+        data.category is string && data.category.size() <= 50 &&
+        (!('publishedAt' in data) || data.publishedAt == null || (data.publishedAt is string && data.publishedAt.size() <= 100)) &&
+        (!('url' in data) || data.url == null || (data.url is string && data.url.size() <= 1000)) &&
+        data.savedAt is int;
+    }
+
+    function isValidTourismBookmark(data) {
+      return data.keys().hasAll(['spotId', 'userId', 'spotName', 'category', 'location', 'bookmarkedAt']) &&
+        data.keys().hasOnly(['spotId', 'userId', 'spotName', 'category', 'location', 'rating', 'bookmarkedAt']) &&
+        data.spotId is string && data.spotId.size() <= 128 &&
+        data.userId is string && data.userId.size() <= 128 &&
+        data.spotName is string && data.spotName.size() > 0 && data.spotName.size() <= 120 &&
+        data.category is string && data.category.size() <= 50 &&
+        data.location is string && data.location.size() <= 100 &&
+        (!('rating' in data) || data.rating is number) &&
+        data.bookmarkedAt is int;
+    }
+
+    function isValidTourismReview(data) {
+      return data.keys().hasAll(['reviewId', 'spotId', 'userId', 'userDisplayName', 'rating', 'reviewText', 'createdAt']) &&
+        data.keys().hasOnly([
+          'reviewId',
+          'spotId',
+          'spotName',
+          'userId',
+          'userDisplayName',
+          'userPhotoUrl',
+          'rating',
+          'reviewText',
+          'travelTip',
+          'tipCategory',
+          'photoUris',
+          'visitSeason',
+          'moderationStatus',
+          'moderatorNote',
+          'helpfulVotes',
+          'createdAt'
+        ]) &&
+        data.reviewId is string && data.reviewId.size() <= 128 &&
+        data.spotId is string && data.spotId.size() <= 128 &&
+        (!('spotName' in data) || data.spotName == null || (data.spotName is string && data.spotName.size() <= 150)) &&
+        data.userId is string && data.userId.size() <= 128 &&
+        data.userDisplayName is string && data.userDisplayName.size() > 0 && data.userDisplayName.size() <= 120 &&
+        (!('userPhotoUrl' in data) || data.userPhotoUrl == null || (data.userPhotoUrl is string && data.userPhotoUrl.size() <= 1000)) &&
+        data.rating is int && data.rating >= 1 && data.rating <= 5 &&
+        data.reviewText is string && data.reviewText.size() > 0 && data.reviewText.size() <= 1000 &&
+        (!('travelTip' in data) || data.travelTip == null || (data.travelTip is string && data.travelTip.size() <= 500)) &&
+        (!('tipCategory' in data) || data.tipCategory == null || (data.tipCategory is string && data.tipCategory.size() <= 100)) &&
+        (!('photoUris' in data) || (
+          data.photoUris is list &&
+          data.photoUris.size() <= 10 &&
+          (data.photoUris.size() == 0 || data.photoUris[0] is string)
+        )) &&
+        (!('visitSeason' in data) || data.visitSeason == null || (data.visitSeason is string && data.visitSeason.size() <= 100)) &&
+        (!('moderationStatus' in data) || data.moderationStatus == null || (data.moderationStatus is string && data.moderationStatus.size() <= 30)) &&
+        (!('moderatorNote' in data) || data.moderatorNote == null || (data.moderatorNote is string && data.moderatorNote.size() <= 500)) &&
+        (!('helpfulVotes' in data) || data.helpfulVotes is int) &&
+        data.createdAt is int;
+    }
+
+    function isValidNews(data) {
+      return data.keys().hasAll(['id', 'title', 'summary', 'content', 'category', 'source', 'isBreaking', 'timestamp', 'author']) &&
+        data.keys().hasOnly(['id', 'title', 'titleOr', 'summary', 'content', 'category', 'imageUrl', 'source', 'isBreaking', 'timestamp', 'author', 'priority']) &&
+        data.id is string && data.id.size() <= 128 &&
+        data.title is string && data.title.size() > 0 && data.title.size() <= 300 &&
+        (!('titleOr' in data) || data.titleOr == null || (data.titleOr is string && data.titleOr.size() <= 300)) &&
+        data.summary is string && data.summary.size() <= 600 &&
+        data.content is string && data.content.size() <= 10000 &&
+        data.category is string && data.category.size() <= 50 &&
+        (!('imageUrl' in data) || data.imageUrl == null || (data.imageUrl is string && data.imageUrl.size() <= 1000)) &&
+        data.source is string && data.source.size() <= 100 &&
+        data.isBreaking is bool &&
+        data.timestamp is int &&
+        data.author is string && data.author.size() <= 100 &&
+        (!('priority' in data) || data.priority is int);
+    }
+
+    function isValidEmergencyContact(data) {
+      return data.keys().hasAll(['id', 'name', 'category', 'phone', 'address', 'latitude', 'longitude', 'is24x7', 'updatedAt']) &&
+        data.keys().hasOnly(['id', 'name', 'odiaName', 'category', 'phone', 'alternatePhone', 'address', 'odiaAddress', 'latitude', 'longitude', 'is24x7', 'capacityOrBeds', 'priority', 'updatedAt']) &&
+        data.id is string && data.id.size() <= 128 &&
+        data.name is string && data.name.size() > 0 && data.name.size() <= 150 &&
+        (!('odiaName' in data) || data.odiaName == null || (data.odiaName is string && data.odiaName.size() <= 150)) &&
+        data.category is string && data.category.size() <= 50 &&
+        data.phone is string && data.phone.size() > 0 && data.phone.size() <= 50 &&
+        (!('alternatePhone' in data) || data.alternatePhone == null || (data.alternatePhone is string && data.alternatePhone.size() <= 50)) &&
+        data.address is string && data.address.size() <= 300 &&
+        (!('odiaAddress' in data) || data.odiaAddress == null || (data.odiaAddress is string && data.odiaAddress.size() <= 300)) &&
+        data.latitude is number && data.latitude >= -90.0 && data.latitude <= 90.0 &&
+        data.longitude is number && data.longitude >= -180.0 && data.longitude <= 180.0 &&
+        data.is24x7 is bool &&
+        (!('capacityOrBeds' in data) || data.capacityOrBeds == null || (data.capacityOrBeds is string && data.capacityOrBeds.size() <= 200)) &&
+        (!('priority' in data) || data.priority is int) &&
+        data.updatedAt is int;
+    }
+
+    function isValidUserReport(data) {
+      return data.keys().hasAll(['id', 'userId', 'userName', 'title', 'category', 'description', 'wardLocation', 'status', 'urgency', 'reportedTimestamp', 'lastUpdatedTimestamp']) &&
+        data.keys().hasOnly(['id', 'userId', 'userName', 'title', 'category', 'description', 'wardLocation', 'status', 'urgency', 'latitude', 'longitude', 'photoUrl', 'reportedTimestamp', 'lastUpdatedTimestamp', 'resolutionNotes']) &&
+        data.id is string && data.id.size() <= 128 &&
+        data.userId is string && data.userId.size() <= 128 &&
+        data.userName is string && data.userName.size() > 0 && data.userName.size() <= 120 &&
+        data.title is string && data.title.size() > 0 && data.title.size() <= 200 &&
+        data.category is string && data.category.size() <= 50 &&
+        data.description is string && data.description.size() > 0 && data.description.size() <= 2000 &&
+        data.wardLocation is string && data.wardLocation.size() <= 150 &&
+        data.status in ['SUBMITTED', 'IN_PROGRESS', 'RESOLVED', 'REJECTED'] &&
+        data.urgency in ['LOW', 'MEDIUM', 'HIGH', 'EMERGENCY'] &&
+        (!('latitude' in data) || data.latitude is number) &&
+        (!('longitude' in data) || data.longitude is number) &&
+        (!('photoUrl' in data) || data.photoUrl == null || (data.photoUrl is string && data.photoUrl.size() <= 1000)) &&
+        data.reportedTimestamp is int &&
+        data.lastUpdatedTimestamp is int &&
+        (!('resolutionNotes' in data) || data.resolutionNotes == null || (data.resolutionNotes is string && data.resolutionNotes.size() <= 1000));
+    }
+
+    function isValidNewsArticleViewCount(data) {
+      return data.keys().hasAll(['articleId', 'title', 'category', 'viewCount', 'lastViewedAt']) &&
+        data.articleId is string && data.articleId.size() <= 128 &&
+        data.title is string && data.title.size() <= 300 &&
+        data.category is string && data.category.size() <= 50 &&
+        data.viewCount is int && data.viewCount >= 0 &&
+        data.lastViewedAt is int;
+    }
+
+    function isValidFestivalRsvp(data) {
+      return data.keys().hasAll(['eventId', 'titleEn', 'attendeeCount', 'updatedAt']) &&
+        data.keys().hasOnly(['eventId', 'titleEn', 'attendeeCount', 'updatedAt']) &&
+        data.eventId is string && data.eventId.size() <= 128 &&
+        data.titleEn is string && data.titleEn.size() <= 200 &&
+        data.attendeeCount is int && data.attendeeCount >= 0 &&
+        data.updatedAt is int;
+    }
+
+    function isValidCommunityForumPost(data) {
+      return data.keys().hasAll(['postId', 'title', 'body', 'category', 'authorName', 'createdAtMs', 'upvotes', 'updatedAt']) &&
+        data.postId is string && data.postId.size() <= 128 &&
+        data.title is string && data.title.size() > 0 && data.title.size() <= 300 &&
+        data.body is string && data.body.size() > 0 && data.body.size() <= 5000 &&
+        data.category is string && data.category.size() <= 100 &&
+        data.authorName is string && data.authorName.size() <= 120 &&
+        data.createdAtMs is int &&
+        data.upvotes is int &&
+        data.updatedAt is int;
+    }
+
+    // 1. User Profiles & Subcollections
+    match /users/{userId} {
+      allow get: if isOwner(userId) || isAdmin();
+      allow list: if isAdmin();
+      allow create: if isOwner(userId) &&
+        isValidId(userId) &&
+        isValidUserProfile(request.resource.data) &&
+        request.resource.data.userId == userId;
+      allow update: if (isOwner(userId) || isAdmin()) &&
+        isValidId(userId) &&
+        isValidUserProfile(request.resource.data) &&
+        request.resource.data.userId == resource.data.userId &&
+        request.resource.data.createdAt == resource.data.createdAt;
+      allow delete: if isOwner(userId) || isAdmin();
+
+      // Weather Alert Preferences subcollection
+      match /preferences/{prefId} {
+        allow get, list: if isOwner(userId) || isAdmin();
+        allow create, update: if isOwner(userId) &&
+          isValidId(prefId) &&
+          isValidWeatherPreferences(request.resource.data) &&
+          request.resource.data.userId == userId;
+        allow delete: if isOwner(userId) || isAdmin();
+      }
+
+      // General Profile Preferences subcollection
+      match /profile/{docId} {
+        allow get, list: if isOwner(userId) || isAdmin();
+        allow create, update: if isOwner(userId) &&
+          isValidId(docId) &&
+          isValidUserGeneralPreferences(request.resource.data) &&
+          request.resource.data.userId == userId;
+        allow delete: if isOwner(userId) || isAdmin();
+      }
+
+      // Grounded Query History subcollection
+      match /grounded_queries/{queryId} {
+        allow get, list: if isOwner(userId) || isAdmin();
+        allow create, update: if isOwner(userId) &&
+          isValidId(queryId) &&
+          isValidGroundedQueryLog(request.resource.data) &&
+          request.resource.data.userId == userId;
+        allow delete: if isOwner(userId) || isAdmin();
+      }
+
+      // Favorite News subcollection
+      match /favorite_news/{newsId} {
+        allow get, list: if isOwner(userId) || isAdmin();
+        allow create, update: if isOwner(userId) &&
+          isValidId(newsId) &&
+          isValidFavoriteNews(request.resource.data) &&
+          request.resource.data.userId == userId;
+        allow delete: if isOwner(userId) || isAdmin();
+      }
+
+      // Bookmarked Tourism Spots subcollection
+      match /bookmarks/{bookmarkId} {
+        allow get, list: if isOwner(userId) || isAdmin();
+        allow create, update: if isOwner(userId) &&
+          isValidId(bookmarkId) &&
+          isValidTourismBookmark(request.resource.data) &&
+          request.resource.data.userId == userId;
+        allow delete: if isOwner(userId) || isAdmin();
+      }
+    }
+
+    // 2. Tourism Hotspot Community Reviews
+    match /tourism_reviews/{reviewId} {
+      allow read: if true;
+      allow create: if isSignedIn() &&
+        isValidId(reviewId) &&
+        request.resource.data.userId == request.auth.uid &&
+        isValidTourismReview(request.resource.data);
+      allow update: if (isSignedIn() && resource.data.userId == request.auth.uid || isAdmin()) &&
+        isValidId(reviewId) &&
+        isValidTourismReview(request.resource.data) &&
+        request.resource.data.userId == resource.data.userId &&
+        request.resource.data.createdAt == resource.data.createdAt;
+      allow delete: if (isSignedIn() && resource.data.userId == request.auth.uid) || isAdmin();
+    }
+
+    // 3. District & Breaking News Collection
+    match /news/{newsId} {
+      allow read: if true;
+      allow create, update: if (isAdmin() || (isSignedIn() && isValidNews(request.resource.data)));
+      allow delete: if isAdmin();
+    }
+
+    // 4. Official Emergency Contacts Collection
+    match /emergency_contacts/{contactId} {
+      allow read: if true;
+      allow create, update: if (isAdmin() || (isSignedIn() && isValidEmergencyContact(request.resource.data)));
+      allow delete: if isAdmin();
+    }
+
+    // 5. Citizen Civic Issue Reports Collection
+    match /user_reports/{reportId} {
+      allow read: if true;
+      allow create: if isSignedIn() &&
+        isValidId(reportId) &&
+        request.resource.data.userId == request.auth.uid &&
+        isValidUserReport(request.resource.data);
+      allow update: if (isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin())) &&
+        isValidId(reportId) &&
+        isValidUserReport(request.resource.data) &&
+        request.resource.data.userId == resource.data.userId &&
+        request.resource.data.reportedTimestamp == resource.data.reportedTimestamp;
+      allow delete: if (isSignedIn() && resource.data.userId == request.auth.uid) || isAdmin();
+    }
+
+    // 6. User Feedback & Legacy Reports
+    match /feedback/{feedbackId} {
+      allow read: if true;
+      allow create, update: if isSignedIn();
+      allow delete: if isAdmin();
+    }
+
+    match /civic_reports/{reportId} {
+      allow read: if true;
+      allow create, update: if isSignedIn();
+      allow delete: if isAdmin();
+    }
+
+    // 7. Citizen Voice Civic Initiative Votes
+    match /citizen_votes/{voteId} {
+      allow read: if true;
+      allow create, update: if true;
+      allow delete: if isAdmin();
+    }
+
+    // 8. Trending News Article View Counts
+    match /news_article_views/{articleId} {
+      allow read: if true;
+      allow create, update: if isValidNewsArticleViewCount(request.resource.data);
+      allow delete: if isAdmin();
+    }
+
+    // 9. Community Festival RSVP Counters
+    match /festivals_rsvp/{eventId} {
+      allow read: if true;
+      allow create, update: if isValidFestivalRsvp(request.resource.data);
+      allow delete: if isAdmin();
+    }
+
+    // 10. Community Forum Posts
+    match /community_forum_posts/{postId} {
+      allow read: if true;
+      allow create, update: if isValidCommunityForumPost(request.resource.data);
+      allow delete: if isAdmin();
+    }
+  }
+}

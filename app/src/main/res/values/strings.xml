@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Baleshwar 360</string>
+    <string name="app_tagline">Your 360° Guide to Baleshwar, Chandipur &amp; Beyond</string>
+    <string name="brand_name">Nihar Sales</string>
+    <string name="app_subtitle">Digital Information &amp; Tourism Portal</string>
+    <string name="tab_tourism">Tourism</string>
+    <string name="tab_news">Baleshwar News</string>
+    <string name="tab_weather">Weather &amp; Alerts</string>
+    <string name="tab_essentials">Essentials</string>
+    <string name="search_hint">Search news, beaches, temples, weather…</string>
+    <string name="retry">Retry</string>
+    <string name="offline_mode_active">No Connection • Offline Mode Active</string>
+    <string name="offline_room_cached">Room Cached News, Weather &amp; Hotspots</string>
+    <string name="favorites">Favorite Places</string>
+    <string name="language_preference">Language &amp; Script Preference</string>
+    <string name="language_hint">Choose display language (English, ଓଡ଼ିଆ, हिन्दी)</string>
+    <string name="lang_english">English</string>
+    <string name="lang_odia">ଓଡ଼ିଆ</string>
+    <string name="lang_hindi">हिन्दी</string>
+    <string name="settings_title">Settings &amp; Preferences</string>
+    <string name="settings_language_title">Language / ଭାଷା</string>
+    <string name="settings_language_desc">Switch app display language between English and Odia</string>
+    <string name="current_language_label">Current Language: English</string>
+    <string name="language_toggle_label">Switch to Odia (ଓଡ଼ିଆ କୁ ବଦଳାନ୍ତୁ)</string>
+    <string name="auto_update_heading">Automatic Live Updates</string>
+    <string name="auto_update_description">Weather, bus schedules, tides and news stay updated automatically</string>
+    <string name="auto_update_status_active">Auto-Update Active • Real-Time Sync</string>
+    <string name="shortcut_sos_short">Emergency SOS</string>
+    <string name="shortcut_sos_long">Trigger Emergency SOS &amp; Helplines</string>
+    <string name="shortcut_tide_short">Chandipur Tide</string>
+    <string name="shortcut_tide_long">Check Chandipur Vanishing Sea Tide Clock</string>
+    <string name="shortcut_shelters_short">Cyclone Shelters</string>
+    <string name="shortcut_shelters_long">Find Nearest OSDMA Cyclone Shelters</string>
+    <string name="shortcut_civic_short">Civic Eye</string>
+    <string name="shortcut_civic_long">Report Civic Issue in Baleshwar</string>
+    <string name="widget_shelter_name">Baleshwar Cyclone Shelter &amp; Helpline</string>
+    <string name="widget_shelter_description">Quick access to Baleshwar Weather, Chandipur Tide &amp; Nearest Cyclone Shelters</string>
+    <string name="widget_chandipur_safe_walk_name">Chandipur Safe Walk Tide Clock</string>
+    <string name="widget_chandipur_safe_walk_desc">Live Chandipur Vanishing Sea Tide &amp; Safe Walk Window</string>
+    <string name="widget_weather_name">Baleshwar &amp; Chandipur Weather</string>
+    <string name="widget_weather_desc">Live Temperature, Wind, AQI &amp; Cyclone Alert Status for Baleshwar</string>
+    <string name="widget_sos_name">Baleshwar 360 Emergency SOS</string>
+    <string name="widget_sos_description">Quick 1-tap Police (112), Fire (101), Ambulance (108) &amp; GPS Emergency Message Trigger</string>
+    <string name="widget_flood_gauge_name">Baleshwar River Flood Gauge</string>
+    <string name="widget_flood_gauge_description">Live Subarnarekha (Rajghat) &amp; Budhabalanga (NH-16) River Water Levels &amp; Flood Helpline</string>
+</resources>

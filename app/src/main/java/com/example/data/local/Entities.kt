@@ -1,0 +1,288 @@
+package com.example.data.local
+
+import androidx.room.Entity
+import androidx.room.Index
+import androidx.room.PrimaryKey
+
+@Entity(
+    tableName = "news_articles",
+    indices = [
+        Index("category"),
+        Index("timestamp"),
+        Index("isBreaking"),
+        Index("isBookmarked")
+    ]
+)
+data class NewsArticleEntity(
+    @PrimaryKey(autoGenerate = true)
+    val id: Long = 0,
+    val title: String,
+    val summary: String,
+    val content: String,
+    val category: String,
+    val source: String,
+    val publishedAt: String,
+    val timestamp: Long = System.currentTimeMillis(),
+    val isBreaking: Boolean = false,
+    val imageUrl: String? = null,
+    val isBookmarked: Boolean = false
+)
+
+@Entity(tableName = "weather_cache")
+data class WeatherCacheEntity(
+    @PrimaryKey
+    val id: Int = 1,
+    val temperature: Double,
+    val apparentTemperature: Double,
+    val weatherCode: Int,
+    val weatherDescription: String,
+    val windSpeed: Double,
+    val windGusts: Double,
+    val humidity: Int,
+    val alertLevel: String, // "NORMAL", "ADVISORY", "WARNING", "CYCLONE_ALERT"
+    val alertTitle: String,
+    val alertMessage: String,
+    val tideState: String, // "RECEDING", "LOW_TIDE", "INCOMING", "HIGH_TIDE"
+    val tideDescription: String,
+    val sunrise: String,
+    val sunset: String,
+    val uvIndex: Double,
+    val maxTemp: Double,
+    val minTemp: Double,
+    val lastUpdated: Long = System.currentTimeMillis()
+)
+
+@Entity(
+    tableName = "daily_forecasts",
+    indices = [
+        Index("date")
+    ]
+)
+data class DailyForecastEntity(
+    @PrimaryKey
+    val date: String, // e.g. "2026-09-06"
+    val dayOfWeek: String, // e.g. "Sunday"
+    val weatherCode: Int,
+    val weatherDescription: String,
+    val maxTemp: Double,
+    val minTemp: Double,
+    val sunrise: String,
+    val sunset: String,
+    val uvIndex: Double,
+    val cachedAt: Long = System.currentTimeMillis()
+)
+
+@Entity(
+    tableName = "tourism_hotspots",
+    indices = [
+        Index("category"),
+        Index("isFavorite"),
+        Index("distanceKmFromBls"),
+        Index("timestamp")
+    ]
+)
+data class HotspotEntity(
+    @PrimaryKey
+    val id: String,
+    val name: String,
+    val odiaName: String,
+    val hindiName: String = "",
+    val category: String, // "Beach", "Temple", "Wildlife", "Heritage", "Port"
+    val shortDescription: String,
+    val fullDescription: String,
+    val highlights: String, // comma-separated
+    val distanceKmFromBls: Int,
+    val bestTimeToVisit: String,
+    val timings: String,
+    val entryFee: String,
+    val specialty: String,
+    val localTip: String,
+    val latitude: Double = 21.4934,
+    val longitude: Double = 86.9325,
+    val isFavorite: Boolean = false,
+    val timestamp: Long = System.currentTimeMillis()
+)
+
+@Entity(tableName = "cache_sync_metadata")
+data class CacheSyncMetadataEntity(
+    @PrimaryKey
+    val cacheKey: String, // "NEWS", "WEATHER", "TOURISM", "REVIEWS"
+    val lastSyncedAt: Long,
+    val itemCount: Int,
+    val status: String, // "CACHED", "FRESH", "OFFLINE"
+    val cacheLabel: String = "",
+    val details: String = ""
+)
+
+@Entity(tableName = "users")
+data class UserEntity(
+    @PrimaryKey
+    val id: String, // email or generated ID
+    val fullName: String,
+    val email: String,
+    val passwordHash: String,
+    val phoneNumber: String = "",
+    val locality: String = "Balasore Town",
+    val bio: String = "Balasore Explorer & Resident",
+    val avatarUri: String? = null,
+    val securityQuestion: String = "What is your favorite place in Balasore?",
+    val securityAnswer: String = "Chandipur",
+    val createdAt: Long = System.currentTimeMillis()
+)
+
+@Entity(tableName = "reviews")
+data class ReviewEntity(
+    @PrimaryKey(autoGenerate = true)
+    val id: Long = 0,
+    val targetType: String, // "HOTSPOT", "NEWS", "WEATHER"
+    val targetId: String,   // hotspot ID, news article ID (as String), or "coastal_weather_alert"
+    val targetTitle: String,
+    val userId: String,
+    val userName: String,
+    val userLocality: String = "Balasore",
+    val userAvatarUri: String? = null,
+    val rating: Int,        // 1 to 5 stars
+    val comment: String,
+    val timestamp: Long = System.currentTimeMillis()
+)
+
+@Entity(
+    tableName = "travel_itinerary",
+    indices = [
+        Index("hotspotId"),
+        Index("dayNumber")
+    ]
+)
+data class ItineraryItemEntity(
+    @PrimaryKey(autoGenerate = true)
+    val id: Long = 0,
+    val hotspotId: String,
+    val hotspotName: String,
+    val odiaName: String = "",
+    val category: String = "Heritage",
+    val dayNumber: Int = 1,
+    val timeSlot: String = "10:00 AM",
+    val notes: String = "",
+    val latitude: Double = 21.4934,
+    val longitude: Double = 86.9325,
+    val weatherCondition: String = "Sunny",
+    val weatherIconUrl: String = "https://cdn.weatherapi.com/weather/64x64/day/113.png",
+    val tempC: Double = 29.0,
+    val addedAt: Long = System.currentTimeMillis()
+)
+
+@Entity(
+    tableName = "travel_journals",
+    indices = [
+        Index("visitedDate"),
+        Index("locationName")
+    ]
+)
+data class TravelJournalEntity(
+    @PrimaryKey(autoGenerate = true)
+    val id: Long = 0,
+    val title: String,
+    val locationName: String,
+    val category: String = "Beach",
+    val rating: Int = 5,
+    val notes: String = "",
+    val photoUri: String? = null,
+    val latitude: Double = 0.0,
+    val longitude: Double = 0.0,
+    val spotId: String? = null,
+    val colorTag: Long = 0xFF0284C7,
+    val visitedDate: Long = System.currentTimeMillis()
+)
+
+@Entity(
+    tableName = "chandipur_tides",
+    indices = [
+        Index("date"),
+        Index("lastFetchedTimestamp")
+    ]
+)
+data class ChandipurTideEntity(
+    @PrimaryKey
+    val id: String = "chandipur_tide_current",
+    val date: String,
+    val lowTideTime: String,
+    val highTideTime: String,
+    val nextHighTideTime: String,
+    val recededDistanceKm: Double,
+    val currentWaterLevelMeters: Double,
+    val tideState: String, // "RECEDING", "LOW_TIDE", "INCOMING", "HIGH_TIDE"
+    val safeWalkStatus: String, // "SAFE_WALK", "CAUTION", "UNSAFE_RETURN_SHORE"
+    val safeWalkMinutesRemaining: Int,
+    val lunarCondition: String,
+    val tidalForecastSummary: String,
+    val isOfflineCached: Boolean = true,
+    val lastFetchedTimestamp: Long = System.currentTimeMillis()
+)
+
+@Entity(
+    tableName = "odia_horoscopes",
+    indices = [
+        Index("signKey"),
+        Index("date")
+    ]
+)
+data class OdiaHoroscopeEntity(
+    @PrimaryKey
+    val signKey: String, // mesha, brusa, mithuna, karkata, singha, kanya, tula, bichha, dhanu, makara, kumbha, mina
+    val signNameEn: String,
+    val signNameOr: String,
+    val symbol: String,
+    val elementOr: String,
+    val rulingPlanetOr: String,
+    val predictionEn: String,
+    val predictionOr: String,
+    val careerFinanceOr: String,
+    val healthOr: String,
+    val familyOr: String,
+    val shubhaBela: String,
+    val rahuKala: String,
+    val amritaBela: String,
+    val luckyNumber: Int,
+    val luckyColor: String,
+    val luckyGemstone: String,
+    val worshipDeity: String,
+    val chantingMantra: String,
+    val date: String,
+    val lastUpdatedTimestamp: Long = System.currentTimeMillis()
+)
+
+@Entity(
+    tableName = "odia_festivals",
+    indices = [
+        Index("category"),
+        Index("daysRemaining"),
+        Index("isStarred")
+    ]
+)
+data class OdiaFestivalEntity(
+    @PrimaryKey(autoGenerate = true)
+    val id: Long = 0,
+    val festivalId: String,
+    val titleEn: String,
+    val titleOr: String,
+    val monthPeriodEn: String,
+    val monthPeriodOr: String,
+    val odiaTithi: String,
+    val venueEn: String,
+    val venueOr: String,
+    val category: String,
+    val eventDate: String,
+    val daysRemaining: Int,
+    val significanceEn: String,
+    val significanceOr: String,
+    val ritualsEn: String,
+    val ritualsOr: String,
+    val specialTransitEn: String,
+    val specialTransitOr: String,
+    val prasadSpecialty: String,
+    val isStarred: Boolean = false,
+    val lastUpdatedTimestamp: Long = System.currentTimeMillis()
+)
+
+
+

@@ -1,0 +1,117 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_weather_root"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="12dp"
+    android:background="@drawable/bg_widget_chandipur_badge">
+
+    <TextView
+        android:id="@+id/widget_weather_temp"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="29°C"
+        android:textSize="20sp"
+        android:textStyle="bold"
+        android:textColor="#FFFFFF" />
+
+    <TextView
+        android:id="@+id/widget_temp_text"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:visibility="gone" />
+
+    <TextView
+        android:id="@+id/widget_weather_desc"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Coastal Breeze"
+        android:textSize="13sp"
+        android:textColor="#E2E8F0" />
+
+    <TextView
+        android:id="@+id/widget_condition_text"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:visibility="gone" />
+
+    <TextView
+        android:id="@+id/widget_humidity_text"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Humidity: 74%"
+        android:textSize="11sp"
+        android:textColor="#CBD5E1" />
+
+    <TextView
+        android:id="@+id/widget_weather_wind"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Wind: 18 km/h"
+        android:textSize="11sp"
+        android:textColor="#CBD5E1" />
+
+    <TextView
+        android:id="@+id/widget_wind_text"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:visibility="gone" />
+
+    <TextView
+        android:id="@+id/widget_feels_like_text"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Feels like 31°C"
+        android:textSize="11sp"
+        android:textColor="#CBD5E1" />
+
+    <LinearLayout
+        android:id="@+id/widget_weather_alert_box"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:paddingTop="4dp">
+
+        <TextView
+            android:id="@+id/widget_weather_alert_text"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Safe for Chandipur Seabed Walk"
+            android:textSize="11sp"
+            android:textColor="#FDE047" />
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/widget_civic_status_text"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:paddingTop="3dp"
+        android:text="📸 Civic Eye: 1 Pending • 2 In-Progress • 1 Resolved"
+        android:textSize="10.5sp"
+        android:textStyle="bold"
+        android:textColor="#93C5FD" />
+
+    <TextView
+        android:id="@+id/widget_updated_text"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Updated Just Now"
+        android:textSize="10sp"
+        android:textColor="#94A3B8" />
+
+    <TextView
+        android:id="@+id/widget_weather_btn_refresh"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Refresh"
+        android:textSize="11sp"
+        android:textStyle="bold"
+        android:textColor="#38BDF8" />
+
+    <TextView
+        android:id="@+id/widget_refresh_btn"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:visibility="gone" />
+</LinearLayout>
