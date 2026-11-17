@@ -669,6 +669,13 @@ fun TourismScreen(
                     modifier = Modifier.testTag("home_mini_weather_warning_card")
                 )
 
+                com.example.ui.components.LocalWeatherDashboard(
+                    language = language,
+                    initialFahrenheit = isFahrenheit,
+                    onToggleTempUnit = { onToggleTempUnit() },
+                    onOpenFullForecast = onNavigateToWeather
+                )
+
                 OpenWeatherMapDashboardCardComponent(
                     currentWeather = openWeatherCurrent,
                     sevenDayForecast = openWeatherSevenDayForecast,
@@ -2125,6 +2132,16 @@ fun WeatherScreen(
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
         // 1. Premier OpenWeatherMap Live Weather & Severe Alerts Dashboard Component
+        item {
+            com.example.ui.components.LocalWeatherDashboard(
+                language = language,
+                initialFahrenheit = isFahrenheit,
+                onToggleTempUnit = { onToggleUnit() },
+                onOpenFullForecast = { onOpenFeatureSheet(UniqueFeatureSheetType.OPEN_WEATHER_MAP) }
+            )
+        }
+
+        // 1B. Balasore OpenWeather Dashboard
         item {
             BalasoreOpenWeatherDashboard(
                 language = language,
