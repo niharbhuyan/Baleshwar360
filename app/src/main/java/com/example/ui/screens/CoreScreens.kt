@@ -680,6 +680,10 @@ fun TourismScreen(
                     language = language
                 )
 
+                com.example.ui.components.BalasoreLocalFestivalCalendarComponent(
+                    language = language
+                )
+
                 OpenWeatherMapDashboardCardComponent(
                     currentWeather = openWeatherCurrent,
                     sevenDayForecast = openWeatherSevenDayForecast,

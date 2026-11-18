@@ -268,6 +268,26 @@ class OdiaFestivalRepository private constructor(
             prasadSpecialty = "ଗଙ୍ଗାଜଳ, ଶ୍ରୀଫଳ, ପଞ୍ଚାମୃତ ଓ ଲଡୁ ଭୋଗ"
         ),
         FestivalSeed(
+            festivalId = "pana_sankranti_odia_nababarsa",
+            titleEn = "Pana Sankranti (Maha Vishuba Sankranti & Odia New Year)",
+            titleOr = "ମହାବିଷୁବ ପଣା ସଂକ୍ରାନ୍ତି ଓ ଓଡ଼ିଆ ନବବର୍ଷ",
+            monthPeriodEn = "Baisakha (April 14)",
+            monthPeriodOr = "ବୈଶାଖ ୧ ତାରିଖ (୧୪ ଏପ୍ରିଲ)",
+            odiaTithi = "ମହାବିଷୁବ ପଣା ସଂକ୍ରାନ୍ତି • ଓଡ଼ିଆ ନୂଆବର୍ଷ",
+            venueEn = "Chandaneswar Temple, Remuna Gopinath & Across Balasore District",
+            venueOr = "ଚନ୍ଦନେଶ୍ୱର ପୀଠ, ରେମୁଣା ଗୋପୀନାଥ ଓ ସମଗ୍ର ବାଲେଶ୍ୱର ଜିଲ୍ଲା",
+            category = "Temple Festival",
+            eventMonth = Calendar.APRIL,
+            eventDay = 14,
+            significanceEn = "Marks the traditional Odia New Year (Maha Vishuba Sankranti). Families across Balasore prepare sweet Bela Pana (wood apple, chhena, jaggery, and banana drink), hang sacred Basundhara Theki water pots over Tulsi Chaura, and visit Hanuman and Shiva temples.",
+            significanceOr = "ଓଡ଼ିଆ ନବବର୍ଷ ଉପଲକ୍ଷେ ଘରେ ଘରେ ସୁସ୍ୱାଦୁ ବେଲ ପଣା ପ୍ରସ୍ତୁତ ହୁଏ, ତୁଳସୀ ଚଉରା ଉପରେ ବସୁନ୍ଧରା ଠେକି ବନ୍ଧାଯାଏ ଏବଂ ହନୁମାନ ଓ ଶିବ ମନ୍ଦିରରେ ସ୍ୱତନ୍ତ୍ର ପୂଜା ଅନୁଷ୍ଠିତ ହୁଏ।",
+            ritualsEn = "Basundhara Theki Jala Dhara over Tulsi Chaura, Bela Pana Distribution, Panjika Reading",
+            ritualsOr = "ତୁଳସୀ ଚଉରାରେ ବସୁନ୍ଧରା ଠେକି ସ୍ଥାପନ, ବେଲ ଓ ଛେନା ପଣା ଭୋଗ, ନୂତନ ପଞ୍ଜିକା ପଠନ",
+            specialTransitEn = "Special pilgrim buses connecting Balasore Town to Chandaneswar, Remuna, and Panchalingeswar.",
+            specialTransitOr = "ବାଲେଶ୍ୱର ସହରରୁ ଚନ୍ଦନେଶ୍ୱର, ରେମୁଣା ଓ ପଞ୍ଚଲିଙ୍ଗେଶ୍ୱରକୁ ସ୍ୱତନ୍ତ୍ର ବସ୍ ସେବା।",
+            prasadSpecialty = "ବେଲ ପଣା, ଛେନା-କଦଳୀ ପଣା ଓ ଛাতୁଆ ଭୋଗ (Bela Pana & Chhatua)"
+        ),
+        FestivalSeed(
             festivalId = "bagha_jatin_memorial",
             titleEn = "Bagha Jatin Balasore Martyrdom Memorial",
             titleOr = "ବାଘା ଯତୀନ ବଳିଦାନ ସ୍ମୃତି ମେଳା",
@@ -291,14 +311,16 @@ class OdiaFestivalRepository private constructor(
 
     /**
      * Initializes base festival records in Room database if table is empty,
-     * or updates remaining days based on current system time.
+     * inserts any newly added seed festivals, and updates remaining days based on current system time.
      */
     suspend fun ensureInitialized() = withContext(Dispatchers.IO) {
         val existing = dao.getAllFestivalsSync()
+        val existingIds = existing.map { it.festivalId }.toSet()
         val now = Calendar.getInstance()
 
-        if (existing.isEmpty()) {
-            val entities = festivalSeeds.map { seed ->
+        val missingSeeds = festivalSeeds.filter { it.festivalId !in existingIds }
+        if (missingSeeds.isNotEmpty()) {
+            val entities = missingSeeds.map { seed ->
                 val daysRemaining = calculateDaysRemaining(seed.eventMonth, seed.eventDay, now)
                 val eventDateStr = "${seed.eventDay} ${getMonthName(seed.eventMonth)} ${now.get(Calendar.YEAR)}"
                 OdiaFestivalEntity(
@@ -320,19 +342,24 @@ class OdiaFestivalRepository private constructor(
                     specialTransitEn = seed.specialTransitEn,
                     specialTransitOr = seed.specialTransitOr,
                     prasadSpecialty = seed.prasadSpecialty,
-                    isStarred = seed.festivalId in listOf("chandaneswar_chadak", "balaramgadi_boita_bandana", "remuna_khirachora_chandan"),
+                    isStarred = seed.festivalId in listOf(
+                        "chandipur_beach_festival",
+                        "pana_sankranti_odia_nababarsa",
+                        "chandaneswar_chadak",
+                        "balaramgadi_boita_bandana",
+                        "remuna_khirachora_chandan"
+                    ),
                     lastUpdatedTimestamp = System.currentTimeMillis()
                 )
             }
             dao.insertFestivals(entities)
-        } else {
-            // Update live days remaining for all records
-            for (item in existing) {
-                val seed = festivalSeeds.find { it.festivalId == item.festivalId }
-                if (seed != null) {
-                    val updatedDays = calculateDaysRemaining(seed.eventMonth, seed.eventDay, now)
-                    dao.updateDaysRemaining(item.festivalId, updatedDays, System.currentTimeMillis())
-                }
+        }
+
+        for (item in existing) {
+            val seed = festivalSeeds.find { it.festivalId == item.festivalId }
+            if (seed != null) {
+                val updatedDays = calculateDaysRemaining(seed.eventMonth, seed.eventDay, now)
+                dao.updateDaysRemaining(item.festivalId, updatedDays, System.currentTimeMillis())
             }
         }
     }
