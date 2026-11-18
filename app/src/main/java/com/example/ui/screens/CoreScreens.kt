@@ -676,6 +676,10 @@ fun TourismScreen(
                     onOpenFullForecast = onNavigateToWeather
                 )
 
+                com.example.ui.components.OdishaCoastalSeismicAlertsCard(
+                    language = language
+                )
+
                 OpenWeatherMapDashboardCardComponent(
                     currentWeather = openWeatherCurrent,
                     sevenDayForecast = openWeatherSevenDayForecast,
@@ -2138,6 +2142,13 @@ fun WeatherScreen(
                 initialFahrenheit = isFahrenheit,
                 onToggleTempUnit = { onToggleUnit() },
                 onOpenFullForecast = { onOpenFeatureSheet(UniqueFeatureSheetType.OPEN_WEATHER_MAP) }
+            )
+        }
+
+        // 1A. Real-Time Odisha Coastal Belt & Bay of Bengal Seismic Activity Alerts (USGS API)
+        item {
+            com.example.ui.components.OdishaCoastalSeismicAlertsCard(
+                language = language
             )
         }
 
