@@ -43,20 +43,32 @@ android {
         val openWeatherKey = rawWeatherKey.trim()
         buildConfigField("String", "OPENWEATHERMAP_API_KEY", "\"$openWeatherKey\"")
 
-        val rawMapsKey = System.getenv("MAPS_API_KEY")
-            ?: System.getenv("GOOGLE_MAPS_KEY")
-            ?: System.getenv("GOOGLE_MAPS_API_KEY")
-            ?: envProperties.getProperty("MAPS_API_KEY")
-            ?: envProperties.getProperty("GOOGLE_MAPS_KEY")
-            ?: envProperties.getProperty("GOOGLE_MAPS_API_KEY")
-            ?: ""
+        val googleServicesFile = file("google-services.json")
+        val autoGoogleServicesKey = if (googleServicesFile.exists()) {
+            Regex("\"current_key\"\\s*:\\s*\"([^\"]+)\"")
+                .find(googleServicesFile.readText())
+                ?.groupValues
+                ?.getOrNull(1)
+                ?.trim()
+                .orEmpty()
+        } else {
+            ""
+        }
+
+        val rawMapsKey = System.getenv("MAPS_API_KEY")?.takeIf { it.isNotBlank() }
+            ?: System.getenv("GOOGLE_MAPS_KEY")?.takeIf { it.isNotBlank() }
+            ?: System.getenv("GOOGLE_MAPS_API_KEY")?.takeIf { it.isNotBlank() }
+            ?: envProperties.getProperty("MAPS_API_KEY")?.takeIf { it.isNotBlank() }
+            ?: envProperties.getProperty("GOOGLE_MAPS_KEY")?.takeIf { it.isNotBlank() }
+            ?: envProperties.getProperty("GOOGLE_MAPS_API_KEY")?.takeIf { it.isNotBlank() }
+            ?: autoGoogleServicesKey
         val trimmedMapsKey = rawMapsKey.trim()
         // Sanitize out placeholder or fake keys to prevent Google Maps authorization failure
         val mapsApiKey = if (trimmedMapsKey.equals("AIzaSyBalasore360MapsKey", ignoreCase = true) ||
             trimmedMapsKey.equals("AIzaSyBiQAArK-Hc0lYU35S41zBvPQnZT1S0d0k", ignoreCase = true) ||
             trimmedMapsKey.contains("YOUR_KEY", ignoreCase = true) ||
             trimmedMapsKey.contains("PLACEHOLDER", ignoreCase = true)) {
-            ""
+            autoGoogleServicesKey
         } else {
             trimmedMapsKey
         }

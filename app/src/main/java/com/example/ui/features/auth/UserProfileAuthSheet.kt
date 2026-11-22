@@ -29,6 +29,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.core.app.NotificationManagerCompat
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.ui.layout.ContentScale
+import coil.compose.AsyncImage
 import android.content.Intent
 import android.provider.Settings
 import android.net.Uri
@@ -73,7 +78,28 @@ fun UserProfileAuthSheet(
     var editBio by remember { mutableStateOf("") }
     var editLocality by remember { mutableStateOf("Balasore Town") }
     var editPhoneNumber by remember { mutableStateOf("") }
+    var editAvatarUri by remember { mutableStateOf<String?>(null) }
     var isSavingProfile by remember { mutableStateOf(false) }
+
+    val photoPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickVisualMedia()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            try {
+                context.contentResolver.takePersistableUriPermission(
+                    uri,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION
+                )
+            } catch (_: Exception) {}
+            val uriString = uri.toString()
+            editAvatarUri = uriString
+            Toast.makeText(
+                context,
+                if (isOdia) "ପ୍ରୋଫାଇଲ୍ ଫଟୋ ବଛାଗଲା! ସେଭ୍ କରନ୍ତୁ।" else "Profile picture selected! Tap Save Profile to sync.",
+                Toast.LENGTH_SHORT
+            ).show()
+        }
+    }
 
     // Load user data whenever currentUser or activeSessionUser changes
     LaunchedEffect(currentUser, activeSessionUser) {
@@ -90,6 +116,7 @@ fun UserProfileAuthSheet(
                 editBio = p.bio
                 editLocality = p.locality
                 editPhoneNumber = p.phoneNumber
+                editAvatarUri = p.avatarUri ?: fbUser?.photoUrl?.toString()
             }
 
             val weatherRes = firestoreService.fetchWeatherPreferences(uid)
@@ -146,12 +173,23 @@ fun UserProfileAuthSheet(
                             .background(MaterialTheme.colorScheme.primaryContainer),
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.AccountCircle,
-                            contentDescription = "User Hub",
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(28.dp)
-                        )
+                        if (!editAvatarUri.isNullOrBlank() && !editAvatarUri!!.startsWith("preset:")) {
+                            AsyncImage(
+                                model = editAvatarUri,
+                                contentDescription = "User Profile Picture",
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .clip(CircleShape)
+                            )
+                        } else {
+                            Icon(
+                                imageVector = Icons.Default.AccountCircle,
+                                contentDescription = "User Hub",
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(28.dp)
+                            )
+                        }
                     }
                     Spacer(modifier = Modifier.width(12.dp))
                     Column {
@@ -340,6 +378,13 @@ fun UserProfileAuthSheet(
                         onLocalityChange = { editLocality = it },
                         phoneNumber = editPhoneNumber,
                         onPhoneNumberChange = { editPhoneNumber = it },
+                        avatarUri = editAvatarUri,
+                        onAvatarUriChange = { editAvatarUri = it },
+                        onPickProfilePhoto = {
+                            photoPickerLauncher.launch(
+                                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                            )
+                        },
                         userEmail = activeEmail,
                         isEmailVerified = authManager.isEmailVerified,
                         savedArticlesCount = savedNewsList.size,
@@ -402,7 +447,7 @@ fun UserProfileAuthSheet(
                                     phoneNumber = editPhoneNumber,
                                     locality = editLocality,
                                     bio = editBio,
-                                    avatarUri = activePhotoUrl,
+                                    avatarUri = editAvatarUri ?: activePhotoUrl,
                                     securityQuestion = "Google Auth",
                                     securityAnswer = "FIREBASE_MANAGED",
                                     createdAt = userProfile?.createdAt ?: System.currentTimeMillis()
@@ -430,6 +475,7 @@ fun UserProfileAuthSheet(
                             coroutineScope.launch {
                                 firestoreService.saveWeatherPreferences(activeUid, weatherPrefs)
                                 FcmManager.setBreakingNewsEnabled(context, weatherPrefs.notifyBreakingNews)
+                                FcmManager.setCommunityAnnouncementsEnabled(context, weatherPrefs.notifyCommunityAnnouncements)
                                 FcmManager.setDefenseAdvisoriesEnabled(context, weatherPrefs.notifyDefenseAdvisories)
                                 FcmManager.setWeatherAlertsEnabled(context, weatherPrefs.notifyCyclone)
                                 FcmManager.setChandipurHighTideAlertsEnabled(context, weatherPrefs.notifyHighTide)
@@ -1093,6 +1139,9 @@ private fun ProfileEditTab(
     onLocalityChange: (String) -> Unit,
     phoneNumber: String,
     onPhoneNumberChange: (String) -> Unit,
+    avatarUri: String? = null,
+    onAvatarUriChange: (String?) -> Unit = {},
+    onPickProfilePhoto: () -> Unit = {},
     userEmail: String,
     isEmailVerified: Boolean,
     savedArticlesCount: Int = 0,
@@ -1119,6 +1168,108 @@ private fun ProfileEditTab(
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
+        // 0A. Profile Picture & Avatar Customization Card
+        item {
+            Card(
+                shape = RoundedCornerShape(14.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.25f)),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("profile_avatar_upload_card")
+            ) {
+                Column(
+                    modifier = Modifier.padding(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(14.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(64.dp)
+                                .clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.primaryContainer)
+                                .clickable { onPickProfilePhoto() }
+                                .testTag("profile_avatar_preview_box"),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (!avatarUri.isNullOrBlank()) {
+                                AsyncImage(
+                                    model = avatarUri,
+                                    contentDescription = if (isOdia) "ପ୍ରୋଫାଇଲ୍ ଫଟୋ" else "Profile picture",
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier
+                                        .size(64.dp)
+                                        .clip(CircleShape)
+                                )
+                            } else {
+                                Text(
+                                    text = displayName.firstOrNull()?.uppercase() ?: "B",
+                                    fontWeight = FontWeight.ExtraBold,
+                                    fontSize = 24.sp,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                                )
+                            }
+                        }
+
+                        Column(
+                            modifier = Modifier.weight(1f),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Text(
+                                text = if (isOdia) "📸 ପ୍ରୋଫାଇଲ୍ ଫଟୋ ଓ ଆଭାଟାର୍ କଷ୍ଟମାଇଜେସନ୍" else "📸 Profile Picture & Avatar Customization",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 13.5.sp,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            Text(
+                                text = if (isOdia) "ଗ୍ୟାଲେରୀରୁ ଆପଣଙ୍କ ପ୍ରୋଫାଇଲ୍ ଫଟୋ ଅପଲୋଡ୍ କରନ୍ତୁ କିମ୍ବା କଷ୍ଟମ୍ ଆଭାଟାର୍ ବାଛନ୍ତୁ"
+                                else "Upload a photo from your device gallery using Android Photo Picker",
+                                fontSize = 11.5.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Button(
+                                    onClick = onPickProfilePhoto,
+                                    shape = RoundedCornerShape(10.dp),
+                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                                    modifier = Modifier.testTag("upload_profile_picture_btn")
+                                ) {
+                                    Icon(Icons.Default.Person, contentDescription = null, modifier = Modifier.size(15.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = if (isOdia) "ଫଟୋ ଅପଲୋଡ୍ କରନ୍ତୁ" else "Upload Profile Picture",
+                                        fontSize = 11.5.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                                if (!avatarUri.isNullOrBlank()) {
+                                    OutlinedButton(
+                                        onClick = { onAvatarUriChange(null) },
+                                        shape = RoundedCornerShape(10.dp),
+                                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
+                                        modifier = Modifier.testTag("remove_profile_picture_btn")
+                                    ) {
+                                        Text(
+                                            text = if (isOdia) "ହଟାନ୍ତୁ" else "Reset",
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.SemiBold
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         // 0. Quick Dashboard: Saved Articles & Notification Toggles Summary
         item {
             Card(
@@ -1224,6 +1375,34 @@ private fun ProfileEditTab(
                                 )
                             },
                             modifier = Modifier.testTag("profile_quick_toggle_weather")
+                        )
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = if (isOdia) "📢 ଗୁରୁତ୍ୱପୂର୍ଣ୍ଣ କମ୍ୟୁନିଟି ଘୋଷଣା" else "📢 Important Community Announcements",
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = 12.5.sp
+                            )
+                            Text(
+                                text = if (isOdia) "ଜିଲ୍ଲା ପ୍ରଶାସନ, ଫୋରମ୍ ଓ ଜରୁରୀ ନାଗରିକ ସୂଚନା" else "Official town-hall notices, forum pins & civic bulletins",
+                                fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Switch(
+                            checked = weatherPrefs.notifyCommunityAnnouncements,
+                            onCheckedChange = { enabled ->
+                                onQuickToggleWeatherNotif(
+                                    weatherPrefs.copy(notifyCommunityAnnouncements = enabled)
+                                )
+                            },
+                            modifier = Modifier.testTag("profile_quick_toggle_community_announcements")
                         )
                     }
 
@@ -1692,6 +1871,19 @@ private fun NotificationPreferencesTab(
             )
         }
 
+        item {
+            PrefSwitchCard(
+                title = if (isOdia) "📢 ଗୁରୁତ୍ୱପୂର୍ଣ୍ଣ କମ୍ୟୁନିଟି ଘୋଷଣା (Community Announcements)" else "📢 Important Community Announcements",
+                desc = if (isOdia) "ବାଲେଶ୍ୱର ଫୋରମ୍ ପିନ୍ ଘୋଷଣା, ନାଗରିକ ଟାଉନ୍-ହଲ୍ ଓ ଜିଲ୍ଲା ପ୍ରଶାସନ ବୁଲେଟିନ୍" else "Official Balasore community forum pinned broadcasts, civic bulletins & public notices",
+                isChecked = prefs.notifyCommunityAnnouncements,
+                onCheckedChange = { enabled ->
+                    onPrefsChange(prefs.copy(notifyCommunityAnnouncements = enabled))
+                    FcmManager.setCommunityAnnouncementsEnabled(context, enabled)
+                },
+                testTag = "pref_switch_community_announcements"
+            )
+        }
+
         // Custom News Topic Alert Filter Chips
         item {
             Card(
@@ -1747,27 +1939,55 @@ private fun NotificationPreferencesTab(
         }
 
         item {
-            OutlinedButton(
-                onClick = {
-                    FcmManager.triggerSampleBreakingNews(context)
-                    Toast.makeText(
-                        context,
-                        if (isOdia) "ତାଜା ଖବର ଟେଷ୍ଟ ନୋଟିଫିକେସନ୍ ପଠାଗଲା!" else "Test breaking news notification dispatched!",
-                        Toast.LENGTH_SHORT
-                    ).show()
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .testTag("test_breaking_news_notification_btn"),
-                shape = RoundedCornerShape(10.dp)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Icon(Icons.Default.Notifications, contentDescription = null, modifier = Modifier.size(16.dp))
-                Spacer(modifier = Modifier.width(6.dp))
-                Text(
-                    text = if (isOdia) "⚡ ଟେଷ୍ଟ ଖବର ନୋଟିଫିକେସନ୍ ପଠାନ୍ତୁ" else "⚡ Send Test News Push Notification",
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.SemiBold
-                )
+                OutlinedButton(
+                    onClick = {
+                        FcmManager.triggerSampleBreakingNews(context)
+                        Toast.makeText(
+                            context,
+                            if (isOdia) "ତାଜା ଖବର ଟେଷ୍ଟ ନୋଟିଫିକେସନ୍ ପଠାଗଲା!" else "Test breaking news notification dispatched!",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    },
+                    modifier = Modifier
+                        .weight(1f)
+                        .testTag("test_breaking_news_notification_btn"),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Icon(Icons.Default.Notifications, contentDescription = null, modifier = Modifier.size(15.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = if (isOdia) "⚡ ଟେଷ୍ଟ ଖବର ଆଲର୍ଟ" else "⚡ Test News Alert",
+                        fontSize = 11.5.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+
+                OutlinedButton(
+                    onClick = {
+                        FcmManager.triggerSampleCommunityAnnouncement(context)
+                        Toast.makeText(
+                            context,
+                            if (isOdia) "କମ୍ୟୁନିଟି ଘୋଷଣା ଟେଷ୍ଟ ନୋଟିଫିକେସନ୍ ପଠାଗଲା!" else "Test community announcement notification dispatched!",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    },
+                    modifier = Modifier
+                        .weight(1f)
+                        .testTag("test_community_announcement_notification_btn"),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Icon(Icons.Default.Notifications, contentDescription = null, modifier = Modifier.size(15.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = if (isOdia) "📢 ଟେଷ୍ଟ କମ୍ୟୁନିଟି ଆଲର୍ଟ" else "📢 Test Community Alert",
+                        fontSize = 11.5.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
             }
         }
 

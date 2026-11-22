@@ -1855,6 +1855,9 @@ fun BalasoreApp(
                             language = uiState.language,
                             onOpenOfflineDashboard = {
                                 viewModel.openFeatureSheet(UniqueFeatureSheetType.OFFLINE_TIDE_DASHBOARD)
+                            },
+                            onOpenTideReminderSettings = {
+                                viewModel.openFeatureSheet(UniqueFeatureSheetType.CHANDIPUR_TIDE_REMINDER_SETTINGS)
                             }
                         )
                     }
@@ -3463,6 +3466,12 @@ fun BalasoreApp(
                         onClose = { viewModel.closeFeatureSheet() }
                     )
                 }
+                UniqueFeatureSheetType.CHANDIPUR_TIDE_REMINDER_SETTINGS -> {
+                    com.example.ui.screens.ChandipurTideReminderSettingsScreen(
+                        language = uiState.language,
+                        onClose = { viewModel.closeFeatureSheet() }
+                    )
+                }
                 null -> {}
             }
         }
@@ -3535,6 +3544,10 @@ fun BalasoreApp(
                         "Firestore push alert dispatched for '$cat'!",
                         Toast.LENGTH_SHORT
                     ).show()
+                },
+                onOpenTideReminderSettings = {
+                    showSettingsSheet = false
+                    viewModel.openFeatureSheet(UniqueFeatureSheetType.CHANDIPUR_TIDE_REMINDER_SETTINGS)
                 }
             )
         }

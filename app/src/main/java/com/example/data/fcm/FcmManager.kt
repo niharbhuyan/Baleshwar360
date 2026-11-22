@@ -296,6 +296,29 @@ object FcmManager {
         }
     }
 
+    private const val KEY_COMMUNITY_ANNOUNCEMENTS = "topic_community_announcements"
+    const val TOPIC_COMMUNITY_ANNOUNCEMENTS = "balasore_community_announcements"
+
+    fun isCommunityAnnouncementsEnabled(context: Context): Boolean {
+        return getPrefs(context).getBoolean(KEY_COMMUNITY_ANNOUNCEMENTS, true)
+    }
+
+    fun setCommunityAnnouncementsEnabled(context: Context, enabled: Boolean) {
+        getPrefs(context).edit().putBoolean(KEY_COMMUNITY_ANNOUNCEMENTS, enabled).apply()
+        if (enabled) {
+            subscribeToTopic(TOPIC_COMMUNITY_ANNOUNCEMENTS)
+        } else {
+            unsubscribeFromTopic(TOPIC_COMMUNITY_ANNOUNCEMENTS)
+        }
+    }
+
+    /**
+     * Triggers a live sample push notification for important community announcements.
+     */
+    fun triggerSampleCommunityAnnouncement(context: Context) {
+        BalasoreNotificationHelper.triggerSampleCommunityAnnouncement(context)
+    }
+
     /**
      * Triggers a live sample push notification for breaking district news.
      */

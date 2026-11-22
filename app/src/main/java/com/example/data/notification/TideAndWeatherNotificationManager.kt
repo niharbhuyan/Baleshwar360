@@ -469,7 +469,15 @@ object TideAndWeatherNotificationManager {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        val notification = NotificationCompat.Builder(context, CHANNEL_ID_WALK_WINDOW)
+        val activeChannelId = ChandipurTideReminderPreferences.ensureConfiguredNotificationChannel(context)
+        val reminderConfig = ChandipurTideReminderPreferences.loadConfig(context)
+        val soundUri = ChandipurTideReminderPreferences.resolveAlertSoundUri(
+            context = context,
+            option = reminderConfig.selectedSound,
+            customUriString = reminderConfig.customSoundUri
+        )
+
+        val builder = NotificationCompat.Builder(context, activeChannelId)
             .setSmallIcon(R.drawable.ic_notification_tide)
             .setContentTitle(title)
             .setContentText(message)
@@ -481,12 +489,25 @@ object TideAndWeatherNotificationManager {
             )
             .setColor(Color.rgb(16, 185, 129)) // Emerald Green
             .setPriority(NotificationCompat.PRIORITY_HIGH)
-            .setCategory(NotificationCompat.CATEGORY_EVENT)
+            .setCategory(
+                if (reminderConfig.selectedSound.usesAlarmUsage) NotificationCompat.CATEGORY_ALARM
+                else NotificationCompat.CATEGORY_EVENT
+            )
             .setAutoCancel(true)
             .setContentIntent(pendingIntent)
             .addAction(R.drawable.ic_notification_tide, "Open Tide Radar", pendingIntent)
             .addAction(R.drawable.ic_notification_weather, "View Coast Map", mapPendingIntent)
-            .build()
+
+        if (soundUri != null) {
+            builder.setSound(soundUri)
+        } else {
+            builder.setSilent(true)
+        }
+        if (reminderConfig.vibrateEnabled) {
+            builder.setVibrate(longArrayOf(0, 350, 150, 350, 150, 450))
+        }
+
+        val notification = builder.build()
 
         try {
             NotificationManagerCompat.from(context).notify(NOTIFICATION_ID_WALK_WINDOW_OPEN, notification)
@@ -604,9 +625,16 @@ object TideAndWeatherNotificationManager {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        val soundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
+        val activeChannelId = ChandipurTideReminderPreferences.ensureConfiguredNotificationChannel(context)
+        val reminderConfig = ChandipurTideReminderPreferences.loadConfig(context)
+        if (!reminderConfig.closingReturnReminderEnabled && !isUrgent) return
+        val soundUri = ChandipurTideReminderPreferences.resolveAlertSoundUri(
+            context = context,
+            option = reminderConfig.selectedSound,
+            customUriString = reminderConfig.customSoundUri
+        )
 
-        val notification = NotificationCompat.Builder(context, CHANNEL_ID_WALK_WINDOW)
+        val builder = NotificationCompat.Builder(context, activeChannelId)
             .setSmallIcon(R.drawable.ic_notification_tide)
             .setContentTitle(title)
             .setContentText(message)
@@ -619,11 +647,20 @@ object TideAndWeatherNotificationManager {
             .setColor(if (isUrgent) Color.rgb(220, 38, 38) else Color.rgb(249, 115, 22))
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setCategory(NotificationCompat.CATEGORY_ALARM)
-            .setSound(soundUri)
             .setAutoCancel(true)
             .setContentIntent(pendingIntent)
             .addAction(R.drawable.ic_notification_tide, "View Return Timer", pendingIntent)
-            .build()
+
+        if (soundUri != null) {
+            builder.setSound(soundUri)
+        } else {
+            builder.setSilent(true)
+        }
+        if (reminderConfig.vibrateEnabled) {
+            builder.setVibrate(longArrayOf(0, 500, 200, 500, 200, 500))
+        }
+
+        val notification = builder.build()
 
         try {
             NotificationManagerCompat.from(context).notify(NOTIFICATION_ID_WALK_WINDOW_CLOSE, notification)

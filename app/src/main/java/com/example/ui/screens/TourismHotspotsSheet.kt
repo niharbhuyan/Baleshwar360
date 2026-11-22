@@ -7,6 +7,7 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import android.widget.Toast
+import com.example.data.maps.BalasoreMapsApiKeyManager
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.*
 import androidx.compose.foundation.BorderStroke
@@ -138,8 +139,11 @@ fun TourismHotspotsSheet(
     val defaultCenter = LatLng(21.4934, 86.9135)
 
     // Map Engine configuration: Default to 100% offline vector map
-    val isMapsKeyConfigured = remember {
-        BuildConfig.MAPS_API_KEY.isNotBlank()
+    val autoResolvedMapsKey = remember {
+        BalasoreMapsApiKeyManager.autoPopulateMapsApiKey(context)
+    }
+    val isMapsKeyConfigured = remember(autoResolvedMapsKey) {
+        autoResolvedMapsKey.isNotBlank() || BuildConfig.MAPS_API_KEY.isNotBlank()
     }
     var useVectorEngine by remember { mutableStateOf(true) }
 

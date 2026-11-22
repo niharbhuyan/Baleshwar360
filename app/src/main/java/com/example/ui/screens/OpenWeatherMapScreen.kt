@@ -107,6 +107,7 @@ import com.example.ui.theme.BentoPrimaryBlue
 import com.example.ui.theme.BentoSlate100
 import com.example.ui.theme.BentoSlate200
 import com.example.ui.theme.BentoSlate500
+import com.example.data.maps.BalasoreMapsApiKeyManager
 import com.example.ui.theme.BentoSlate600
 import com.example.ui.theme.BentoSlate700
 import com.example.ui.theme.BentoSlate900
@@ -130,14 +131,10 @@ fun OpenWeatherMapScreen(
     val scope = rememberCoroutineScope()
     val repository = remember { OpenWeatherRepository() }
 
-    // Persistent in-memory API Key state (initialized from BuildConfig)
+    // Persistent API Key state automatically populated on launch
     var customApiKey by remember {
         mutableStateOf(
-            if (BuildConfig.OPENWEATHERMAP_API_KEY.isNotBlank() &&
-                BuildConfig.OPENWEATHERMAP_API_KEY != "YOUR_OPENWEATHERMAP_API_KEY"
-            ) {
-                BuildConfig.OPENWEATHERMAP_API_KEY
-            } else ""
+            BalasoreMapsApiKeyManager.autoPopulateWeatherMapApiKey(context)
         )
     }
 
@@ -420,12 +417,12 @@ fun OpenWeatherMapScreen(
                         }
                     }
 
-                    // Expandable API Key Settings
+                    // Expandable API Key Settings (Automatically Populated)
                     AnimatedVisibility(visible = showApiConfigCard) {
                         Column(modifier = Modifier.padding(top = 10.dp)) {
-                            var tempKeyInput by remember { mutableStateOf(customApiKey) }
+                            var tempKeyInput by remember(customApiKey) { mutableStateOf(customApiKey) }
                             Text(
-                                text = "OpenWeatherMap API Key (Free from openweathermap.org)",
+                                text = "Maps & OpenWeatherMap API Key (Auto-Populated & Active)",
                                 fontSize = 11.sp,
                                 color = Color.White.copy(alpha = 0.9f),
                                 fontWeight = FontWeight.Medium
@@ -439,11 +436,12 @@ fun OpenWeatherMapScreen(
                                 OutlinedTextField(
                                     value = tempKeyInput,
                                     onValueChange = { tempKeyInput = it },
-                                    placeholder = { Text("Paste API Key here...", fontSize = 11.sp, color = Color.Gray) },
+                                    placeholder = { Text("Auto-Populated API Key", fontSize = 11.sp, color = Color.Gray) },
                                     singleLine = true,
                                     modifier = Modifier
                                         .weight(1f)
-                                        .height(48.dp),
+                                        .height(48.dp)
+                                        .testTag("weather_maps_api_key_input_field"),
                                     textStyle = MaterialTheme.typography.bodySmall.copy(
                                         color = Color.White,
                                         fontSize = 12.sp
@@ -451,7 +449,23 @@ fun OpenWeatherMapScreen(
                                 )
                                 Button(
                                     onClick = {
-                                        customApiKey = tempKeyInput.trim()
+                                        val autoKey = BalasoreMapsApiKeyManager.autoPopulateWeatherMapApiKey(context)
+                                        tempKeyInput = autoKey
+                                        customApiKey = BalasoreMapsApiKeyManager.saveWeatherMapApiKey(context, autoKey)
+                                        loadWeatherData(isUserTriggered = true)
+                                        Toast.makeText(context, "API Key Auto-Filled & Synced", Toast.LENGTH_SHORT).show()
+                                    },
+                                    colors = ButtonDefaults.buttonColors(containerColor = EmeraldGreen),
+                                    shape = RoundedCornerShape(8.dp),
+                                    modifier = Modifier.height(44.dp)
+                                ) {
+                                    Text("Auto-Fill", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                }
+                                Button(
+                                    onClick = {
+                                        val saved = BalasoreMapsApiKeyManager.saveWeatherMapApiKey(context, tempKeyInput)
+                                        customApiKey = saved
+                                        tempKeyInput = saved
                                         loadWeatherData(isUserTriggered = true)
                                         Toast.makeText(context, "API Key Saved & Synced", Toast.LENGTH_SHORT).show()
                                     },
@@ -464,9 +478,9 @@ fun OpenWeatherMapScreen(
                             }
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
-                                text = "Tip: You can also set OPENWEATHERMAP_API_KEY in AI Studio Secrets panel.",
+                                text = "✓ Key is automatically detected and input from project configuration.",
                                 fontSize = 9.sp,
-                                color = Color.White.copy(alpha = 0.6f)
+                                color = EmeraldGreen
                             )
                         }
                     }

@@ -2,6 +2,7 @@ package com.example.ui.components
 
 import android.content.Context
 import android.widget.Toast
+import com.example.data.maps.BalasoreMapsApiKeyManager
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.LinearEasing
@@ -113,9 +114,9 @@ fun BalasoreOpenWeatherDashboard(
     val isOdia = language == AppLanguage.ODIA
     val repository = remember { OpenWeatherRepository(context) }
 
-    // API Key from .env / BuildConfig
+    // API Key automatically populated from BuildConfig / project configuration
     val configuredApiKey = remember {
-        BuildConfig.OPENWEATHERMAP_API_KEY.trim()
+        BalasoreMapsApiKeyManager.autoPopulateWeatherMapApiKey(context)
     }
     val hasValidApiKey = remember(configuredApiKey) {
         configuredApiKey.isNotBlank() &&

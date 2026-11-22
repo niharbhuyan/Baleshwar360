@@ -665,4 +665,72 @@ object BalasoreNotificationHelper {
             hotspotStatus = "ECO-SAFARI ACTIVE"
         )
     }
+
+    fun showCommunityAnnouncementNotification(
+        context: Context,
+        title: String,
+        message: String
+    ) {
+        createNotificationChannels(context)
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (ActivityCompat.checkSelfPermission(
+                    context,
+                    Manifest.permission.POST_NOTIFICATIONS
+                ) != PackageManager.PERMISSION_GRANTED
+            ) {
+                return
+            }
+        }
+
+        val intent = Intent(context, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            putExtra("target_tab", "NEWS")
+            putExtra("news_title", title)
+        }
+
+        val notificationId = 9001 + (System.currentTimeMillis() % 100).toInt()
+        val pendingIntent = PendingIntent.getActivity(
+            context,
+            notificationId,
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val soundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
+
+        val notification = NotificationCompat.Builder(context, CHANNEL_ID_NEWS)
+            .setSmallIcon(R.drawable.ic_notification_news)
+            .setContentTitle("📢 $title")
+            .setContentText(message)
+            .setStyle(
+                NotificationCompat.BigTextStyle()
+                    .bigText(message)
+                    .setSummaryText("Baleshwar 360 • Important Community Announcement")
+            )
+            .setColor(0xFF7C3AED.toInt())
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setCategory(NotificationCompat.CATEGORY_EVENT)
+            .setSound(soundUri)
+            .setAutoCancel(true)
+            .setContentIntent(pendingIntent)
+            .addAction(
+                R.drawable.ic_notification_news,
+                "Open Community Board",
+                pendingIntent
+            )
+            .build()
+
+        try {
+            NotificationManagerCompat.from(context).notify(notificationId, notification)
+        } catch (_: Exception) {}
+    }
+
+    fun triggerSampleCommunityAnnouncement(context: Context) {
+        showCommunityAnnouncementNotification(
+            context = context,
+            title = "Important Community Announcement: Balasore Ward Sabha & Public Health Camp",
+            message = "Balasore Municipality & District Administration invite residents of Wards 1–31 to the weekend Civic Town Hall & Free Health Checkup Camp at Gandhi Smruti Bhawan from 8:30 AM."
+        )
+    }
 }

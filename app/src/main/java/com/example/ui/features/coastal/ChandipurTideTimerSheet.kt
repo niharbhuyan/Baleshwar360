@@ -81,9 +81,15 @@ fun ChandipurTideTimerSheet(
     lastKnownTide: ChandipurTideEntity? = null,
     language: AppLanguage = AppLanguage.ENGLISH,
     onOpenOfflineDashboard: (() -> Unit)? = null,
+    onOpenTideReminderSettings: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    val tideReminderConfig by remember {
+        mutableStateOf(
+            com.example.data.notification.ChandipurTideReminderPreferences.loadConfig(context)
+        )
+    }
     var isAlarmEnabled by remember {
         mutableStateOf(TideAndWeatherNotificationManager.isWalkWindowAlertsEnabled(context))
     }
@@ -158,6 +164,29 @@ fun ChandipurTideTimerSheet(
                             color = Color(0xFF0284C7),
                             fontWeight = FontWeight.SemiBold
                         )
+                    )
+                }
+            }
+
+            if (onOpenTideReminderSettings != null) {
+                OutlinedButton(
+                    onClick = onOpenTideReminderSettings,
+                    shape = RoundedCornerShape(10.dp),
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp, vertical = 6.dp),
+                    modifier = Modifier.testTag("tide_timer_open_reminder_settings_btn")
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.NotificationsActive,
+                        contentDescription = "Tide Reminder & Sound Settings",
+                        tint = Color(0xFF0284C7),
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = if (language == AppLanguage.ODIA) "ସ୍ୱର ସେଟିଂସ୍" else "Alert Sound",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF0284C7)
                     )
                 }
             }
@@ -677,6 +706,38 @@ fun ChandipurTideTimerSheet(
                         )
                         Spacer(modifier = Modifier.width(4.dp))
                         Text("Test Closing Siren", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+
+                if (onOpenTideReminderSettings != null) {
+                    Spacer(modifier = Modifier.height(10.dp))
+                    val activeSoundName = com.example.data.notification.ChandipurTideReminderPreferences.getSoundDisplayLabel(
+                        tideReminderConfig,
+                        language == AppLanguage.ODIA
+                    )
+                    Button(
+                        onClick = onOpenTideReminderSettings,
+                        shape = RoundedCornerShape(10.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0284C7)),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("tide_timer_customize_sound_btn")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Alarm,
+                            contentDescription = null,
+                            modifier = Modifier.size(15.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = if (language == AppLanguage.ODIA) {
+                                "🔊 ୩୦-ମିନିଟ୍ ରିମାଇଣ୍ଡର ଓ ସ୍ୱର ସେଟିଂସ୍ ($activeSoundName)"
+                            } else {
+                                "🔊 30-Min Reminder & Alert Sound ($activeSoundName)"
+                            },
+                            fontSize = 11.5.sp,
+                            fontWeight = FontWeight.Bold
+                        )
                     }
                 }
             }

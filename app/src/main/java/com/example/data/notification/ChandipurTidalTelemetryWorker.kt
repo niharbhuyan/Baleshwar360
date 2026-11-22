@@ -248,21 +248,14 @@ class ChandipurTidalTelemetryWorker(
     ) {
         val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager ?: return
 
-        // 1. Create Notification Channel for Chandipur Safe Tide 30-Min Alerts
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(
-                CHANNEL_ID_SAFE_TIDE_30M,
-                CHANNEL_NAME_SAFE_TIDE_30M,
-                NotificationManager.IMPORTANCE_HIGH
-            ).apply {
-                description = "Proactive 30-minute notifications before safe seabed walking windows occur at Chandipur Beach"
-                enableVibration(true)
-                vibrationPattern = longArrayOf(0, 350, 150, 350, 150, 450)
-                setShowBadge(true)
-                lightColor = Color.CYAN
-            }
-            notificationManager.createNotificationChannel(channel)
-        }
+        // 1. Ensure Notification Channel for Chandipur Safe Tide 30-Min Alerts uses customized alert sound
+        val activeChannelId = ChandipurTideReminderPreferences.ensureConfiguredNotificationChannel(context)
+        val reminderConfig = ChandipurTideReminderPreferences.loadConfig(context)
+        val soundUri = ChandipurTideReminderPreferences.resolveAlertSoundUri(
+            context = context,
+            option = reminderConfig.selectedSound,
+            customUriString = reminderConfig.customSoundUri
+        )
 
         // 2. Check Android 13+ POST_NOTIFICATIONS runtime permission
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -320,9 +313,7 @@ class ChandipurTidalTelemetryWorker(
             append(").")
         }
 
-        val soundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
-
-        val notification = NotificationCompat.Builder(context, CHANNEL_ID_SAFE_TIDE_30M)
+        val builder = NotificationCompat.Builder(context, activeChannelId)
             .setSmallIcon(R.drawable.ic_notification_tide)
             .setContentTitle(title)
             .setContentText("Sea receded %.1f km! Safe seabed walking window opens at %s (%s).".format(
@@ -338,13 +329,28 @@ class ChandipurTidalTelemetryWorker(
             )
             .setColor(Color.rgb(2, 132, 199)) // Ocean Blue
             .setPriority(NotificationCompat.PRIORITY_HIGH)
-            .setCategory(NotificationCompat.CATEGORY_EVENT)
-            .setSound(soundUri)
+            .setCategory(
+                if (reminderConfig.selectedSound.usesAlarmUsage) {
+                    NotificationCompat.CATEGORY_ALARM
+                } else {
+                    NotificationCompat.CATEGORY_EVENT
+                }
+            )
             .setAutoCancel(true)
             .setContentIntent(mainPendingIntent)
             .addAction(R.drawable.ic_notification_tide, "🌊 Open Tide Clock", mainPendingIntent)
             .addAction(R.drawable.ic_notification_weather, "🗺️ Coast & Map", mapPendingIntent)
-            .build()
+
+        if (soundUri != null) {
+            builder.setSound(soundUri)
+        } else {
+            builder.setSilent(true)
+        }
+        if (reminderConfig.vibrateEnabled) {
+            builder.setVibrate(longArrayOf(0, 350, 150, 350, 150, 450))
+        }
+
+        val notification = builder.build()
 
         try {
             NotificationManagerCompat.from(context).notify(NOTIFICATION_ID_SAFE_TIDE_30M, notification)

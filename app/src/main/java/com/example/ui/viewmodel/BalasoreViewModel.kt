@@ -663,7 +663,9 @@ enum class UniqueFeatureSheetType {
     // Balasore Community Forum (Create posts, reply to discussions, Local News, Events & Tourism)
     COMMUNITY_FORUM,
     // Balasore Real-Time Local Bus Tracker (Static Route JSON + Mock API Live Arrivals)
-    LOCAL_BUS_TRACKER
+    LOCAL_BUS_TRACKER,
+    // Chandipur Vanishing Sea 30-Min Tide Reminder & Custom Alert Sound Settings Screen
+    CHANDIPUR_TIDE_REMINDER_SETTINGS
 }
 
 data class GroundingState(

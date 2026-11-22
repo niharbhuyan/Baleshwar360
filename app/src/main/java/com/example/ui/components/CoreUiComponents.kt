@@ -2387,7 +2387,8 @@ fun AppSettingsSheet(
     onToggleAdaptiveSync: (Boolean) -> Unit = {},
     subscribedNewsCategories: Set<String> = setOf("Politics", "Sports", "Defense", "Tourism", "Civic"),
     onToggleNewsCategorySubscription: (String) -> Unit = {},
-    onTestCategoryPushAlert: (String) -> Unit = {}
+    onTestCategoryPushAlert: (String) -> Unit = {},
+    onOpenTideReminderSettings: () -> Unit = {}
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val localTidalSummary = androidx.compose.runtime.remember(context) {
@@ -2640,15 +2641,18 @@ fun AppSettingsSheet(
                         }
                     }
 
-                    // Proactive 'Safe Tide Reminder' (30 Minutes Before Safe Walking Window) Toggle
-                    var isSafeTide30MinEnabled by androidx.compose.runtime.remember {
-                        androidx.compose.runtime.mutableStateOf(
-                            LocalTideCalculationEngine.isSafeTideReminderEnabled(context)
-                        )
+                    // Proactive 'Safe Tide Reminder' (30 Minutes Before Safe Walking Window) Toggle & Sound Settings
+                    val tideReminderConfig by com.example.data.notification.ChandipurTideReminderPreferences.configFlow.collectAsState()
+                    androidx.compose.runtime.LaunchedEffect(Unit) {
+                        com.example.data.notification.ChandipurTideReminderPreferences.loadConfig(context)
                     }
                     val liveHarmonicWindow = androidx.compose.runtime.remember {
                         LocalTideCalculationEngine.evaluateLiveTideWindow()
                     }
+                    val activeSoundLabel = com.example.data.notification.ChandipurTideReminderPreferences.getSoundDisplayLabel(
+                        tideReminderConfig,
+                        language == AppLanguage.ODIA
+                    )
                     androidx.compose.material3.HorizontalDivider(color = Color(0xFFBAE6FD))
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -2668,19 +2672,21 @@ fun AppSettingsSheet(
                             )
                             Text(
                                 text = if (language == AppLanguage.ODIA) {
-                                    "ଚାନ୍ଦିପୁର ବେଳାଭୂମି ସୁରକ୍ଷିତ ଚାଲିବା ସମୟ (${liveHarmonicWindow.safeWalkingWindowRange}) ଖୋଲିବାର ୩୦ ମିନିଟ୍ ପୂର୍ବରୁ ଦୈନିକ ଲୋକାଲ୍ ନୋଟିଫିକେସନ୍।"
+                                    "ଚାନ୍ଦିପୁର ବେଳାଭୂମି ସୁରକ୍ଷିତ ଚାଲିବା ସମୟ (${liveHarmonicWindow.safeWalkingWindowRange}) • ଆଲର୍ଟ ସ୍ୱର: $activeSoundLabel"
                                 } else {
-                                    "Sends a local notification 30 minutes before the next safe walking window (${liveHarmonicWindow.safeWalkingWindowRange}) using offline harmonic tidal coefficients."
+                                    "Alerts 30m before Chandipur safe walk (${liveHarmonicWindow.safeWalkingWindowRange}) • Alert Sound: $activeSoundLabel"
                                 },
                                 fontSize = 11.sp,
                                 color = Color(0xFF075985)
                             )
                         }
                         Switch(
-                            checked = isSafeTide30MinEnabled,
+                            checked = tideReminderConfig.is30MinReminderEnabled,
                             onCheckedChange = { enabled ->
-                                isSafeTide30MinEnabled = enabled
-                                LocalTideCalculationEngine.setSafeTideReminderEnabled(context, enabled)
+                                com.example.data.notification.ChandipurTideReminderPreferences.set30MinReminderEnabled(
+                                    context,
+                                    enabled
+                                )
                                 if (enabled) {
                                     LocalTideCalculationEngine.triggerSafeTide30MinNotification(
                                         context,
@@ -2689,6 +2695,26 @@ fun AppSettingsSheet(
                                 }
                             },
                             modifier = Modifier.testTag("settings_safe_tide_30min_alert_switch")
+                        )
+                    }
+
+                    Button(
+                        onClick = onOpenTideReminderSettings,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("settings_open_tide_reminder_sound_screen_btn"),
+                        shape = RoundedCornerShape(10.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0284C7))
+                    ) {
+                        Text(
+                            text = if (language == AppLanguage.ODIA) {
+                                "🔊 ୩୦-ମିନିଟ୍ ରିମାଇଣ୍ଡର ଓ ଆଲର୍ଟ ସ୍ୱର କଷ୍ଟମାଇଜ୍ କରନ୍ତୁ →"
+                            } else {
+                                "🔊 Customize 30-Min Tide Reminder & Alert Sound →"
+                            },
+                            fontSize = 11.5.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
                         )
                     }
                 }

@@ -272,17 +272,13 @@ object LocalTideCalculationEngine {
         val window = evaluateLiveTideWindow()
         val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager ?: return
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(
-                SAFE_TIDE_CHANNEL_ID,
-                "Chandipur Safe Tide 30-Min Alerts",
-                NotificationManager.IMPORTANCE_HIGH
-            ).apply {
-                description = "Proactive 30-minute notifications before safe seabed walking windows at Chandipur Beach"
-                enableVibration(true)
-            }
-            notificationManager.createNotificationChannel(channel)
-        }
+        val activeChannelId = com.example.data.notification.ChandipurTideReminderPreferences.ensureConfiguredNotificationChannel(context)
+        val reminderConfig = com.example.data.notification.ChandipurTideReminderPreferences.loadConfig(context)
+        val soundUri = com.example.data.notification.ChandipurTideReminderPreferences.resolveAlertSoundUri(
+            context = context,
+            option = reminderConfig.selectedSound,
+            customUriString = reminderConfig.customSoundUri
+        )
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             val granted = ContextCompat.checkSelfPermission(
@@ -301,6 +297,9 @@ object LocalTideCalculationEngine {
 
         val intent = Intent(context, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            putExtra("target_tab", "WEATHER")
+            putExtra("open_feature_sheet", "CHANDIPUR_TIDE")
+            putExtra("safe_tide_walk_alert", true)
         }
         val pendingIntent = PendingIntent.getActivity(
             context,
@@ -314,24 +313,37 @@ object LocalTideCalculationEngine {
         } else {
             "🌊 Chandipur Safe Tide Alert (30 Mins Before Window)"
         }
+        val soundLabel = com.example.data.notification.ChandipurTideReminderPreferences.getSoundDisplayLabel(reminderConfig, isOdia)
         val body = if (isOdia) {
-            "ସୁରକ୍ଷିତ ବେଳାଭୂମି ଚାଲିବା ସମୟ: ${window.safeWalkingWindowRange} • ସମୁଦ୍ର ପଶ୍ଚାତଗମନ: ${String.format(Locale.US, "%.1f", window.currentRecessionKm)} କି.ମି. • ପରବର୍ତ୍ତୀ ଉଚ୍ଚ ଜୁଆର: ${window.nextHighTideClockLabel}"
+            "ସୁରକ୍ଷିତ ବେଳାଭୂମି ଚାଲିବା ସମୟ: ${window.safeWalkingWindowRange} • ସମୁଦ୍ର ପଶ୍ଚାତଗମନ: ${String.format(Locale.US, "%.1f", window.currentRecessionKm)} କି.ମି. • ପରବର୍ତ୍ତୀ ଉଚ୍ଚ ଜୁଆର: ${window.nextHighTideClockLabel} • ସ୍ୱର: $soundLabel"
         } else {
-            "Safe Walking Window: ${window.safeWalkingWindowRange} • Seabed exposed ${String.format(Locale.US, "%.1f", window.currentRecessionKm)} km • Return 30m before High Tide (${window.nextHighTideClockLabel})."
+            "Safe Walking Window: ${window.safeWalkingWindowRange} • Seabed exposed ${String.format(Locale.US, "%.1f", window.currentRecessionKm)} km • Return 30m before High Tide (${window.nextHighTideClockLabel}) • Alert Sound: $soundLabel."
         }
 
-        val notification = NotificationCompat.Builder(context, SAFE_TIDE_CHANNEL_ID)
-            .setSmallIcon(R.mipmap.ic_launcher)
+        val builder = NotificationCompat.Builder(context, activeChannelId)
+            .setSmallIcon(R.drawable.ic_notification_tide)
             .setContentTitle(title)
             .setContentText(body)
             .setStyle(NotificationCompat.BigTextStyle().bigText(body))
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setAutoCancel(true)
             .setContentIntent(pendingIntent)
-            .build()
 
-        notificationManager.notify(SAFE_TIDE_NOTIFICATION_ID, notification)
-        Toast.makeText(context, "🔔 Safe Tide 30-Min Alert dispatched!", Toast.LENGTH_SHORT).show()
+        if (soundUri != null) {
+            builder.setSound(soundUri)
+        } else {
+            builder.setSilent(true)
+        }
+        if (reminderConfig.vibrateEnabled) {
+            builder.setVibrate(longArrayOf(0, 350, 150, 350, 150, 450))
+        }
+
+        notificationManager.notify(SAFE_TIDE_NOTIFICATION_ID, builder.build())
+        Toast.makeText(
+            context,
+            if (isOdia) "🔔 ୩୦-ମିନିଟ୍ ଜୁଆର ରିମାଇଣ୍ଡର ପଠାଗଲା ($soundLabel)" else "🔔 Safe Tide 30-Min Alert dispatched ($soundLabel)",
+            Toast.LENGTH_SHORT
+        ).show()
     }
 }
 

@@ -7,6 +7,8 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import android.widget.Toast
+import com.example.data.maps.BalasoreMapsApiKeyManager
+import com.example.data.maps.MapsApiKeyAutoInputBar
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
@@ -304,8 +306,11 @@ fun BalasoreExploreMapSection(
 
     // Map Engine configuration: Default to 100% offline district vector map
     var useVectorEngine by remember { mutableStateOf(true) }
-    val isMapsKeyConfigured = remember {
-        BuildConfig.MAPS_API_KEY.isNotBlank()
+    var autoResolvedMapsKey by remember {
+        mutableStateOf(BalasoreMapsApiKeyManager.autoPopulateMapsApiKey(context))
+    }
+    val isMapsKeyConfigured = remember(autoResolvedMapsKey) {
+        autoResolvedMapsKey.isNotBlank() || BuildConfig.MAPS_API_KEY.isNotBlank()
     }
 
     // Lazy MapView instance with lifecycle: Only initialized if user explicitly switches to Google Maps satellite
@@ -1233,6 +1238,14 @@ fun BalasoreExploreMapSection(
                             }
                         }
                     }
+
+                    // Automatic Google Maps API Key Input & Status Bar
+                    MapsApiKeyAutoInputBar(
+                        isOdia = language == AppLanguage.ODIA,
+                        onKeyApplied = { updatedKey ->
+                            autoResolvedMapsKey = updatedKey
+                        }
+                    )
                 }
             }
 

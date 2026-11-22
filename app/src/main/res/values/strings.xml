@@ -44,4 +44,10 @@
     <string name="widget_sos_description">Quick 1-tap Police (112), Fire (101), Ambulance (108) &amp; GPS Emergency Message Trigger</string>
     <string name="widget_flood_gauge_name">Baleshwar River Flood Gauge</string>
     <string name="widget_flood_gauge_description">Live Subarnarekha (Rajghat) &amp; Budhabalanga (NH-16) River Water Levels &amp; Flood Helpline</string>
+    <string name="tide_reminder_settings_title">Chandipur Tide Reminder</string>
+    <string name="tide_reminder_settings_subtitle">30-Minute Safe Walking Window &amp; Alert Sound</string>
+    <string name="tide_reminder_toggle_label">30-Minute Safe Walk Reminder</string>
+    <string name="tide_reminder_sound_section_title">Custom Alert Sound</string>
+    <string name="tide_reminder_pick_device_sound">Choose from Device Ringtones</string>
+    <string name="tide_reminder_send_test">Send Test 30-Min Tide Reminder</string>
 </resources>

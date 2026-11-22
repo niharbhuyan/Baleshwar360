@@ -135,25 +135,29 @@ data class ForumDiscussionPost(
     val odiaTitle: String,
     val body: String,
     val odiaBody: String,
-    val category: String, // "Local News", "Events", "Tourism"
+    val category: String, // "Local News", "Weather", "Tourism", "Events"
     val authorName: String,
     val wardOrLocation: String,
     val createdAtMs: Long,
     val upvotes: Int = 1,
     val isUpvotedByMe: Boolean = false,
     val isSyncedToCloud: Boolean = true,
+    val isPinned: Boolean = false,
+    val isVerifiedByAdmin: Boolean = false,
+    val isFlaggedOrHidden: Boolean = false,
+    val moderatorNote: String = "",
     val replies: List<ForumReplyItem> = emptyList()
 )
 
 /**
  * Offline-First + Cloud-Synced Repository for the Balasore Community Forum.
  * Supports creating posts, replying to discussions, upvoting, and filtering by
- * 'Local News', 'Events', and 'Tourism'. Automatically syncs queued offline
- * posts & replies when network connectivity is available.
+ * 'Local News', 'Weather', 'Tourism', and 'Events', plus Administrator Moderation tools
+ * (Pin/Unpin, Verify Official Post, Flag/Hide/Approve, Delete Post/Reply).
  */
 object BalasoreCommunityForumRepository {
     private const val PREFS_NAME = "balasore_community_forum_store"
-    private const val KEY_POSTS_JSON = "forum_posts_json_v1"
+    private const val KEY_POSTS_JSON = "forum_posts_json_v2"
 
     private val _postsFlow = MutableStateFlow<List<ForumDiscussionPost>>(defaultSeededForumPosts())
     val postsFlow: StateFlow<List<ForumDiscussionPost>> = _postsFlow.asStateFlow()
@@ -187,11 +191,16 @@ object BalasoreCommunityForumRepository {
         body: String,
         category: String,
         authorName: String,
-        wardOrLocation: String
+        wardOrLocation: String,
+        isPinned: Boolean = false,
+        isVerifiedByAdmin: Boolean = false
     ): ForumDiscussionPost = withContext(Dispatchers.IO) {
         ensureInitialized(context)
         val isOnline = NetworkMonitor(context).isCurrentlyOnline()
         val normalizedCat = when {
+            category.contains("Weather", ignoreCase = true) ||
+                category.contains("Storm", ignoreCase = true) ||
+                category.contains("Tide", ignoreCase = true) -> "Weather"
             category.contains("Event", ignoreCase = true) -> "Events"
             category.contains("Tourism", ignoreCase = true) -> "Tourism"
             else -> "Local News"
@@ -209,9 +218,11 @@ object BalasoreCommunityForumRepository {
             upvotes = 1,
             isUpvotedByMe = true,
             isSyncedToCloud = isOnline,
+            isPinned = isPinned,
+            isVerifiedByAdmin = isVerifiedByAdmin,
             replies = emptyList()
         )
-        val updated = listOf(newPost) + _postsFlow.value
+        val updated = (listOf(newPost) + _postsFlow.value).sortedByDescending { it.isPinned }
         _postsFlow.value = updated
         persistToPrefs(context, updated)
 
@@ -225,7 +236,8 @@ object BalasoreCommunityForumRepository {
         context: Context,
         postId: String,
         authorName: String,
-        replyContent: String
+        replyContent: String,
+        authorRole: String = "Verified Local"
     ): ForumReplyItem? = withContext(Dispatchers.IO) {
         ensureInitialized(context)
         val trimmed = replyContent.trim()
@@ -235,7 +247,7 @@ object BalasoreCommunityForumRepository {
             replyId = "reply_${System.currentTimeMillis()}",
             postId = postId,
             authorName = authorName.trim().ifBlank { "Balasore Resident" },
-            authorRole = "Verified Local",
+            authorRole = authorRole,
             content = trimmed,
             odiaContent = trimmed,
             timestampMs = System.currentTimeMillis(),
@@ -270,6 +282,73 @@ object BalasoreCommunityForumRepository {
                 val nextUpvoted = !post.isUpvotedByMe
                 val nextCount = if (nextUpvoted) post.upvotes + 1 else (post.upvotes - 1).coerceAtLeast(0)
                 post.copy(upvotes = nextCount, isUpvotedByMe = nextUpvoted)
+            } else {
+                post
+            }
+        }
+        _postsFlow.value = updatedList
+        persistToPrefs(context, updatedList)
+    }
+
+    fun togglePinPostByAdmin(context: Context, postId: String) {
+        ensureInitialized(context)
+        val updatedList = _postsFlow.value.map { post ->
+            if (post.postId == postId) {
+                post.copy(isPinned = !post.isPinned)
+            } else {
+                post
+            }
+        }.sortedWith(compareByDescending<ForumDiscussionPost> { it.isPinned }.thenByDescending { it.createdAtMs })
+        _postsFlow.value = updatedList
+        persistToPrefs(context, updatedList)
+    }
+
+    fun toggleVerifyPostByAdmin(context: Context, postId: String) {
+        ensureInitialized(context)
+        val updatedList = _postsFlow.value.map { post ->
+            if (post.postId == postId) {
+                val nextVerified = !post.isVerifiedByAdmin
+                post.copy(
+                    isVerifiedByAdmin = nextVerified,
+                    moderatorNote = if (nextVerified) "Verified by Baleshwar 360 Admin Moderator" else ""
+                )
+            } else {
+                post
+            }
+        }
+        _postsFlow.value = updatedList
+        persistToPrefs(context, updatedList)
+    }
+
+    fun toggleFlagOrHidePostByAdmin(context: Context, postId: String) {
+        ensureInitialized(context)
+        val updatedList = _postsFlow.value.map { post ->
+            if (post.postId == postId) {
+                val nextHidden = !post.isFlaggedOrHidden
+                post.copy(
+                    isFlaggedOrHidden = nextHidden,
+                    moderatorNote = if (nextHidden) "Flagged & Hidden by Admin Moderator" else ""
+                )
+            } else {
+                post
+            }
+        }
+        _postsFlow.value = updatedList
+        persistToPrefs(context, updatedList)
+    }
+
+    fun deletePostByAdmin(context: Context, postId: String) {
+        ensureInitialized(context)
+        val updatedList = _postsFlow.value.filterNot { it.postId == postId }
+        _postsFlow.value = updatedList
+        persistToPrefs(context, updatedList)
+    }
+
+    fun deleteReplyByAdmin(context: Context, postId: String, replyId: String) {
+        ensureInitialized(context)
+        val updatedList = _postsFlow.value.map { post ->
+            if (post.postId == postId) {
+                post.copy(replies = post.replies.filterNot { it.replyId == replyId })
             } else {
                 post
             }
@@ -334,6 +413,10 @@ object BalasoreCommunityForumRepository {
                 "wardOrLocation" to post.wardOrLocation,
                 "createdAtMs" to post.createdAtMs,
                 "upvotes" to post.upvotes,
+                "isPinned" to post.isPinned,
+                "isVerifiedByAdmin" to post.isVerifiedByAdmin,
+                "isFlaggedOrHidden" to post.isFlaggedOrHidden,
+                "moderatorNote" to post.moderatorNote,
                 "replyCount" to post.replies.size,
                 "replies" to repliesMapList,
                 "updatedAt" to System.currentTimeMillis()
@@ -364,6 +447,10 @@ object BalasoreCommunityForumRepository {
                     put("upvotes", post.upvotes)
                     put("isUpvotedByMe", post.isUpvotedByMe)
                     put("isSyncedToCloud", post.isSyncedToCloud)
+                    put("isPinned", post.isPinned)
+                    put("isVerifiedByAdmin", post.isVerifiedByAdmin)
+                    put("isFlaggedOrHidden", post.isFlaggedOrHidden)
+                    put("moderatorNote", post.moderatorNote)
                     val repliesArr = JSONArray()
                     post.replies.forEach { reply ->
                         repliesArr.put(
@@ -429,6 +516,10 @@ object BalasoreCommunityForumRepository {
                         upvotes = obj.optInt("upvotes", 1),
                         isUpvotedByMe = obj.optBoolean("isUpvotedByMe", false),
                         isSyncedToCloud = obj.optBoolean("isSyncedToCloud", true),
+                        isPinned = obj.optBoolean("isPinned", false),
+                        isVerifiedByAdmin = obj.optBoolean("isVerifiedByAdmin", false),
+                        isFlaggedOrHidden = obj.optBoolean("isFlaggedOrHidden", false),
+                        moderatorNote = obj.optString("moderatorNote", ""),
                         replies = replies
                     )
                 )
@@ -453,6 +544,9 @@ object BalasoreCommunityForumRepository {
                 wardOrLocation = "Ward 14 • Station Square",
                 createdAtMs = now - 3600_000L * 2,
                 upvotes = 28,
+                isPinned = true,
+                isVerifiedByAdmin = true,
+                moderatorNote = "Verified by Baleshwar 360 Admin Moderator",
                 replies = listOf(
                     ForumReplyItem(
                         replyId = "reply_seed_1",
@@ -469,6 +563,30 @@ object BalasoreCommunityForumRepository {
                         authorRole = "Daily Commuter",
                         content = "Motiganj Bazaar evening drainage desilting is also progressing fast this week.",
                         odiaContent = "ମୋତିଗଞ୍ଜ ବଜାର ଡ୍ରେନେଜ୍ ସଫେଇ କାମ ମଧ୍ୟ ଏହି ସପ୍ତାହରେ ଦ୍ରୁତ ଗତିରେ ଚାଲିଛି।"
+                    )
+                )
+            ),
+            ForumDiscussionPost(
+                postId = "forum_seed_weather_1",
+                title = "Subarnarekha Flood Gauge, Kalbaisakhi Squall Watch & Chandipur High-Tide Updates",
+                odiaTitle = "ସୁବର୍ଣ୍ଣରେଖା ବନ୍ୟା ଜଳସ୍ତର, କାଳବୈଶାଖୀ ଝଡ଼ ଓ ଚାନ୍ଦିପୁର ଉଚ୍ଚ ଜୁଆର ସତର୍କତା ଆଲୋଚନା",
+                body = "IMD Bhubaneswar has forecast evening coastal squalls (45–55 km/h) and heavy rain cells across Bhograi, Baliapal, and Nilagiri. Share live local rainfall updates, road waterlogging reports, and Chandipur high-tide observations here!",
+                odiaBody = "ଭୋଗରାଇ, ବାଲିଆପାଳ ଏବଂ ନୀଳଗିରିରେ ସନ୍ଧ୍ୟା ସୁଦ୍ଧା କାଳବୈଶାଖୀ ବର୍ଷା ଓ ପବନ ସମ୍ଭାବନା ଅଛି। ଆପଣଙ୍କ ଅଞ୍ଚଳର ପାଣିପାଗ ଓ ଜଳସ୍ତର ସୂଚନା ଏଠାରେ ଶେୟାର କରନ୍ତୁ!",
+                category = "Weather",
+                authorName = "OSDMA Coastal Volunteer Desk",
+                wardOrLocation = "Chandipur • Rajghat • Nilagiri",
+                createdAtMs = now - 3600_000L * 3,
+                upvotes = 39,
+                isVerifiedByAdmin = true,
+                moderatorNote = "Official Weather & Tide Community Thread",
+                replies = listOf(
+                    ForumReplyItem(
+                        replyId = "reply_seed_wx_1",
+                        postId = "forum_seed_weather_1",
+                        authorName = "Pradeep Nayak",
+                        authorRole = "Balaramgadi Marine Observer",
+                        content = "Trawlers have returned safely to Balaramgadi jetty ahead of the 4:30 PM flood tide surge.",
+                        odiaContent = "ଅପରାହ୍ନ ୪:୩୦ ଜୁଆର ପୂର୍ବରୁ ସମସ୍ତ ମାଛଧରା ଡଙ୍ଗା ବଳରାମଗଡ଼ି ଜେଟିକୁ ସୁରକ୍ଷିତ ଫେରିଆସିଛନ୍ତି।"
                     )
                 )
             ),
@@ -1155,6 +1273,8 @@ fun BalasoreCommunityForumCard(
     var selectedCategory by remember(initialCategory) { mutableStateOf(initialCategory) }
     var searchQuery by remember { mutableStateOf("") }
     var showCreatePostForm by remember { mutableStateOf(false) }
+    var isAdminModerationMode by remember { mutableStateOf(false) }
+    var showHiddenFlaggedInAdmin by remember { mutableStateOf(true) }
 
     // Create Post Form States
     var newPostTitle by remember { mutableStateOf("") }
@@ -1171,12 +1291,14 @@ fun BalasoreCommunityForumCard(
     val forumCategories = listOf(
         Triple("All", if (isOdia) "🌐 ସମସ୍ତ" else "🌐 All Topics", "forum_category_chip_all"),
         Triple("Local News", if (isOdia) "📰 ସ୍ଥାନୀୟ ଖବର" else "📰 Local News", "forum_category_chip_local_news"),
-        Triple("Events", if (isOdia) "🎪 ଉତ୍ସବ ଓ ଇଭେଣ୍ଟ" else "🎪 Events", "forum_category_chip_events"),
-        Triple("Tourism", if (isOdia) "🏖️ ପର୍ଯ୍ୟଟନ" else "🏖️ Tourism", "forum_category_chip_tourism")
+        Triple("Weather", if (isOdia) "⛈️ ପାଣିପାଗ" else "⛈️ Weather", "forum_category_chip_weather"),
+        Triple("Tourism", if (isOdia) "🏖️ ପର୍ଯ୍ୟଟନ" else "🏖️ Tourism", "forum_category_chip_tourism"),
+        Triple("Events", if (isOdia) "🎪 ଉତ୍ସବ ଓ ଇଭେଣ୍ଟ" else "🎪 Events", "forum_category_chip_events")
     )
 
-    val filteredPosts = remember(allPosts, selectedCategory, searchQuery) {
+    val filteredPosts = remember(allPosts, selectedCategory, searchQuery, isAdminModerationMode, showHiddenFlaggedInAdmin) {
         allPosts.filter { post ->
+            val visibleByModeration = !post.isFlaggedOrHidden || (isAdminModerationMode && showHiddenFlaggedInAdmin)
             val matchesCategory = selectedCategory.equals("All", ignoreCase = true) ||
                 post.category.equals(selectedCategory, ignoreCase = true)
             val q = searchQuery.trim()
@@ -1187,7 +1309,7 @@ fun BalasoreCommunityForumCard(
                 post.authorName.contains(q, ignoreCase = true) ||
                 post.wardOrLocation.contains(q, ignoreCase = true) ||
                 post.category.contains(q, ignoreCase = true)
-            matchesCategory && matchesQuery
+            visibleByModeration && matchesCategory && matchesQuery
         }
     }
 
@@ -1257,9 +1379,9 @@ fun BalasoreCommunityForumCard(
                         }
                         Text(
                             text = if (isOdia) {
-                                "ସ୍ଥାନୀୟ ଖବର, ଉତ୍ସବ ଏବଂ ପର୍ଯ୍ୟଟନ ବିଷୟରେ ପୋଷ୍ଟ ଓ ଉତ୍ତର ଦିଅନ୍ତୁ"
+                                "ସ୍ଥାନୀୟ ଖବର, ପାଣିପାଗ, ପର୍ଯ୍ୟଟନ ଓ ଉତ୍ସବ ବିଷୟରେ ପୋଷ୍ଟ ଏବଂ ଉତ୍ତର ଦିଅନ୍ତୁ"
                             } else {
-                                "Create posts, reply to discussions & explore Local News, Events & Tourism"
+                                "Create posts, reply to discussions & categorize News, Weather, Tourism & Events"
                             },
                             fontSize = 11.5.sp,
                             color = BentoSlate600
@@ -1325,6 +1447,157 @@ fun BalasoreCommunityForumCard(
                 }
             }
 
+            // Administrator Moderation Mode Toggle Bar
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Surface(
+                    shape = RoundedCornerShape(10.dp),
+                    color = if (isAdminModerationMode) Color(0xFFFEF2F2) else Color(0xFFF1F5F9),
+                    border = BorderStroke(
+                        1.dp,
+                        if (isAdminModerationMode) Color(0xFFDC2626).copy(alpha = 0.5f) else BentoSlate100
+                    ),
+                    modifier = Modifier
+                        .clickable {
+                            BalasoreHapticHelper.vibrateToggle(context)
+                            isAdminModerationMode = !isAdminModerationMode
+                        }
+                        .testTag("forum_admin_moderation_toggle_btn")
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = if (isAdminModerationMode) {
+                                if (isOdia) "🛡️ ଆଡମିନ୍ ମଡରେସନ୍ ସକ୍ରିୟ" else "🛡️ Admin Moderation Tools: ON"
+                            } else {
+                                if (isOdia) "🛡️ ଆଡମିନ୍ ମଡରେସନ୍ ଟୁଲ୍ସ ଖୋଲନ୍ତୁ" else "🛡️ Enable Admin Moderation Tools"
+                            },
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = if (isAdminModerationMode) Color(0xFFB91C1C) else BentoSlate700
+                        )
+                    }
+                }
+
+                val pinnedCount = allPosts.count { it.isPinned }
+                val verifiedCount = allPosts.count { it.isVerifiedByAdmin }
+                Text(
+                    text = "📌 $pinnedCount Pinned • ✓ $verifiedCount Verified",
+                    fontSize = 10.5.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = BentoSlate600
+                )
+            }
+
+            // Expandable Administrator Moderation Console
+            AnimatedVisibility(visible = isAdminModerationMode) {
+                Surface(
+                    shape = RoundedCornerShape(14.dp),
+                    color = Color(0xFFFEF2F2),
+                    border = BorderStroke(1.dp, Color(0xFFFECACA)),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("forum_admin_moderation_panel")
+                ) {
+                    Column(
+                        modifier = Modifier.padding(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = if (isOdia) "🛡️ ଆଡମିନିଷ୍ଟ୍ରେଟର୍ ମଡରେସନ୍ କନସୋଲ୍" else "🛡️ Administrator Forum Moderation Console",
+                                    fontWeight = FontWeight.ExtraBold,
+                                    fontSize = 12.5.sp,
+                                    color = Color(0xFF991B1B)
+                                )
+                                Text(
+                                    text = if (isOdia) {
+                                        "ପୋଷ୍ଟ ପିନ୍, ଭେରିଫାଏ, ହାଇଡ୍ କିମ୍ବା ଡିଲିଟ୍ କରନ୍ତୁ ଏବଂ ଜରୁରୀ ଘୋଷଣା ପଠାନ୍ତୁ"
+                                    } else {
+                                        "Pin official threads, verify posts, hide/unhide flagged items, or delete spam posts & replies"
+                                    },
+                                    fontSize = 10.5.sp,
+                                    color = Color(0xFF7F1D1D)
+                                )
+                            }
+                            FilterChip(
+                                selected = showHiddenFlaggedInAdmin,
+                                onClick = { showHiddenFlaggedInAdmin = !showHiddenFlaggedInAdmin },
+                                label = {
+                                    val hiddenCount = allPosts.count { it.isFlaggedOrHidden }
+                                    Text(
+                                        text = if (showHiddenFlaggedInAdmin) "Showing Hidden ($hiddenCount)" else "Hide Flagged ($hiddenCount)",
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                },
+                                modifier = Modifier.testTag("forum_admin_toggle_show_hidden_chip")
+                            )
+                        }
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Button(
+                                onClick = {
+                                    BalasoreHapticHelper.vibrateSuccess(context)
+                                    coroutineScope.launch {
+                                        val announcementTitle = "Official Community Notice: Monsoon Drainage & Coastal Safety Readiness"
+                                        val announcementBody = "District Administration & Baleshwar 360 Moderators remind citizens to report ward waterlogging on the Civic Eye dashboard and follow IMD Chandipur tidal advisories."
+                                        BalasoreCommunityForumRepository.createPost(
+                                            context = context,
+                                            title = announcementTitle,
+                                            body = announcementBody,
+                                            category = "Weather",
+                                            authorName = "Baleshwar 360 Admin Moderator",
+                                            wardOrLocation = "District Control Room • Balasore",
+                                            isPinned = true,
+                                            isVerifiedByAdmin = true
+                                        )
+                                        com.example.data.fcm.FcmManager.dispatchCustomBreakingNewsPush(
+                                            context = context,
+                                            title = "📢 Community Announcement: $announcementTitle",
+                                            summary = announcementBody,
+                                            category = "Community Announcement",
+                                            source = "Baleshwar 360 Admin Moderation Desk"
+                                        )
+                                        Toast.makeText(
+                                            context,
+                                            "Official Admin Announcement pinned to Forum & dispatched as Push Notification!",
+                                            Toast.LENGTH_SHORT
+                                        ).show()
+                                    }
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFB91C1C)),
+                                shape = RoundedCornerShape(10.dp),
+                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .testTag("forum_admin_broadcast_announcement_btn")
+                            ) {
+                                Text(
+                                    text = if (isOdia) "📢 ଅଫିସିଆଲ୍ କମ୍ୟୁନିଟି ଘୋଷଣା ପୋଷ୍ଟ ଓ ପୁସ୍ ଆଲର୍ଟ ପଠାନ୍ତୁ"
+                                    else "📢 Post Pinned Admin Announcement + Send Push Alert",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
             if (isSyncing) {
                 LinearProgressIndicator(
                     modifier = Modifier
@@ -1356,7 +1629,7 @@ fun BalasoreCommunityForumCard(
                             color = OceanBlueDark
                         )
 
-                        // Topic Category Selector: Local News, Events, Tourism
+                        // Topic Category Selector: Local News, Weather, Tourism, Events
                         Text(
                             text = if (isOdia) "ବିଷୟ ଶ୍ରେଣୀ ବାଛନ୍ତୁ (Topic Category):" else "Select Topic Category:",
                             fontSize = 11.5.sp,
@@ -1364,13 +1637,16 @@ fun BalasoreCommunityForumCard(
                             color = BentoSlate700
                         )
                         Row(
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .horizontalScroll(rememberScrollState()),
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             listOf(
                                 Triple("Local News", if (isOdia) "📰 ସ୍ଥାନୀୟ ଖବର" else "📰 Local News", "forum_new_post_cat_local_news"),
-                                Triple("Events", if (isOdia) "🎪 ଉତ୍ସବ/ଇଭେଣ୍ଟ" else "🎪 Events", "forum_new_post_cat_events"),
-                                Triple("Tourism", if (isOdia) "🏖️ ପର୍ଯ୍ୟଟନ" else "🏖️ Tourism", "forum_new_post_cat_tourism")
+                                Triple("Weather", if (isOdia) "⛈️ ପାଣିପାଗ" else "⛈️ Weather", "forum_new_post_cat_weather"),
+                                Triple("Tourism", if (isOdia) "🏖️ ପର୍ଯ୍ୟଟନ" else "🏖️ Tourism", "forum_new_post_cat_tourism"),
+                                Triple("Events", if (isOdia) "🎪 ଉତ୍ସବ/ଇଭେଣ୍ଟ" else "🎪 Events", "forum_new_post_cat_events")
                             ).forEach { (catValue, catLabel, tag) ->
                                 val isCatSelected = newPostCategory.equals(catValue, ignoreCase = true)
                                 FilterChip(
@@ -1396,7 +1672,7 @@ fun BalasoreCommunityForumCard(
                             value = newPostTitle,
                             onValueChange = { newPostTitle = it },
                             label = {
-                                Text(if (isOdia) "ଆଲୋଚନା ଶିରୋନାମା (Discussion Title)" else "Discussion Title (e.g., Chandipur Beach Fest / Ward Road Update)")
+                                Text(if (isOdia) "ଆଲୋଚନା ଶିରୋନାମା (Discussion Title)" else "Discussion Title (e.g., Chandipur Beach Fest / Storm Update)")
                             },
                             singleLine = true,
                             modifier = Modifier
@@ -1447,7 +1723,7 @@ fun BalasoreCommunityForumCard(
                                 if (titleTrimmed.isEmpty() || bodyTrimmed.isEmpty()) {
                                     Toast.makeText(
                                         context,
-                                        if (isOdia) "ଦୟାକରି ଶିରୋନାମା ଏବଂ ବିଷୟবস্তୁ ଲେଖନ୍ତୁ" else "Please enter both a title and discussion details",
+                                        if (isOdia) "ଦୟାକରି ଶିରୋନାମା ଏବଂ ବିଷୟବস্তୁ ଲେଖନ୍ତୁ" else "Please enter both a title and discussion details",
                                         Toast.LENGTH_SHORT
                                     ).show()
                                     return@Button
@@ -1460,7 +1736,9 @@ fun BalasoreCommunityForumCard(
                                         body = bodyTrimmed,
                                         category = newPostCategory,
                                         authorName = newPostAuthor,
-                                        wardOrLocation = newPostLocation
+                                        wardOrLocation = newPostLocation,
+                                        isPinned = isAdminModerationMode,
+                                        isVerifiedByAdmin = isAdminModerationMode
                                     )
                                     selectedCategory = "All"
                                     newPostTitle = ""
@@ -1498,7 +1776,7 @@ fun BalasoreCommunityForumCard(
                 }
             }
 
-            // Category Filter Chips Row (All, Local News, Events, Tourism)
+            // Category Filter Chips Row (All, Local News, Weather, Tourism, Events)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -1541,8 +1819,8 @@ fun BalasoreCommunityForumCard(
                 onValueChange = { searchQuery = it },
                 placeholder = {
                     Text(
-                        text = if (isOdia) "ଫୋରମ୍ ଆଲୋଚନା ଖୋଜନ୍ତୁ (ଖବର, ଇଭେଣ୍ଟ, ପର୍ଯ୍ୟଟନ)..."
-                        else "Search discussions by topic, ward, or keyword...",
+                        text = if (isOdia) "ଫୋରମ୍ ଆଲୋଚନା ଖୋଜନ୍ତୁ (ଖବର, ପାଣିପାଗ, ପର୍ଯ୍ୟଟନ, ଇଭେଣ୍ଟ)..."
+                        else "Search discussions by News, Weather, Tourism, ward, or keyword...",
                         fontSize = 12.sp
                     )
                 },
@@ -1570,6 +1848,7 @@ fun BalasoreCommunityForumCard(
                 val replyAuthorDraft = replyAuthorByPostId[post.postId] ?: ""
 
                 val catBadgeColor = when {
+                    post.category.equals("Weather", ignoreCase = true) -> Color(0xFF0284C7)
                     post.category.equals("Events", ignoreCase = true) -> Color(0xFFD97706)
                     post.category.equals("Tourism", ignoreCase = true) -> Color(0xFF0D9488)
                     else -> OceanBlue
@@ -1577,8 +1856,11 @@ fun BalasoreCommunityForumCard(
 
                 Surface(
                     shape = RoundedCornerShape(16.dp),
-                    color = Color(0xFFF8FAFC),
-                    border = BorderStroke(1.dp, catBadgeColor.copy(alpha = 0.28f)),
+                    color = if (post.isFlaggedOrHidden) Color(0xFFFEF2F2) else Color(0xFFF8FAFC),
+                    border = BorderStroke(
+                        1.dp,
+                        if (post.isPinned) Color(0xFFD97706) else catBadgeColor.copy(alpha = 0.28f)
+                    ),
                     modifier = Modifier
                         .fillMaxWidth()
                         .testTag("forum_post_card_${post.postId}")
@@ -1587,7 +1869,7 @@ fun BalasoreCommunityForumCard(
                         modifier = Modifier.padding(14.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        // Category & Sync Badge Row
+                        // Category, Pinned, Verified & Sync Badge Row
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
@@ -1603,6 +1885,8 @@ fun BalasoreCommunityForumCard(
                                 ) {
                                     Text(
                                         text = when {
+                                            post.category.equals("Weather", ignoreCase = true) ->
+                                                if (isOdia) "⛈️ ପାଣିପାଗ" else "⛈️ Weather"
                                             post.category.equals("Events", ignoreCase = true) ->
                                                 if (isOdia) "🎪 ଉତ୍ସବ ଓ ଇଭେଣ୍ଟ" else "🎪 Events"
                                             post.category.equals("Tourism", ignoreCase = true) ->
@@ -1615,6 +1899,51 @@ fun BalasoreCommunityForumCard(
                                         color = catBadgeColor,
                                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
                                     )
+                                }
+
+                                if (post.isPinned) {
+                                    Surface(
+                                        shape = RoundedCornerShape(6.dp),
+                                        color = Color(0xFFFEF3C7)
+                                    ) {
+                                        Text(
+                                            text = if (isOdia) "📌 ପିନ୍" else "📌 Pinned",
+                                            fontSize = 9.sp,
+                                            fontWeight = FontWeight.ExtraBold,
+                                            color = Color(0xFFB45309),
+                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                        )
+                                    }
+                                }
+
+                                if (post.isVerifiedByAdmin) {
+                                    Surface(
+                                        shape = RoundedCornerShape(6.dp),
+                                        color = Color(0xFFDCFCE7)
+                                    ) {
+                                        Text(
+                                            text = if (isOdia) "✓ ଆଡମିନ୍ ଭେରିଫାଏଡ୍" else "✓ Admin Verified",
+                                            fontSize = 9.sp,
+                                            fontWeight = FontWeight.ExtraBold,
+                                            color = Color(0xFF166534),
+                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                        )
+                                    }
+                                }
+
+                                if (post.isFlaggedOrHidden) {
+                                    Surface(
+                                        shape = RoundedCornerShape(6.dp),
+                                        color = Color(0xFFFEE2E2)
+                                    ) {
+                                        Text(
+                                            text = "🚩 Hidden by Moderator",
+                                            fontSize = 9.sp,
+                                            fontWeight = FontWeight.ExtraBold,
+                                            color = Color(0xFFB91C1C),
+                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                        )
+                                    }
                                 }
 
                                 Surface(
@@ -1687,6 +2016,105 @@ fun BalasoreCommunityForumCard(
                                     fontSize = 11.sp,
                                     color = BentoSlate600
                                 )
+                            }
+                        }
+
+                        // Administrator Moderation Actions Row per Post
+                        if (isAdminModerationMode) {
+                            Surface(
+                                shape = RoundedCornerShape(10.dp),
+                                color = Color(0xFFFFF1F2),
+                                border = BorderStroke(1.dp, Color(0xFFFECDD3)),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .testTag("forum_admin_actions_row_${post.postId}")
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .horizontalScroll(rememberScrollState())
+                                        .padding(horizontal = 8.dp, vertical = 6.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = "🛡️ Admin:",
+                                        fontSize = 10.5.sp,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        color = Color(0xFF9F1239)
+                                    )
+                                    FilterChip(
+                                        selected = post.isPinned,
+                                        onClick = {
+                                            BalasoreCommunityForumRepository.togglePinPostByAdmin(context, post.postId)
+                                            Toast.makeText(
+                                                context,
+                                                if (!post.isPinned) "Post pinned to top of Forum" else "Post unpinned",
+                                                Toast.LENGTH_SHORT
+                                            ).show()
+                                        },
+                                        label = {
+                                            Text(
+                                                text = if (post.isPinned) "📌 Unpin" else "📌 Pin",
+                                                fontSize = 10.sp,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        },
+                                        modifier = Modifier.testTag("forum_admin_pin_btn_${post.postId}")
+                                    )
+                                    FilterChip(
+                                        selected = post.isVerifiedByAdmin,
+                                        onClick = {
+                                            BalasoreCommunityForumRepository.toggleVerifyPostByAdmin(context, post.postId)
+                                            Toast.makeText(
+                                                context,
+                                                if (!post.isVerifiedByAdmin) "Marked as Admin Verified" else "Verification badge removed",
+                                                Toast.LENGTH_SHORT
+                                            ).show()
+                                        },
+                                        label = {
+                                            Text(
+                                                text = if (post.isVerifiedByAdmin) "✓ Verified" else "Verify",
+                                                fontSize = 10.sp,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        },
+                                        modifier = Modifier.testTag("forum_admin_verify_btn_${post.postId}")
+                                    )
+                                    FilterChip(
+                                        selected = post.isFlaggedOrHidden,
+                                        onClick = {
+                                            BalasoreCommunityForumRepository.toggleFlagOrHidePostByAdmin(context, post.postId)
+                                            Toast.makeText(
+                                                context,
+                                                if (!post.isFlaggedOrHidden) "Post flagged & hidden from public feed" else "Post restored to public feed",
+                                                Toast.LENGTH_SHORT
+                                            ).show()
+                                        },
+                                        label = {
+                                            Text(
+                                                text = if (post.isFlaggedOrHidden) "Restore Post" else "🚩 Flag/Hide",
+                                                fontSize = 10.sp,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        },
+                                        modifier = Modifier.testTag("forum_admin_hide_btn_${post.postId}")
+                                    )
+                                    OutlinedButton(
+                                        onClick = {
+                                            BalasoreCommunityForumRepository.deletePostByAdmin(context, post.postId)
+                                            Toast.makeText(context, "Post removed by Administrator", Toast.LENGTH_SHORT).show()
+                                        },
+                                        shape = RoundedCornerShape(8.dp),
+                                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFDC2626)),
+                                        modifier = Modifier
+                                            .height(30.dp)
+                                            .testTag("forum_admin_delete_post_btn_${post.postId}")
+                                    ) {
+                                        Text("🗑️ Delete", fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                    }
+                                }
                             }
                         }
 
@@ -1802,10 +2230,33 @@ fun BalasoreCommunityForumCard(
                                                     fontWeight = FontWeight.ExtraBold,
                                                     color = OceanBlueDark
                                                 )
-                                                Text(
-                                                    text = if (reply.isSyncedToCloud) "☁️" else "📥",
-                                                    fontSize = 10.sp
-                                                )
+                                                Row(
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                                ) {
+                                                    if (isAdminModerationMode) {
+                                                        Text(
+                                                            text = "🗑️ Remove",
+                                                            fontSize = 10.sp,
+                                                            fontWeight = FontWeight.Bold,
+                                                            color = Color(0xFFDC2626),
+                                                            modifier = Modifier
+                                                                .clickable {
+                                                                    BalasoreCommunityForumRepository.deleteReplyByAdmin(
+                                                                        context = context,
+                                                                        postId = post.postId,
+                                                                        replyId = reply.replyId
+                                                                    )
+                                                                    Toast.makeText(context, "Reply removed by moderator", Toast.LENGTH_SHORT).show()
+                                                                }
+                                                                .testTag("forum_admin_delete_reply_btn_${reply.replyId}")
+                                                        )
+                                                    }
+                                                    Text(
+                                                        text = if (reply.isSyncedToCloud) "☁️" else "📥",
+                                                        fontSize = 10.sp
+                                                    )
+                                                }
                                             }
                                             Spacer(modifier = Modifier.height(3.dp))
                                             Text(

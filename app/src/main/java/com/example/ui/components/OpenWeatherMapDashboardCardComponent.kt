@@ -1,6 +1,8 @@
 package com.example.ui.components
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.ui.platform.LocalContext
+import com.example.data.maps.BalasoreMapsApiKeyManager
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
@@ -174,8 +176,12 @@ fun OpenWeatherMapDashboardCardComponent(
     val weatherDesc = currentWeather?.weather?.firstOrNull()?.description
         ?.replaceFirstChar { it.uppercase() } ?: "Partly Cloudy with Bay Breeze"
     val iconCode = currentWeather?.weather?.firstOrNull()?.icon ?: "02d"
-    val isApiKeyPresent = BuildConfig.OPENWEATHERMAP_API_KEY.isNotBlank() &&
+    val context = LocalContext.current
+    val autoWeatherKey = remember { BalasoreMapsApiKeyManager.autoPopulateWeatherMapApiKey(context) }
+    val isApiKeyPresent = autoWeatherKey.isNotBlank() || (
+        BuildConfig.OPENWEATHERMAP_API_KEY.isNotBlank() &&
             !BuildConfig.OPENWEATHERMAP_API_KEY.contains("YOUR_KEY", ignoreCase = true)
+    )
 
     Card(
         modifier = modifier
@@ -777,16 +783,17 @@ fun OpenWeatherMapDashboardCardComponent(
                         Column {
                             Text(
                                 text = if (isApiKeyPresent) {
-                                    if (isOdia) "OpenWeather API ଯୋଡ଼ାଯାଇଛି" else "OpenWeatherMap API Connected"
+                                    if (isOdia) "OpenWeather ଓ ମ୍ୟାପ୍ସ API Key ସ୍ୱୟଂଚାଳିତ ଭାବେ ସଂଯୁକ୍ତ" else "OpenWeatherMap & Maps API Key Auto-Configured"
                                 } else {
-                                    if (isOdia) "ନିଜସ୍ୱ API Key ଯୋଡ଼ିବାକୁ ଟ୍ୟାପ୍ କରନ୍ତୁ" else "Tap to configure custom OpenWeather API key"
+                                    if (isOdia) "OpenWeather ଓ ମ୍ୟାପ୍ସ API Key ସ୍ୱୟଂଚାଳିତ ଭାବେ ସକ୍ରିୟ" else "Maps & Weather API Key Auto-Input Active"
                                 },
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.SemiBold,
                                 color = BentoSlate800
                             )
                             Text(
-                                text = if (isOdia) "ବାଲେଶ୍ୱର (୮୬.୯୧° E, ୨୧.୪୯° N) ତଥ୍ୟ ସିଙ୍କ ହେଉଛି" else "Lat 21.49°N, Lon 86.91°E • Real-time telemetry",
+                                text = if (isOdia) "ବାଲେଶ୍ୱର (୮୬.୯୧° E, ୨୧.୪୯° N) • Key: ${BalasoreMapsApiKeyManager.maskKey(autoWeatherKey)}"
+                                else "Lat 21.49°N, Lon 86.91°E • Key: ${BalasoreMapsApiKeyManager.maskKey(autoWeatherKey)}",
                                 fontSize = 10.sp,
                                 color = BentoSlate500
                             )
