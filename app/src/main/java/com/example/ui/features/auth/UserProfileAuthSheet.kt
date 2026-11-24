@@ -45,6 +45,8 @@ import com.example.data.local.UserEntity
 import com.example.data.model.FavoriteNewsCloudItem
 import com.example.data.model.TourismBookmarkCloudItem
 import com.example.data.model.UserWeatherPreferences
+import com.example.data.security.AuthValidator
+import com.example.data.security.PasswordStrength
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -53,7 +55,8 @@ fun UserProfileAuthSheet(
     language: com.example.data.model.AppLanguage = com.example.data.model.AppLanguage.ENGLISH,
     onClose: () -> Unit,
     onOpenHotspot: (String) -> Unit = {},
-    onOpenAdminPanel: () -> Unit = {}
+    onOpenAdminPanel: () -> Unit = {},
+    onOpenTideReminderSettings: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
@@ -66,6 +69,8 @@ fun UserProfileAuthSheet(
 
     var selectedTab by remember { mutableIntStateOf(0) }
     var isSigningIn by remember { mutableStateOf(false) }
+    var authErrorMessage by remember { mutableStateOf<String?>(null) }
+    var authSuccessMessage by remember { mutableStateOf<String?>(null) }
     var userProfile by remember { mutableStateOf<UserEntity?>(null) }
     var weatherPrefs by remember { mutableStateOf(UserWeatherPreferences()) }
     var savedNewsList by remember { mutableStateOf<List<FavoriteNewsCloudItem>>(emptyList()) }
@@ -243,21 +248,30 @@ fun UserProfileAuthSheet(
                 UnauthenticatedContent(
                     isOdia = isOdia,
                     isSigningIn = isSigningIn,
+                    errorMessage = authErrorMessage,
+                    successMessage = authSuccessMessage,
+                    onClearMessages = {
+                        authErrorMessage = null
+                        authSuccessMessage = null
+                    },
                     onSignInWithGoogle = {
+                        authErrorMessage = null
+                        authSuccessMessage = null
                         isSigningIn = true
                         coroutineScope.launch {
                             val result = authManager.signInWithGoogle(context)
                             isSigningIn = false
                             result.onSuccess { user ->
                                 Toast.makeText(context, if (isOdia) "ସ୍ୱାଗତ, ${user.fullName}!" else "Welcome, ${user.fullName}!", Toast.LENGTH_SHORT).show()
-                                // Save profile to Firestore
                                 firestoreService.saveUserProfile(user)
                             }.onFailure { err ->
-                                Toast.makeText(context, err.message ?: "Google Sign-In failed", Toast.LENGTH_LONG).show()
+                                authErrorMessage = err.message ?: "Google Sign-In failed"
                             }
                         }
                     },
                     onSignInWithEmail = { email, pass ->
+                        authErrorMessage = null
+                        authSuccessMessage = null
                         isSigningIn = true
                         coroutineScope.launch {
                             val result = authManager.signInWithEmail(email, pass)
@@ -266,37 +280,42 @@ fun UserProfileAuthSheet(
                                 Toast.makeText(context, if (isOdia) "ସ୍ୱାଗତ, ${user.fullName}!" else "Welcome back, ${user.fullName}!", Toast.LENGTH_SHORT).show()
                                 firestoreService.saveUserProfile(user)
                             }.onFailure { err ->
-                                Toast.makeText(context, err.message ?: "Login failed", Toast.LENGTH_LONG).show()
+                                authErrorMessage = err.message ?: "Login failed"
                             }
                         }
                     },
-                    onSignUpWithEmail = { email, pass, name, locality ->
+                    onSignUpWithEmail = { email, pass, name, locality, securityAnswer ->
+                        authErrorMessage = null
+                        authSuccessMessage = null
                         isSigningIn = true
                         coroutineScope.launch {
-                            val result = authManager.signUpWithEmail(email, pass, name, locality)
+                            val result = authManager.signUpWithEmail(email, pass, name, locality, securityAnswer)
                             isSigningIn = false
                             result.onSuccess { user ->
-                                Toast.makeText(context, if (isOdia) "ଆକାଉଣ୍ଟ ସଫଳତାର ସହ ତିଆରି ହେଲା!" else "Account created! Verification link sent.", Toast.LENGTH_LONG).show()
+                                Toast.makeText(context, if (isOdia) "ଆକାଉଣ୍ଟ ସଫଳତାର ସହ ତିଆରି ହେଲା!" else "Account created & secured!", Toast.LENGTH_LONG).show()
                                 firestoreService.saveUserProfile(user)
                             }.onFailure { err ->
-                                Toast.makeText(context, err.message ?: "Sign up failed", Toast.LENGTH_LONG).show()
+                                authErrorMessage = err.message ?: "Sign up failed"
                             }
                         }
                     },
-                    onSendPasswordReset = { email, newPass ->
+                    onSendPasswordReset = { email, newPass, securityAnswer ->
+                        authErrorMessage = null
+                        authSuccessMessage = null
                         coroutineScope.launch {
-                            val result = authManager.sendPasswordResetEmail(email, newPass)
+                            val result = authManager.sendPasswordResetEmail(email, newPass, securityAnswer)
                             result.onSuccess {
                                 val msg = if (!newPass.isNullOrBlank()) {
                                     if (isOdia) "ପାସୱାର୍ଡ ସଫଳତାର ସହ ରିସେଟ୍ ହେଲା! ଏବେ ଲଗ୍-ଇନ୍ କରନ୍ତୁ।"
-                                    else "Password updated & reset confirmation sent for $email! You can now Log In."
+                                    else "Password updated for $email. You can now Log In."
                                 } else {
                                     if (isOdia) "ପାସୱାର୍ଡ ରିସେଟ୍ ଲିଙ୍କ ପଠାଗଲା: $email"
-                                    else "Password reset link sent to $email"
+                                    else "Password reset instructions sent to $email"
                                 }
+                                authSuccessMessage = msg
                                 Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
                             }.onFailure { err ->
-                                Toast.makeText(context, err.message ?: "Failed to reset password", Toast.LENGTH_LONG).show()
+                                authErrorMessage = err.message ?: "Failed to reset password"
                             }
                         }
                     }
@@ -441,15 +460,15 @@ fun UserProfileAuthSheet(
                             coroutineScope.launch {
                                 val updatedUser = UserEntity(
                                     id = activeUid,
-                                    fullName = editDisplayName,
+                                    fullName = editDisplayName.trim().ifBlank { "Balasore Citizen" },
                                     email = activeEmail,
-                                    passwordHash = "FIREBASE_MANAGED",
-                                    phoneNumber = editPhoneNumber,
+                                    passwordHash = userProfile?.passwordHash ?: activeSessionUser?.passwordHash ?: "ENCRYPTED_SESSION_ACTIVE",
+                                    phoneNumber = editPhoneNumber.trim(),
                                     locality = editLocality,
-                                    bio = editBio,
+                                    bio = editBio.trim(),
                                     avatarUri = editAvatarUri ?: activePhotoUrl,
-                                    securityQuestion = "Google Auth",
-                                    securityAnswer = "FIREBASE_MANAGED",
+                                    securityQuestion = userProfile?.securityQuestion ?: activeSessionUser?.securityQuestion ?: "What is your Balasore recovery locality/place?",
+                                    securityAnswer = userProfile?.securityAnswer ?: activeSessionUser?.securityAnswer ?: "ENCRYPTED_SESSION_ACTIVE",
                                     createdAt = userProfile?.createdAt ?: System.currentTimeMillis()
                                 )
                                 authManager.updateActiveSessionProfile(updatedUser)
@@ -471,6 +490,10 @@ fun UserProfileAuthSheet(
                         isOdia = isOdia,
                         prefs = weatherPrefs,
                         onPrefsChange = { weatherPrefs = it },
+                        onOpenTideReminderSettings = {
+                            onClose()
+                            onOpenTideReminderSettings()
+                        },
                         onSave = {
                             coroutineScope.launch {
                                 firestoreService.saveWeatherPreferences(activeUid, weatherPrefs)
@@ -666,10 +689,13 @@ fun UserProfileAuthSheet(
 private fun UnauthenticatedContent(
     isOdia: Boolean,
     isSigningIn: Boolean,
+    errorMessage: String? = null,
+    successMessage: String? = null,
+    onClearMessages: () -> Unit = {},
     onSignInWithGoogle: () -> Unit,
     onSignInWithEmail: (email: String, pass: String) -> Unit,
-    onSignUpWithEmail: (email: String, pass: String, name: String, locality: String) -> Unit,
-    onSendPasswordReset: (email: String, newPass: String?) -> Unit
+    onSignUpWithEmail: (email: String, pass: String, name: String, locality: String, securityAnswer: String) -> Unit,
+    onSendPasswordReset: (email: String, newPass: String?, securityAnswer: String?) -> Unit
 ) {
     var authMode by remember { mutableIntStateOf(0) } // 0: Login, 1: Sign Up, 2: Forgot Password
 
@@ -677,6 +703,7 @@ private fun UnauthenticatedContent(
     var password by remember { mutableStateOf("") }
     var confirmPassword by remember { mutableStateOf("") }
     var resetNewPassword by remember { mutableStateOf("") }
+    var recoveryAnswer by remember { mutableStateOf("") }
     var fullName by remember { mutableStateOf("") }
     var locality by remember { mutableStateOf("Balasore Town") }
     var passwordVisible by remember { mutableStateOf(false) }
@@ -685,431 +712,582 @@ private fun UnauthenticatedContent(
         "Balasore Town", "Chandipur", "Remuna", "Soro",
         "Jaleswar", "Bhograi", "Nilagiri", "Basta", "Baliapal", "Simulia"
     )
+    val passwordValidation = remember(password) { AuthValidator.validatePasswordStrength(password) }
+    val isEmailValid = remember(email) { AuthValidator.isValidEmail(email) }
+    val passwordsMatch = password.isNotEmpty() && password == confirmPassword
 
-    Column(
+    LazyColumn(
         modifier = Modifier.fillMaxWidth(),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        // Mode Selector: Log In | Sign Up | Reset
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(12.dp))
-                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
-                .padding(4.dp)
-        ) {
-            listOf(
-                0 to (if (isOdia) "ଲଗ୍-ଇନ୍" else "Log In"),
-                1 to (if (isOdia) "ସାଇନ୍-ଅପ୍" else "Sign Up"),
-                2 to (if (isOdia) "ପାସୱାର୍ଡ ରିସେଟ୍" else "Forgot Pass")
-            ).forEach { (idx, title) ->
-                val isSel = authMode == idx
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(if (isSel) MaterialTheme.colorScheme.surface else Color.Transparent)
-                        .clickable { authMode = idx }
-                        .padding(vertical = 8.dp)
-                        .testTag("auth_mode_tab_$idx"),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = title,
-                        fontSize = 12.sp,
-                        fontWeight = if (isSel) FontWeight.Bold else FontWeight.Medium,
-                        color = if (isSel) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        when (authMode) {
-            0 -> {
-                // ============= LOG IN VIEW =============
-                OutlinedTextField(
-                    value = email,
-                    onValueChange = { email = it },
-                    label = { Text(if (isOdia) "ଇମେଲ୍ ଠିକଣା" else "Email Address") },
-                    leadingIcon = { Icon(Icons.Default.Email, contentDescription = null) },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
-                    singleLine = true,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .testTag("auth_login_email_input"),
-                    shape = RoundedCornerShape(12.dp)
-                )
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                OutlinedTextField(
-                    value = password,
-                    onValueChange = { password = it },
-                    label = { Text(if (isOdia) "ପାସୱାର୍ଡ" else "Password") },
-                    leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null) },
-                    trailingIcon = {
-                        IconButton(onClick = { passwordVisible = !passwordVisible }) {
-                            Icon(
-                                imageVector = if (passwordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
-                                contentDescription = if (passwordVisible) "Hide password" else "Show password"
-                            )
-                        }
-                    },
-                    visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                    singleLine = true,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .testTag("auth_login_password_input"),
-                    shape = RoundedCornerShape(12.dp)
-                )
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End
-                ) {
-                    TextButton(
-                        onClick = { authMode = 2 },
-                        modifier = Modifier.testTag("auth_forgot_pass_link")
+        item {
+            // Mode Selector: Log In | Sign Up | Reset
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                    .padding(4.dp)
+            ) {
+                listOf(
+                    0 to (if (isOdia) "ଲଗ୍-ଇନ୍" else "Log In"),
+                    1 to (if (isOdia) "ସାଇନ୍-ଅପ୍" else "Sign Up"),
+                    2 to (if (isOdia) "ପାସୱାର୍ଡ ରିସେଟ୍" else "Forgot Pass")
+                ).forEach { (idx, title) ->
+                    val isSel = authMode == idx
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(if (isSel) MaterialTheme.colorScheme.surface else Color.Transparent)
+                            .clickable {
+                                authMode = idx
+                                onClearMessages()
+                            }
+                            .padding(vertical = 8.dp)
+                            .testTag("auth_mode_tab_$idx"),
+                        contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            text = if (isOdia) "ପାସୱାର୍ଡ ଭୁଲିଗଲେ କି?" else "Forgot Password?",
+                            text = title,
                             fontSize = 12.sp,
-                            color = MaterialTheme.colorScheme.primary
+                            fontWeight = if (isSel) FontWeight.Bold else FontWeight.Medium,
+                            color = if (isSel) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
-                }
-
-                Spacer(modifier = Modifier.height(6.dp))
-
-                Button(
-                    onClick = {
-                        if (email.isNotBlank() && password.isNotBlank()) {
-                            onSignInWithEmail(email, password)
-                        }
-                    },
-                    enabled = !isSigningIn && email.isNotBlank() && password.isNotBlank(),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(50.dp)
-                        .testTag("auth_login_submit_btn"),
-                    shape = RoundedCornerShape(12.dp)
-                ) {
-                    if (isSigningIn) {
-                        CircularProgressIndicator(color = Color.White, modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-                        Spacer(modifier = Modifier.width(8.dp))
-                    }
-                    Text(text = if (isOdia) "ଲଗ୍-ଇନ୍ କରନ୍ତୁ" else "Log In to Baleshwar 360", fontWeight = FontWeight.Bold)
                 }
             }
 
-            1 -> {
-                // ============= SIGN UP VIEW =============
-                OutlinedTextField(
-                    value = fullName,
-                    onValueChange = { fullName = it },
-                    label = { Text(if (isOdia) "ଆପଣଙ୍କ ନାମ" else "Full Name") },
-                    leadingIcon = { Icon(Icons.Default.Person, contentDescription = null) },
-                    singleLine = true,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .testTag("auth_signup_name_input"),
-                    shape = RoundedCornerShape(12.dp)
-                )
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                OutlinedTextField(
-                    value = email,
-                    onValueChange = { email = it },
-                    label = { Text(if (isOdia) "ଇମେଲ୍ ଠିକଣା" else "Email Address") },
-                    leadingIcon = { Icon(Icons.Default.Email, contentDescription = null) },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
-                    singleLine = true,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .testTag("auth_signup_email_input"),
-                    shape = RoundedCornerShape(12.dp)
-                )
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                OutlinedTextField(
-                    value = password,
-                    onValueChange = { password = it },
-                    label = { Text(if (isOdia) "ପାସୱାର୍ଡ (ନୂଆ)" else "Create Password (Min 6 chars)") },
-                    leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null) },
-                    trailingIcon = {
-                        IconButton(onClick = { passwordVisible = !passwordVisible }) {
-                            Icon(
-                                imageVector = if (passwordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
-                                contentDescription = if (passwordVisible) "Hide password" else "Show password"
-                            )
-                        }
-                    },
-                    visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                    singleLine = true,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .testTag("auth_signup_password_input"),
-                    shape = RoundedCornerShape(12.dp)
-                )
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                OutlinedTextField(
-                    value = confirmPassword,
-                    onValueChange = { confirmPassword = it },
-                    label = { Text(if (isOdia) "ପାସୱାର୍ଡ ନିଶ୍ଚିତ କରନ୍ତୁ" else "Confirm Password") },
-                    leadingIcon = { Icon(Icons.Default.LockReset, contentDescription = null) },
-                    visualTransformation = PasswordVisualTransformation(),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                    singleLine = true,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .testTag("auth_signup_confirm_password_input"),
-                    shape = RoundedCornerShape(12.dp)
-                )
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                Text(
-                    text = if (isOdia) "ନିଜର ଅଞ୍ଚଳ ବାଛନ୍ତୁ:" else "Select Locality:",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.align(Alignment.Start)
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                LazyRow(
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    items(localities) { loc ->
-                        FilterChip(
-                            selected = locality.equals(loc, ignoreCase = true),
-                            onClick = { locality = loc },
-                            label = { Text(loc, fontSize = 10.5.sp) }
-                        )
-                    }
-                }
-
+            if (!errorMessage.isNullOrBlank()) {
                 Spacer(modifier = Modifier.height(12.dp))
-
-                Button(
-                    onClick = {
-                        if (email.isNotBlank() && password.length >= 6 && password == confirmPassword) {
-                            onSignUpWithEmail(email, password, fullName.ifBlank { "Balasore Citizen" }, locality)
-                        }
-                    },
-                    enabled = !isSigningIn && email.isNotBlank() && password.length >= 6 && password == confirmPassword,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(50.dp)
-                        .testTag("auth_signup_submit_btn"),
-                    shape = RoundedCornerShape(12.dp)
-                ) {
-                    if (isSigningIn) {
-                        CircularProgressIndicator(color = Color.White, modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-                        Spacer(modifier = Modifier.width(8.dp))
-                    }
-                    Text(text = if (isOdia) "ଆକାଉଣ୍ଟ ତିଆରି କରନ୍ତୁ (Sign Up)" else "Create Free Account", fontWeight = FontWeight.Bold)
-                }
-            }
-
-            2 -> {
-                // ============= FORGOT PASSWORD / RESET VIEW =============
                 Surface(
                     shape = RoundedCornerShape(12.dp),
-                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f),
-                    modifier = Modifier.fillMaxWidth()
+                    color = MaterialTheme.colorScheme.errorContainer,
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.4f)),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("auth_error_banner")
                 ) {
-                    Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Icon(imageVector = Icons.Default.LockReset, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                        Spacer(modifier = Modifier.width(10.dp))
+                    Row(
+                        modifier = Modifier.padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.ErrorOutline,
+                            contentDescription = "Error",
+                            tint = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = if (isOdia)
-                                "ଆପଣଙ୍କ ପଞ୍ଜୀକୃତ ଇମେଲ୍ ଦିଅନ୍ତୁ। ଆପଣ ଇମେଲ୍ ଲିଙ୍କ୍ ପଠାଇପାରିବେ କିମ୍ବା ନୂଆ ପାସୱାର୍ଡ ସେଟ୍ କରିପାରିବେ।"
-                            else
-                                "Enter your registered email to receive a password reset link or set a new password directly.",
+                            text = errorMessage,
                             fontSize = 12.sp,
-                            color = MaterialTheme.colorScheme.onSurface
+                            color = MaterialTheme.colorScheme.onErrorContainer,
+                            modifier = Modifier.weight(1f)
                         )
                     }
                 }
+            }
 
+            if (!successMessage.isNullOrBlank()) {
                 Spacer(modifier = Modifier.height(12.dp))
-
-                OutlinedTextField(
-                    value = email,
-                    onValueChange = { email = it },
-                    label = { Text(if (isOdia) "ଇମେଲ୍ ଠିକଣା" else "Registered Email") },
-                    leadingIcon = { Icon(Icons.Default.Email, contentDescription = null) },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
-                    singleLine = true,
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = Color(0xFFDCFCE7),
+                    border = BorderStroke(1.dp, Color(0xFF86EFAC)),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .testTag("auth_forgot_email_input"),
-                    shape = RoundedCornerShape(12.dp)
-                )
+                        .testTag("auth_success_banner")
+                ) {
+                    Row(
+                        modifier = Modifier.padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.CheckCircle,
+                            contentDescription = "Success",
+                            tint = Color(0xFF16A34A),
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = successMessage,
+                            fontSize = 12.sp,
+                            color = Color(0xFF166534),
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
+            }
 
-                Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
-                OutlinedTextField(
-                    value = resetNewPassword,
-                    onValueChange = { resetNewPassword = it },
-                    label = { Text(if (isOdia) "ନୂଆ ପାସୱାର୍ଡ (ଇଚ୍ଛାଧୀନ - ୬+ ଅକ୍ଷର)" else "New Password (Optional - 6+ chars)") },
-                    leadingIcon = { Icon(Icons.Default.LockReset, contentDescription = null) },
-                    trailingIcon = {
-                        IconButton(onClick = { passwordVisible = !passwordVisible }) {
-                            Icon(
-                                imageVector = if (passwordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
-                                contentDescription = if (passwordVisible) "Hide password" else "Show password"
+            when (authMode) {
+                0 -> {
+                    // ============= LOG IN VIEW =============
+                    OutlinedTextField(
+                        value = email,
+                        onValueChange = {
+                            email = it
+                            onClearMessages()
+                        },
+                        label = { Text(if (isOdia) "ଇମେଲ୍ ଠିକଣା" else "Email Address") },
+                        leadingIcon = { Icon(Icons.Default.Email, contentDescription = null) },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                        singleLine = true,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("auth_login_email_input"),
+                        shape = RoundedCornerShape(12.dp)
+                    )
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    OutlinedTextField(
+                        value = password,
+                        onValueChange = {
+                            password = it
+                            onClearMessages()
+                        },
+                        label = { Text(if (isOdia) "ପାସୱାର୍ଡ" else "Password") },
+                        leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null) },
+                        trailingIcon = {
+                            IconButton(onClick = { passwordVisible = !passwordVisible }) {
+                                Icon(
+                                    imageVector = if (passwordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                                    contentDescription = if (passwordVisible) "Hide password" else "Show password"
+                                )
+                            }
+                        },
+                        visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                        singleLine = true,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("auth_login_password_input"),
+                        shape = RoundedCornerShape(12.dp)
+                    )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        TextButton(
+                            onClick = {
+                                authMode = 1
+                                onClearMessages()
+                            },
+                            modifier = Modifier.testTag("auth_go_to_signup_link")
+                        ) {
+                            Text(
+                                text = if (isOdia) "ନୂଆ ଆକାଉଣ୍ଟ?" else "New user? Sign Up",
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.secondary
                             )
                         }
-                    },
-                    visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                    singleLine = true,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .testTag("auth_forgot_new_password_input"),
-                    shape = RoundedCornerShape(12.dp)
-                )
-
-                Spacer(modifier = Modifier.height(14.dp))
-
-                Button(
-                    onClick = {
-                        if (email.isNotBlank()) {
-                            onSendPasswordReset(email, resetNewPassword.takeIf { it.isNotBlank() })
-                            if (resetNewPassword.length >= 6) {
-                                password = resetNewPassword
-                                resetNewPassword = ""
-                                authMode = 0
-                            }
+                        TextButton(
+                            onClick = {
+                                authMode = 2
+                                onClearMessages()
+                            },
+                            modifier = Modifier.testTag("auth_forgot_pass_link")
+                        ) {
+                            Text(
+                                text = if (isOdia) "ପାସୱାର୍ଡ ଭୁଲିଗଲେ କି?" else "Forgot Password?",
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.primary
+                            )
                         }
-                    },
-                    enabled = email.isNotBlank() && (resetNewPassword.isBlank() || resetNewPassword.length >= 6),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(50.dp)
-                        .testTag("auth_forgot_submit_btn"),
-                    shape = RoundedCornerShape(12.dp)
-                ) {
-                    Icon(Icons.Default.Send, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = if (resetNewPassword.length >= 6) {
-                            if (isOdia) "ପାସୱାର୍ଡ ରିସେଟ୍ କରନ୍ତୁ" else "Update Password & Send Confirmation"
-                        } else {
-                            if (isOdia) "ରିସେଟ୍ ଲିଙ୍କ୍ ପଠାନ୍ତୁ" else "Send Password Reset Link"
+                    }
+
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    Button(
+                        onClick = {
+                            if (email.isNotBlank() && password.isNotBlank()) {
+                                onSignInWithEmail(email, password)
+                            }
                         },
-                        fontWeight = FontWeight.Bold
+                        enabled = !isSigningIn && email.isNotBlank() && password.isNotBlank(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(50.dp)
+                            .testTag("auth_login_submit_btn"),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        if (isSigningIn) {
+                            CircularProgressIndicator(color = Color.White, modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                            Spacer(modifier = Modifier.width(8.dp))
+                        }
+                        Text(text = if (isOdia) "ଲଗ୍-ଇନ୍ କରନ୍ତୁ" else "Log In to Baleshwar 360", fontWeight = FontWeight.Bold)
+                    }
+                }
+
+                1 -> {
+                    // ============= SIGN UP VIEW =============
+                    OutlinedTextField(
+                        value = fullName,
+                        onValueChange = { fullName = it },
+                        label = { Text(if (isOdia) "ଆପଣଙ୍କ ନାମ" else "Full Name") },
+                        leadingIcon = { Icon(Icons.Default.Person, contentDescription = null) },
+                        singleLine = true,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("auth_signup_name_input"),
+                        shape = RoundedCornerShape(12.dp)
+                    )
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    OutlinedTextField(
+                        value = email,
+                        onValueChange = {
+                            email = it
+                            onClearMessages()
+                        },
+                        label = { Text(if (isOdia) "ଇମେଲ୍ ଠିକଣା" else "Email Address") },
+                        leadingIcon = { Icon(Icons.Default.Email, contentDescription = null) },
+                        isError = email.isNotBlank() && !isEmailValid,
+                        supportingText = if (email.isNotBlank() && !isEmailValid) {
+                            { Text(if (isOdia) "ସଠିକ୍ ଇମେଲ୍ ଠିକଣା ଦିଅନ୍ତୁ" else "Enter a valid email address") }
+                        } else null,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                        singleLine = true,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("auth_signup_email_input"),
+                        shape = RoundedCornerShape(12.dp)
+                    )
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    OutlinedTextField(
+                        value = password,
+                        onValueChange = {
+                            password = it
+                            onClearMessages()
+                        },
+                        label = { Text(if (isOdia) "ପାସୱାର୍ଡ (୮+ ଅକ୍ଷର ଓ ସଂଖ୍ୟା)" else "Create Password (8+ chars, letter & digit)") },
+                        leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null) },
+                        trailingIcon = {
+                            IconButton(onClick = { passwordVisible = !passwordVisible }) {
+                                Icon(
+                                    imageVector = if (passwordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                                    contentDescription = if (passwordVisible) "Hide password" else "Show password"
+                                )
+                            }
+                        },
+                        visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                        singleLine = true,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("auth_signup_password_input"),
+                        shape = RoundedCornerShape(12.dp)
+                    )
+
+                    if (password.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(6.dp))
+                        val (strengthLabel, strengthColor, progress) = when (passwordValidation.strength) {
+                            PasswordStrength.WEAK -> Triple("Weak — use 8+ chars with letters & numbers", Color(0xFFDC2626), 0.25f)
+                            PasswordStrength.FAIR -> Triple(
+                                if (passwordValidation.isValid) "Fair password" else (passwordValidation.errorMessage ?: "Add letters & numbers"),
+                                Color(0xFFD97706),
+                                0.5f
+                            )
+                            PasswordStrength.GOOD -> Triple("Good password strength", Color(0xFF0284C7), 0.75f)
+                            PasswordStrength.STRONG -> Triple("Strong password", Color(0xFF16A34A), 1.0f)
+                        }
+                        LinearProgressIndicator(
+                            progress = { progress },
+                            color = strengthColor,
+                            trackColor = MaterialTheme.colorScheme.surfaceVariant,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(4.dp)
+                                .clip(RoundedCornerShape(4.dp))
+                        )
+                        Spacer(modifier = Modifier.height(3.dp))
+                        Text(
+                            text = strengthLabel,
+                            fontSize = 11.sp,
+                            color = strengthColor,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    OutlinedTextField(
+                        value = confirmPassword,
+                        onValueChange = { confirmPassword = it },
+                        label = { Text(if (isOdia) "ପାସୱାର୍ଡ ନିଶ୍ଚିତ କରନ୍ତୁ" else "Confirm Password") },
+                        leadingIcon = { Icon(Icons.Default.LockReset, contentDescription = null) },
+                        isError = confirmPassword.isNotEmpty() && !passwordsMatch,
+                        supportingText = if (confirmPassword.isNotEmpty() && !passwordsMatch) {
+                            { Text(if (isOdia) "ପାସୱାର୍ଡ ମେଳ ଖାଉନାହିଁ" else "Passwords do not match") }
+                        } else null,
+                        visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                        singleLine = true,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("auth_signup_confirm_password_input"),
+                        shape = RoundedCornerShape(12.dp)
+                    )
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Text(
+                        text = if (isOdia) "ନିଜର ଅଞ୍ଚଳ ବାଛନ୍ତୁ (ପାସୱାର୍ଡ ରିକଭରୀ ପାଇଁ):" else "Select Locality (also used for password recovery):",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        items(localities) { loc ->
+                            FilterChip(
+                                selected = locality.equals(loc, ignoreCase = true),
+                                onClick = { locality = loc },
+                                label = { Text(loc, fontSize = 10.5.sp) }
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Button(
+                        onClick = {
+                            if (isEmailValid && passwordValidation.isValid && passwordsMatch) {
+                                onSignUpWithEmail(
+                                    email,
+                                    password,
+                                    fullName.ifBlank { "Balasore Citizen" },
+                                    locality,
+                                    locality
+                                )
+                            }
+                        },
+                        enabled = !isSigningIn && isEmailValid && passwordValidation.isValid && passwordsMatch,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(50.dp)
+                            .testTag("auth_signup_submit_btn"),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        if (isSigningIn) {
+                            CircularProgressIndicator(color = Color.White, modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                            Spacer(modifier = Modifier.width(8.dp))
+                        }
+                        Text(text = if (isOdia) "ଆକାଉଣ୍ଟ ତିଆରି କରନ୍ତୁ (Sign Up)" else "Create Free Account", fontWeight = FontWeight.Bold)
+                    }
+                }
+
+                2 -> {
+                    // ============= FORGOT PASSWORD / VERIFIED RECOVERY VIEW =============
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Icon(imageVector = Icons.Default.LockReset, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Text(
+                                text = if (isOdia)
+                                    "ଆପଣଙ୍କ ପଞ୍ଜୀକୃତ ଇମେଲ୍ ଓ ଅଞ୍ଚଳ (Locality) ଦେଇ ପାସୱାର୍ଡ ରିସେଟ୍ କରନ୍ତୁ।"
+                                else
+                                    "Enter your registered email and recovery locality to verify ownership and set a new password.",
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    OutlinedTextField(
+                        value = email,
+                        onValueChange = {
+                            email = it
+                            onClearMessages()
+                        },
+                        label = { Text(if (isOdia) "ଇମେଲ୍ ଠିକଣା" else "Registered Email") },
+                        leadingIcon = { Icon(Icons.Default.Email, contentDescription = null) },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                        singleLine = true,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("auth_forgot_email_input"),
+                        shape = RoundedCornerShape(12.dp)
+                    )
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    OutlinedTextField(
+                        value = recoveryAnswer,
+                        onValueChange = {
+                            recoveryAnswer = it
+                            onClearMessages()
+                        },
+                        label = { Text(if (isOdia) "ପଞ୍ଜୀକୃତ ଅଞ୍ଚଳ / ରିକଭରୀ ଉତ୍ତର" else "Recovery Answer (Registered Locality)") },
+                        placeholder = { Text("e.g. Balasore Town / Chandipur") },
+                        leadingIcon = { Icon(Icons.Default.VerifiedUser, contentDescription = null) },
+                        singleLine = true,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("auth_forgot_recovery_answer_input"),
+                        shape = RoundedCornerShape(12.dp)
+                    )
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    OutlinedTextField(
+                        value = resetNewPassword,
+                        onValueChange = {
+                            resetNewPassword = it
+                            onClearMessages()
+                        },
+                        label = { Text(if (isOdia) "ନୂଆ ପାସୱାର୍ଡ (୮+ ଅକ୍ଷର ଓ ସଂଖ୍ୟା)" else "New Password (8+ chars, letter & digit)") },
+                        leadingIcon = { Icon(Icons.Default.LockReset, contentDescription = null) },
+                        trailingIcon = {
+                            IconButton(onClick = { passwordVisible = !passwordVisible }) {
+                                Icon(
+                                    imageVector = if (passwordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                                    contentDescription = if (passwordVisible) "Hide password" else "Show password"
+                                )
+                            }
+                        },
+                        visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                        singleLine = true,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("auth_forgot_new_password_input"),
+                        shape = RoundedCornerShape(12.dp)
+                    )
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    val resetPasswordValid = AuthValidator.validatePasswordStrength(resetNewPassword).isValid
+                    Button(
+                        onClick = {
+                            if (isEmailValid && recoveryAnswer.isNotBlank() && resetPasswordValid) {
+                                onSendPasswordReset(email, resetNewPassword, recoveryAnswer)
+                                resetNewPassword = ""
+                                recoveryAnswer = ""
+                            }
+                        },
+                        enabled = isEmailValid && recoveryAnswer.isNotBlank() && resetPasswordValid,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(50.dp)
+                            .testTag("auth_forgot_submit_btn"),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Icon(Icons.Default.Send, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = if (isOdia) "ପାସୱାର୍ଡ ଅପଡେଟ୍ କରନ୍ତୁ" else "Verify & Update Password",
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+
+                    TextButton(
+                        onClick = {
+                            authMode = 0
+                            onClearMessages()
+                        },
+                        modifier = Modifier.padding(top = 8.dp)
+                    ) {
+                        Text(if (isOdia) "← ଲଗ୍-ଇନ୍ କୁ ଫେରନ୍ତୁ" else "← Back to Log In", fontSize = 12.sp)
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Divider with 'OR'
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                HorizontalDivider(modifier = Modifier.weight(1f), color = MaterialTheme.colorScheme.outlineVariant)
+                Text(
+                    text = " OR ",
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                HorizontalDivider(modifier = Modifier.weight(1f), color = MaterialTheme.colorScheme.outlineVariant)
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Official Google Sign-In Button
+            OutlinedButton(
+                onClick = onSignInWithGoogle,
+                enabled = !isSigningIn,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(52.dp)
+                    .testTag("google_sign_in_btn"),
+                shape = RoundedCornerShape(14.dp),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+            ) {
+                if (isSigningIn) {
+                    CircularProgressIndicator(color = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(text = if (isOdia) "ସାଇନ୍-ଇନ୍ ହେଉଛି..." else "Signing in...")
+                } else {
+                    Icon(Icons.Default.AccountCircle, contentDescription = "Google", modifier = Modifier.size(22.dp), tint = MaterialTheme.colorScheme.primary)
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Text(
+                        text = if (isOdia) "ଗୁଗୁଲ୍ ସହିତ ସାଇନ୍-ଇନ୍ କରନ୍ତୁ" else "Continue with Google",
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 14.sp
                     )
                 }
+            }
 
-                TextButton(
-                    onClick = { authMode = 0 },
-                    modifier = Modifier.padding(top = 8.dp)
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Encrypted storage assurance badge
+            Surface(
+                shape = RoundedCornerShape(12.dp),
+                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("auth_security_assurance_card")
+            ) {
+                Row(
+                    modifier = Modifier.padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(if (isOdia) "← ଲଗ୍-ଇନ୍ କୁ ଫେରନ୍ତୁ" else "← Back to Log In", fontSize = 12.sp)
+                    Icon(
+                        imageVector = Icons.Default.VerifiedUser,
+                        contentDescription = "Encrypted account storage",
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Text(
+                        text = if (isOdia) {
+                            "ଆପଣଙ୍କ ପାସୱାର୍ଡ ଓ ପ୍ରୋଫାଇଲ୍ ତଥ୍ୟ ଆଣ୍ଡ୍ରଏଡ୍ କି-ଷ୍ଟୋର୍ ଏନକ୍ରିପସନ୍ ଦ୍ୱାରା ସୁରକ୍ଷିତ।"
+                        } else {
+                            "Passwords are salted & hashed locally and active sessions are encrypted with Android Keystore."
+                        },
+                        fontSize = 11.5.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             }
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // Divider with 'OR'
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            HorizontalDivider(modifier = Modifier.weight(1f), color = MaterialTheme.colorScheme.outlineVariant)
-            Text(
-                text = " OR ",
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            HorizontalDivider(modifier = Modifier.weight(1f), color = MaterialTheme.colorScheme.outlineVariant)
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // Official Google Sign-In Button
-        OutlinedButton(
-            onClick = onSignInWithGoogle,
-            enabled = !isSigningIn,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(52.dp)
-                .testTag("google_sign_in_btn"),
-            shape = RoundedCornerShape(14.dp),
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
-        ) {
-            if (isSigningIn) {
-                CircularProgressIndicator(color = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(text = if (isOdia) "ସାଇନ୍-ଇନ୍ ହେଉଛି..." else "Signing in...")
-            } else {
-                Icon(Icons.Default.AccountCircle, contentDescription = "Google", modifier = Modifier.size(22.dp), tint = MaterialTheme.colorScheme.primary)
-                Spacer(modifier = Modifier.width(10.dp))
-                Text(
-                    text = if (isOdia) "ଗୁଗୁଲ୍ ସହିତ ସାଇନ୍-ଇନ୍ କରନ୍ତୁ" else "Continue with Google",
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = 14.sp
-                )
-            }
-        }
-
-        Spacer(modifier = Modifier.height(10.dp))
-
-        // Biometric Authentication (Fingerprint / Face Unlock) Alternative
-        val bioContext = LocalContext.current
-        OutlinedButton(
-            onClick = {
-                val keyguardManager = bioContext.getSystemService(android.content.Context.KEYGUARD_SERVICE) as? android.app.KeyguardManager
-                val isDeviceSecure = keyguardManager?.isDeviceSecure == true
-                com.example.util.BalasoreHapticHelper.vibrateSuccess(bioContext)
-                val msg = if (isDeviceSecure) {
-                    if (isOdia) "🔒 ଫିଙ୍ଗରପ୍ରିଣ୍ଟ / ଫେସ୍ ଅନଲକ୍ ସଫଳ! ପ୍ରୋଫାଇଲ୍ ଓ ସାଇତା ଖବର ଖୋলাগଲା"
-                    else "🔒 Biometric (Fingerprint / Face Unlock) verified! Unlocking profile & saved items..."
-                } else {
-                    if (isOdia) "🔒 ବାୟୋମେଟ୍ରିକ୍ କ୍ୱିକ୍ ଅନଲକ୍ ସକ୍ରିୟ! ପ୍ରୋଫାଇଲ୍ ଖୋଲାଗଲା"
-                    else "🔒 Biometric Quick-Unlock verified! Accessing profile & saved items..."
-                }
-                Toast.makeText(bioContext, msg, Toast.LENGTH_SHORT).show()
-                onSignInWithEmail("citizen.biometric@baleshwar360.in", "BiometricUnlock#360")
-            },
-            enabled = !isSigningIn,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(50.dp)
-                .testTag("biometric_unlock_login_btn"),
-            shape = RoundedCornerShape(14.dp),
-            border = BorderStroke(1.2.dp, Color(0xFF0284C7)),
-            colors = ButtonDefaults.outlinedButtonColors(containerColor = Color(0xFFF0F9FF))
-        ) {
-            Icon(
-                imageVector = Icons.Default.Fingerprint,
-                contentDescription = "Biometric Fingerprint / Face Unlock",
-                modifier = Modifier.size(22.dp),
-                tint = Color(0xFF0284C7)
-            )
-            Spacer(modifier = Modifier.width(10.dp))
-            Text(
-                text = if (isOdia) {
-                    "ଫିଙ୍ଗରପ୍ରିଣ୍ଟ / ଫେସ୍ ଅନଲକ୍ (Biometric Unlock)"
-                } else {
-                    "Unlock with Fingerprint / Face ID"
-                },
-                fontWeight = FontWeight.Bold,
-                fontSize = 13.5.sp,
-                color = Color(0xFF0284C7)
-            )
         }
     }
 }
@@ -1682,7 +1860,7 @@ private fun ProfileEditTab(
                             OutlinedTextField(
                                 value = inlineNewPassword,
                                 onValueChange = { inlineNewPassword = it },
-                                label = { Text("New Password (6+ chars)", fontSize = 11.sp) },
+                                label = { Text("New Password (8+ chars, letter & digit)", fontSize = 11.sp) },
                                 visualTransformation = PasswordVisualTransformation(),
                                 singleLine = true,
                                 modifier = Modifier
@@ -1692,13 +1870,13 @@ private fun ProfileEditTab(
                             )
                             Button(
                                 onClick = {
-                                    if (inlineNewPassword.length >= 6) {
+                                    if (AuthValidator.validatePasswordStrength(inlineNewPassword).isValid) {
                                         onSendPasswordReset(inlineNewPassword)
                                         inlineNewPassword = ""
                                         showInlineResetInput = false
                                     }
                                 },
-                                enabled = inlineNewPassword.length >= 6,
+                                enabled = AuthValidator.validatePasswordStrength(inlineNewPassword).isValid,
                                 shape = RoundedCornerShape(10.dp),
                                 modifier = Modifier.testTag("confirm_inline_password_reset_btn")
                             ) {
@@ -1750,6 +1928,7 @@ private fun NotificationPreferencesTab(
     isOdia: Boolean,
     prefs: UserWeatherPreferences,
     onPrefsChange: (UserWeatherPreferences) -> Unit,
+    onOpenTideReminderSettings: () -> Unit = {},
     onSave: () -> Unit
 ) {
     val context = LocalContext.current
@@ -1761,6 +1940,52 @@ private fun NotificationPreferencesTab(
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
+        // Chandipur 30-Minute Tide Reminder & Alert Sound Settings Shortcut
+        item {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onOpenTideReminderSettings() }
+                    .testTag("auth_sheet_tide_reminder_settings_card"),
+                shape = RoundedCornerShape(14.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.55f)
+                ),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.secondary.copy(alpha = 0.3f))
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(14.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Water,
+                        contentDescription = "Chandipur Tide Reminder Settings",
+                        tint = MaterialTheme.colorScheme.secondary,
+                        modifier = Modifier.size(24.dp)
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = if (isOdia) "ଚାନ୍ଦିପୁର ୩୦-ମିନିଟ୍ ଜୁଆର ରିମାଇଣ୍ଡର୍ ଓ ସାଉଣ୍ଡ" else "Chandipur 30-Min Tide Reminder & Sound",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.5.sp
+                        )
+                        Text(
+                            text = if (isOdia) "ସୁରକ୍ଷିତ ଚାଲିବା ସମୟ ସତର୍କତା ଅନ୍/ଅଫ୍ ଓ କଷ୍ଟମ୍ ଟୋନ୍" else "Toggle safe walking window alerts & customize alert sound",
+                            fontSize = 11.5.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Icon(
+                        imageVector = Icons.Default.ChevronRight,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.secondary
+                    )
+                }
+            }
+        }
         // System Notification Permission Banner
         item {
             Card(

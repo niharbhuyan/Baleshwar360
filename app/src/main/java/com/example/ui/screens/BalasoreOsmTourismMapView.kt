@@ -47,7 +47,10 @@ import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.filled.Navigation
+import androidx.compose.material.icons.filled.RateReview
 import androidx.compose.material.icons.filled.Refresh
+import com.example.ui.features.map.TourismMapDirectionsHelper
+import com.example.ui.features.map.TourismSpotReviewsAndDirectionsSheet
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Share
@@ -184,6 +187,7 @@ fun BalasoreOsmTourismMapView(
     var isCachingAll by remember { mutableStateOf(false) }
     var cacheProgress by remember { mutableFloatStateOf(0f) }
     var showDetailSheet by remember { mutableStateOf(true) }
+    var reviewModalSpot by remember { mutableStateOf<TouristLocationItem?>(null) }
     var mapViewInstance by remember { mutableStateOf<MapView?>(null) }
 
     // Automatically pre-cache all Balasore tourism hotspots on launch for smooth unstable-network panning
@@ -1068,7 +1072,16 @@ fun BalasoreOsmTourismMapView(
                                 }
                             }
 
-                            Spacer(modifier = Modifier.height(10.dp))
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            com.example.ui.components.HotspotOfflineHighResGalleryCarousel(
+                                spotName = spot.nameEn,
+                                spotCategory = spot.categoryEn,
+                                isOdia = language == AppLanguage.ODIA,
+                                compactHeight = 124.dp
+                            )
+
+                            Spacer(modifier = Modifier.height(8.dp))
 
                             Text(
                                 text = if (language == AppLanguage.ODIA) spot.shortDescOr else spot.shortDescEn,
@@ -1131,14 +1144,64 @@ fun BalasoreOsmTourismMapView(
 
                             Spacer(modifier = Modifier.height(12.dp))
 
-                            // Action Buttons
+                            // Action Buttons: Directions + Reviews & Rate + Offline Route
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
                                 Button(
                                     onClick = {
-                                        // Center and zoom in on OSMDroid map
+                                        TourismMapDirectionsHelper.launchDirections(
+                                            context = context,
+                                            spotName = spot.nameEn,
+                                            destLat = spot.latitude,
+                                            destLng = spot.longitude
+                                        )
+                                    },
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .height(48.dp)
+                                        .testTag("osm_external_directions_button"),
+                                    colors = ButtonDefaults.buttonColors(containerColor = OceanBlue),
+                                    shape = RoundedCornerShape(12.dp)
+                                ) {
+                                    Icon(imageVector = Icons.Default.Navigation, contentDescription = null, modifier = Modifier.size(16.dp))
+                                    Spacer(Modifier.width(6.dp))
+                                    Text(
+                                        text = if (language == AppLanguage.ODIA) "ଦିଗ ନିର୍ଦ୍ଦେଶ" else "Directions",
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+
+                                OutlinedButton(
+                                    onClick = { reviewModalSpot = spot },
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .height(48.dp)
+                                        .testTag("osm_spot_reviews_button"),
+                                    shape = RoundedCornerShape(12.dp),
+                                    border = BorderStroke(1.dp, AmberGold)
+                                ) {
+                                    Icon(imageVector = Icons.Default.RateReview, contentDescription = null, tint = Color(0xFFB45309), modifier = Modifier.size(16.dp))
+                                    Spacer(Modifier.width(6.dp))
+                                    Text(
+                                        text = if (language == AppLanguage.ODIA) "ରିଭ୍ୟୁ ଓ ରେଟିଂ" else "Reviews & Rate",
+                                        fontSize = 12.sp,
+                                        color = Color(0xFFB45309),
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(6.dp))
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                OutlinedButton(
+                                    onClick = {
                                         mapViewInstance?.controller?.apply {
                                             setZoom(15.5)
                                             animateTo(GeoPoint(spot.latitude, spot.longitude))
@@ -1147,41 +1210,34 @@ fun BalasoreOsmTourismMapView(
                                     modifier = Modifier
                                         .weight(1f)
                                         .testTag("osm_focus_spot_button"),
-                                    colors = ButtonDefaults.buttonColors(containerColor = OceanBlue),
-                                    shape = RoundedCornerShape(12.dp)
+                                    shape = RoundedCornerShape(10.dp),
+                                    border = BorderStroke(1.dp, OceanBlue.copy(alpha = 0.45f))
                                 ) {
-                                    Icon(imageVector = Icons.Default.LocationOn, contentDescription = null, modifier = Modifier.size(16.dp))
-                                    Spacer(Modifier.width(6.dp))
+                                    Icon(imageVector = Icons.Default.LocationOn, contentDescription = null, tint = OceanBlue, modifier = Modifier.size(15.dp))
+                                    Spacer(Modifier.width(4.dp))
                                     Text(
-                                        text = if (language == AppLanguage.ODIA) "ସ୍ଥାନ ଦେଖନ୍ତୁ" else "Focus on Map",
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.Bold
+                                        text = if (language == AppLanguage.ODIA) "ସ୍ଥାନ ଦେଖନ୍ତୁ" else "Focus Pin",
+                                        fontSize = 11.5.sp,
+                                        color = OceanBlue,
+                                        fontWeight = FontWeight.SemiBold
                                     )
                                 }
 
                                 OutlinedButton(
-                                    onClick = {
-                                        val geoUri = Uri.parse("geo:${spot.latitude},${spot.longitude}?q=${spot.latitude},${spot.longitude}(${Uri.encode(spot.nameEn)})")
-                                        val mapIntent = Intent(Intent.ACTION_VIEW, geoUri)
-                                        try {
-                                            context.startActivity(mapIntent)
-                                        } catch (_: Exception) {
-                                            Toast.makeText(context, "No map application available", Toast.LENGTH_SHORT).show()
-                                        }
-                                    },
+                                    onClick = { startOfflineNavigation(spot) },
                                     modifier = Modifier
                                         .weight(1f)
-                                        .testTag("osm_external_directions_button"),
-                                    shape = RoundedCornerShape(12.dp),
-                                    border = BorderStroke(1.dp, OceanBlue)
+                                        .testTag("osm_offline_route_button"),
+                                    shape = RoundedCornerShape(10.dp),
+                                    border = BorderStroke(1.dp, EmeraldGreen.copy(alpha = 0.5f))
                                 ) {
-                                    Icon(imageVector = Icons.Default.Navigation, contentDescription = null, tint = OceanBlue, modifier = Modifier.size(16.dp))
-                                    Spacer(Modifier.width(6.dp))
+                                    Icon(imageVector = Icons.Default.Directions, contentDescription = null, tint = EmeraldGreen, modifier = Modifier.size(15.dp))
+                                    Spacer(Modifier.width(4.dp))
                                     Text(
-                                        text = if (language == AppLanguage.ODIA) "ଦିଗ ନିର୍ଦ୍ଦେଶ" else "Directions",
-                                        fontSize = 12.sp,
-                                        color = OceanBlue,
-                                        fontWeight = FontWeight.Bold
+                                        text = if (language == AppLanguage.ODIA) "ଅଫଲାଇନ୍ ରୁଟ୍" else "Offline Route",
+                                        fontSize = 11.5.sp,
+                                        color = EmeraldGreen,
+                                        fontWeight = FontWeight.SemiBold
                                     )
                                 }
                             }
@@ -1319,6 +1375,21 @@ fun BalasoreOsmTourismMapView(
                 }
             }
         }
+    }
+
+    reviewModalSpot?.let { modalSpot ->
+        TourismSpotReviewsAndDirectionsSheet(
+            spotId = modalSpot.id,
+            spotName = if (language == AppLanguage.ODIA) modalSpot.nameOr else modalSpot.nameEn,
+            spotCategory = if (language == AppLanguage.ODIA) modalSpot.categoryOr else modalSpot.categoryEn,
+            spotLocation = modalSpot.nearestTransitStop,
+            spotLatitude = modalSpot.latitude,
+            spotLongitude = modalSpot.longitude,
+            baselineRating = modalSpot.rating,
+            language = language,
+            onStartOfflineRoute = { startOfflineNavigation(modalSpot) },
+            onDismiss = { reviewModalSpot = null }
+        )
     }
 }
 

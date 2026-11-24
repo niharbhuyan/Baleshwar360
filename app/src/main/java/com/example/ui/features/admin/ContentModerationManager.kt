@@ -217,6 +217,51 @@ object ContentModerationRepository {
         )
     }
 
+    /**
+     * Automated Tier-1 Content Moderation Pre-Screening Rule.
+     * Evaluates user-submitted comments/reviews against Baleshwar 360 Community Guidelines
+     * and returns the recommended initial ModerationStatus plus any auto-detected flag reasons.
+     */
+    fun evaluateAutoModerationRule(
+        comment: String,
+        rating: Int
+    ): Pair<ModerationStatus, List<String>> {
+        val normalized = comment.lowercase()
+        val detectedReasons = mutableListOf<String>()
+
+        if (normalized.contains("http://") ||
+            normalized.contains("https://") ||
+            normalized.contains("bit.ly") ||
+            normalized.contains("click unknown external link") ||
+            normalized.contains("buy cheap") ||
+            normalized.contains("promo code")
+        ) {
+            detectedReasons.add("Spam or Promotional Link")
+        }
+
+        if (normalized.contains("fake rumour") ||
+            normalized.contains("all bridges") && normalized.contains("closed") ||
+            normalized.contains("cyclone hoax") ||
+            normalized.contains("without forest permit")
+        ) {
+            detectedReasons.add("Misleading Local / Safety Information")
+        }
+
+        if (normalized.contains("hate speech") ||
+            normalized.contains("abuse") ||
+            normalized.contains("idiot") ||
+            normalized.contains("scam stupid")
+        ) {
+            detectedReasons.add("Offensive or Abusive Language")
+        }
+
+        return when {
+            detectedReasons.isNotEmpty() -> ModerationStatus.FLAGGED to detectedReasons
+            rating !in 1..5 || comment.trim().length < 5 -> ModerationStatus.PENDING to emptyList()
+            else -> ModerationStatus.APPROVED to emptyList()
+        }
+    }
+
     suspend fun loadAndSyncWithRoom(context: Context) = withContext(Dispatchers.IO) {
         try {
             val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -335,6 +380,12 @@ object ContentModerationRepository {
         rating: Int,
         comment: String
     ) {
+        val (autoStatus, detectedReasons) = evaluateAutoModerationRule(comment = comment, rating = rating)
+        val initialStatus = if (autoStatus == ModerationStatus.FLAGGED) {
+            ModerationStatus.FLAGGED
+        } else {
+            ModerationStatus.PENDING
+        }
         val newItem = ModeratedContentItem(
             id = "mod_${System.currentTimeMillis()}",
             reviewDbId = reviewDbId,
@@ -345,8 +396,15 @@ object ContentModerationRepository {
             userName = userName,
             rating = rating,
             comment = comment,
-            status = ModerationStatus.PENDING,
-            moderatorNote = "Submitted by user — awaiting moderator review",
+            status = initialStatus,
+            flagCount = detectedReasons.size,
+            flagReasons = detectedReasons,
+            flaggedByUsers = if (detectedReasons.isNotEmpty()) listOf("Auto-Moderation Tier-1") else emptyList(),
+            moderatorNote = if (detectedReasons.isNotEmpty()) {
+                "Auto-flagged by Tier-1 guideline check: ${detectedReasons.joinToString(", ")}"
+            } else {
+                "Submitted by user — awaiting moderator review"
+            },
             timestamp = System.currentTimeMillis()
         )
         val updated = listOf(newItem) + _itemsFlow.value
@@ -869,6 +927,8 @@ fun AdminContentModerationTab(
         }
     }
 
+    var showModerationStrategyDetails by remember { mutableStateOf(true) }
+
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
@@ -876,6 +936,88 @@ fun AdminContentModerationTab(
             .testTag("admin_content_moderation_lazy_list"),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
+        // 0. Community Guidelines & 4-Tier Content Moderation Strategy Card
+        item {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("content_moderation_strategy_card"),
+                shape = RoundedCornerShape(18.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
+                ),
+                border = BorderStroke(1.dp, EmeraldGreen.copy(alpha = 0.4f))
+            ) {
+                Column(
+                    modifier = Modifier.padding(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = if (isOdia) {
+                                    "📋 କମ୍ୟୁନିଟି ଗାଇଡଲାଇନ୍ ଓ ୪-ସ୍ତରୀୟ ମୋଡେରେସନ୍ ରଣନୀତି"
+                                } else {
+                                    "📋 Community Guidelines & 4-Tier Moderation Strategy"
+                                },
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = OceanBlue
+                            )
+                            Text(
+                                text = if (isOdia) {
+                                    "ୟୁଜର୍-ଜେନେରେଟେଡ୍ ବିଷୟବସ୍ତୁ (UGC) ସୁରକ୍ଷା ଏବଂ ଅପବ୍ୟବହାର ନିୟନ୍ତ୍ରଣ ଯୋଜନା"
+                                } else {
+                                    "Active policy for user reviews, news comments, forum posts & civic reports"
+                                },
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        TextButton(
+                            onClick = { showModerationStrategyDetails = !showModerationStrategyDetails },
+                            modifier = Modifier.testTag("toggle_moderation_strategy_btn")
+                        ) {
+                            Text(
+                                text = if (showModerationStrategyDetails) "Hide Plan" else "View Plan",
+                                fontSize = 11.5.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+
+                    if (showModerationStrategyDetails) {
+                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text(
+                                text = "• Community Guidelines: (1) Keep reviews & comments respectful and relevant to Balasore civic/tourism topics; (2) Zero tolerance for unverified flood/cyclone/traffic panic rumors or unsafe coastal promotions; (3) No spam links, hate speech, personal attacks, or doxxing.",
+                                fontSize = 11.5.sp,
+                                color = BentoSlate700
+                            )
+                            Text(
+                                text = "• Tier 1 (Automated Pre-Screening): Instant keyword/link heuristic check (evaluateAutoModerationRule) auto-flags external spam links, safety hoaxes, and abusive language before public surfacing.",
+                                fontSize = 11.5.sp,
+                                color = BentoSlate700
+                            )
+                            Text(
+                                text = "• Tier 2 (Citizen Reporting & Quarantine): One-tap 'Flag' button on every review/post with structured categories; items reaching ≥3 citizen flags are auto-quarantined to the Flagged Queue.",
+                                fontSize = 11.5.sp,
+                                color = BentoSlate700
+                            )
+                            Text(
+                                text = "• Tier 3 & 4 (Moderator SLA & Repeat-Offender Action): Safety/weather misinformation reviewed within <2 hrs (routine UGC <24 hrs) with audit notes, Room + Firestore removal, and graduated warnings/cooldowns.",
+                                fontSize = 11.5.sp,
+                                color = BentoSlate700
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
         // 1. Moderation Queue Overview & Batch Actions Card
         item {
             Card(

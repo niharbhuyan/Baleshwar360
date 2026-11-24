@@ -776,7 +776,7 @@ fun FeedbackFormCard(
                     coroutineScope.launch {
                         // 1. Store locally in Room ReviewDao for persistent offline review & implementation tracking
                         try {
-                            reviewDao.insertReview(
+                            val insertedId = reviewDao.insertReview(
                                 ReviewEntity(
                                     targetType = selectedPurpose.targetTypeKey,
                                     targetId = report.id,
@@ -788,6 +788,17 @@ fun FeedbackFormCard(
                                     comment = "[${selectedCategory}] ${report.description}",
                                     timestamp = System.currentTimeMillis()
                                 )
+                            )
+                            com.example.ui.features.admin.ContentModerationRepository.registerSubmittedReview(
+                                context = context,
+                                reviewDbId = insertedId,
+                                targetType = selectedPurpose.targetTypeKey,
+                                targetId = report.id,
+                                targetTitle = report.title,
+                                userId = report.contactInfo.ifBlank { "citizen_local" },
+                                userName = report.userName,
+                                rating = report.rating,
+                                comment = "[${selectedCategory}] ${report.description}"
                             )
                         } catch (_: Exception) {
                         }

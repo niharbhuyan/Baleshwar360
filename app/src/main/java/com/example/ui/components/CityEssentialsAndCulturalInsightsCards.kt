@@ -2431,30 +2431,63 @@ fun PersonalizedDragDropItineraryCard(
 
 private data class OfflineGallerySlide(
     val imageUrl: String,
-    val caption: String
+    val caption: String,
+    @androidx.annotation.DrawableRes val fallbackDrawableRes: Int
 )
+
+private fun resolveSpotFallbackDrawables(spotName: String, spotCategory: String): List<Int> {
+    val combined = "$spotName $spotCategory".lowercase(Locale.US)
+    return when {
+        combined.contains("beach") || combined.contains("sea") || combined.contains("chandipur") ||
+            combined.contains("talsari") || combined.contains("talasari") || combined.contains("dublagadi") ||
+            combined.contains("balaramgadi") || combined.contains("kasaphal") -> listOf(
+            com.example.R.drawable.img_chandipur_beach,
+            com.example.R.drawable.img_feature_graphic,
+            com.example.R.drawable.img_temple_balasore
+        )
+        combined.contains("temple") || combined.contains("shrine") || combined.contains("heritage") ||
+            combined.contains("panchalingeswar") || combined.contains("khirachora") || combined.contains("chandaneswar") ||
+            combined.contains("emami") || combined.contains("jagannath") || combined.contains("langaleswar") -> listOf(
+            com.example.R.drawable.img_temple_balasore,
+            com.example.R.drawable.img_feature_graphic,
+            com.example.R.drawable.img_chandipur_beach
+        )
+        else -> listOf(
+            com.example.R.drawable.img_feature_graphic,
+            com.example.R.drawable.img_chandipur_beach,
+            com.example.R.drawable.img_temple_balasore
+        )
+    }
+}
 
 @Composable
 fun HotspotOfflineHighResGalleryCarousel(
     spotName: String,
     spotCategory: String,
     isOdia: Boolean,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    compactHeight: androidx.compose.ui.unit.Dp = 168.dp
 ) {
-    val cleanSeed = spotName.lowercase(Locale.US).replace(" ", "_")
-    val slides = remember(spotName, spotCategory, isOdia) {
+    val cleanSeed = spotName.lowercase(Locale.US).replace(Regex("[^a-z0-9]+"), "_").trim('_')
+    val fallbackDrawables = remember(spotName, spotCategory) {
+        resolveSpotFallbackDrawables(spotName, spotCategory)
+    }
+    val slides = remember(spotName, spotCategory, isOdia, fallbackDrawables) {
         listOf(
             OfflineGallerySlide(
                 imageUrl = "https://picsum.photos/seed/${cleanSeed}_hd1/900/520",
-                caption = if (isOdia) "$spotName — ମୁଖ୍ୟ ଦୃଶ୍ୟ (HD Offline)" else "$spotName — Panoramic View (Offline Cached)"
+                caption = if (isOdia) "$spotName — ମୁଖ୍ୟ ଦୃଶ୍ୟ (HD Offline)" else "$spotName — Scenic View (Offline Cached)",
+                fallbackDrawableRes = fallbackDrawables[0]
             ),
             OfflineGallerySlide(
                 imageUrl = "https://picsum.photos/seed/${cleanSeed}_hd2/900/520",
-                caption = if (isOdia) "$spotName — ସ୍ଥାପତ୍ୟ ଓ ପ୍ରକୃତି" else "$spotName — Heritage & Surroundings"
+                caption = if (isOdia) "$spotName — ସ୍ଥାପତ୍ୟ ଓ ପ୍ରକୃତି" else "$spotName — Heritage & Surroundings",
+                fallbackDrawableRes = fallbackDrawables[1]
             ),
             OfflineGallerySlide(
                 imageUrl = "https://picsum.photos/seed/${cleanSeed}_hd3/900/520",
-                caption = if (isOdia) "$spotName — ସନ୍ଧ୍ୟା ଆଲୋକ ଦୃଶ୍ୟ" else "$spotName — Golden Hour Vista"
+                caption = if (isOdia) "$spotName — ସନ୍ଧ୍ୟା ଆଲୋକ ଦୃଶ୍ୟ" else "$spotName — Golden Hour Vista",
+                fallbackDrawableRes = fallbackDrawables[2]
             )
         )
     }
@@ -2471,7 +2504,7 @@ fun HotspotOfflineHighResGalleryCarousel(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(168.dp)
+                .height(compactHeight)
                 .clip(RoundedCornerShape(14.dp))
                 .background(Color(0xFF0F172A))
         ) {
@@ -2483,11 +2516,14 @@ fun HotspotOfflineHighResGalleryCarousel(
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(168.dp)
+                        .height(compactHeight)
                 ) {
                     AsyncImage(
                         model = ImageRequest.Builder(context)
                             .data(slide.imageUrl)
+                            .placeholder(slide.fallbackDrawableRes)
+                            .error(slide.fallbackDrawableRes)
+                            .fallback(slide.fallbackDrawableRes)
                             .diskCachePolicy(CachePolicy.ENABLED)
                             .memoryCachePolicy(CachePolicy.ENABLED)
                             .crossfade(true)
@@ -2496,7 +2532,7 @@ fun HotspotOfflineHighResGalleryCarousel(
                         contentScale = ContentScale.Crop,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(168.dp)
+                            .height(compactHeight)
                     )
                     Surface(
                         color = Color.Black.copy(alpha = 0.65f),

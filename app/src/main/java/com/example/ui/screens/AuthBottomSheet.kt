@@ -272,9 +272,6 @@ fun AuthBottomSheet(
                 AuthMode.LOGIN -> {
                     LoginForm(
                         onLogin = onLogin,
-                        onQuickDemoLogin = {
-                            onLogin("niharbhuyan@gmail.com", "balasore123")
-                        },
                         onGoogleSignIn = onGoogleSignIn,
                         onForgotPassword = { onSetMode(AuthMode.FORGOT_PASSWORD) },
                         onGoToSignUp = { onSetMode(AuthMode.SIGNUP) }
@@ -561,7 +558,6 @@ fun GoogleSignInButton(
 @Composable
 private fun LoginForm(
     onLogin: (email: String, pass: String) -> Unit,
-    onQuickDemoLogin: () -> Unit,
     onGoogleSignIn: () -> Unit = {},
     onForgotPassword: () -> Unit,
     onGoToSignUp: () -> Unit
@@ -581,7 +577,7 @@ private fun LoginForm(
         // Google Sign-In with Firebase Auth
         GoogleSignInButton(
             onClick = onGoogleSignIn,
-            text = "Sign in with Google (Firebase Auth)"
+            text = "Sign in with Google"
         )
 
         Spacer(modifier = Modifier.height(12.dp))
@@ -598,46 +594,6 @@ private fun LoginForm(
                 modifier = Modifier.padding(horizontal = 8.dp)
             )
             Box(modifier = Modifier.weight(1f).height(1.dp).background(BentoBorder))
-        }
-
-        Spacer(modifier = Modifier.height(12.dp))
-
-        // Quick Demo Sign-In Card
-        Surface(
-            shape = RoundedCornerShape(14.dp),
-            color = BentoPrimaryBlue.copy(alpha = 0.08f),
-            border = BorderStroke(1.dp, BentoPrimaryBlue.copy(alpha = 0.25f)),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { onQuickDemoLogin() }
-                    .padding(12.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column {
-                    Text(
-                        text = "⚡ Quick Demo Account",
-                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-                        color = BentoPrimaryBlue
-                    )
-                    Text(
-                        text = "Sign in as Nihar Bhuyan (One-tap)",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = BentoSlate700
-                    )
-                }
-                Button(
-                    onClick = onQuickDemoLogin,
-                    shape = RoundedCornerShape(10.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = BentoPrimaryBlue),
-                    modifier = Modifier.testTag("one_tap_demo_login")
-                ) {
-                    Text("1-Tap Demo")
-                }
-            }
         }
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -819,7 +775,7 @@ private fun SignUpForm(
         OutlinedTextField(
             value = password,
             onValueChange = { password = it },
-            label = { Text("Password (min 4 chars)") },
+            label = { Text("Password (min 8 chars, letter & digit)") },
             singleLine = true,
             visualTransformation = PasswordVisualTransformation(),
             leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null, tint = BentoSlate500) },
@@ -844,9 +800,10 @@ private fun SignUpForm(
 
         Spacer(modifier = Modifier.height(16.dp))
 
+        val isPasswordStrong = com.example.data.security.AuthValidator.validatePasswordStrength(password).isValid
         Button(
             onClick = { onSignUp(name, email, password, phone, locality, securityAnswer) },
-            enabled = name.isNotBlank() && email.isNotBlank() && password.length >= 4,
+            enabled = name.isNotBlank() && com.example.data.security.AuthValidator.isValidEmail(email) && isPasswordStrong,
             shape = RoundedCornerShape(14.dp),
             colors = ButtonDefaults.buttonColors(containerColor = BentoPrimaryBlue),
             modifier = Modifier.fillMaxWidth().height(48.dp).testTag("signup_submit_button")
@@ -918,7 +875,7 @@ private fun ForgotPasswordForm(
         OutlinedTextField(
             value = newPassword,
             onValueChange = { newPassword = it },
-            label = { Text("New Password (min 4 characters)") },
+            label = { Text("New Password (min 8 chars, letter & digit)") },
             singleLine = true,
             visualTransformation = PasswordVisualTransformation(),
             leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null, tint = BentoSlate500) },
@@ -943,7 +900,9 @@ private fun ForgotPasswordForm(
 
             Button(
                 onClick = { onReset(email, securityAnswer, newPassword) },
-                enabled = email.isNotBlank() && securityAnswer.isNotBlank() && newPassword.length >= 4,
+                enabled = com.example.data.security.AuthValidator.isValidEmail(email) &&
+                    securityAnswer.isNotBlank() &&
+                    com.example.data.security.AuthValidator.validatePasswordStrength(newPassword).isValid,
                 shape = RoundedCornerShape(14.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = BentoPrimaryBlue),
                 modifier = Modifier.weight(1f)

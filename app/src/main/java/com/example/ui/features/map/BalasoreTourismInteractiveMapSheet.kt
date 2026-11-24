@@ -15,6 +15,7 @@ import androidx.compose.material.icons.filled.LocalPolice
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.filled.Navigation
+import androidx.compose.material.icons.filled.RateReview
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -91,6 +92,7 @@ fun BalasoreTourismInteractiveMapSheet(
     var selectedHotspotModal by remember(hotspots, initialSelectedHotspot) {
         mutableStateOf<Hotspot?>(initialSelectedHotspot ?: hotspots.firstOrNull())
     }
+    var reviewModalHotspot by remember { mutableStateOf<Hotspot?>(null) }
     var selectedNewsModal by remember { mutableStateOf<BalasoreGeoNewsLocation?>(null) }
     var selectedWeatherZoneModal by remember { mutableStateOf<BalasoreWeatherAlertZone?>(null) }
     var selectedPoiSummary by remember {
@@ -733,41 +735,54 @@ fun BalasoreTourismInteractiveMapSheet(
                             maxLines = 2
                         )
 
+                        Text(
+                            text = "🕒 ${spot.timing}",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+
                         Row(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text(
-                                text = "🕒 ${spot.timing}",
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = MaterialTheme.colorScheme.primary
-                            )
+                            OutlinedButton(
+                                onClick = { reviewModalHotspot = spot },
+                                shape = RoundedCornerShape(10.dp),
+                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(44.dp)
+                                    .testTag("interactive_map_reviews_btn")
+                            ) {
+                                Icon(Icons.Default.RateReview, contentDescription = null, modifier = Modifier.size(15.dp))
+                                Spacer(modifier = Modifier.width(5.dp))
+                                Text(
+                                    text = if (isOdia) "ରିଭ୍ୟୁ ଓ ରେଟିଂ" else "Reviews & Rate",
+                                    fontSize = 11.5.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
 
                             Button(
                                 onClick = {
-                                    val navUri = Uri.parse("google.navigation:q=$spotLat,$spotLon")
-                                    val mapIntent = Intent(Intent.ACTION_VIEW, navUri).apply {
-                                        setPackage("com.google.android.apps.maps")
-                                    }
-                                    try {
-                                        sheetContext.startActivity(mapIntent)
-                                    } catch (_: Exception) {
-                                        sheetContext.startActivity(
-                                            Intent(
-                                                Intent.ACTION_VIEW,
-                                                Uri.parse("geo:$spotLat,$spotLon?q=${Uri.encode(spot.name)}")
-                                            )
-                                        )
-                                    }
+                                    TourismMapDirectionsHelper.launchDirections(
+                                        context = sheetContext,
+                                        spotName = spot.name,
+                                        destLat = spotLat,
+                                        destLng = spotLon
+                                    )
                                 },
                                 shape = RoundedCornerShape(10.dp),
-                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-                                modifier = Modifier.testTag("interactive_map_get_directions_btn")
+                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(44.dp)
+                                    .testTag("interactive_map_get_directions_btn")
                             ) {
-                                Icon(Icons.Default.Navigation, contentDescription = null, modifier = Modifier.size(14.dp))
-                                Spacer(modifier = Modifier.width(6.dp))
+                                Icon(Icons.Default.Navigation, contentDescription = null, modifier = Modifier.size(15.dp))
+                                Spacer(modifier = Modifier.width(5.dp))
                                 Text(if (isOdia) "ଦିଗନିର୍ଦ୍ଦେଶ" else "Get Directions", fontSize = 11.5.sp, fontWeight = FontWeight.Bold)
                             }
                         }
@@ -792,6 +807,25 @@ fun BalasoreTourismInteractiveMapSheet(
                 }
             }
         }
+    }
+
+    reviewModalHotspot?.let { spot ->
+        val spotIdx = hotspots.indexOfFirst { it.id == spot.id }.coerceAtLeast(0)
+        val spotLat = if (spot.latitude > 1.0) spot.latitude else 21.4446 + (spotIdx * 0.018)
+        val spotLon = if (spot.longitude > 1.0) spot.longitude else 87.0149 - (spotIdx * 0.022)
+        TourismSpotReviewsAndDirectionsSheet(
+            spotId = spot.id,
+            spotName = if (isOdia && spot.odiaName.isNotBlank()) spot.odiaName else spot.name,
+            spotCategory = spot.category,
+            spotLocation = spot.location,
+            spotLatitude = spotLat,
+            spotLongitude = spotLon,
+            baselineRating = spot.rating.toDouble(),
+            language = language,
+            originLat = userLat,
+            originLng = userLon,
+            onDismiss = { reviewModalHotspot = null }
+        )
     }
 }
 

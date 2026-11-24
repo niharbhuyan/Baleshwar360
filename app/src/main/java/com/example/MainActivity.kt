@@ -1773,6 +1773,12 @@ fun BalasoreApp(
                             },
                             onOpenCivicEye = {
                                 viewModel.openFeatureSheet(UniqueFeatureSheetType.CITIZEN_CIVIC_EYE)
+                            },
+                            onOpenAuthSheet = {
+                                viewModel.openFeatureSheet(UniqueFeatureSheetType.USER_PROFILE_AUTH)
+                            },
+                            onOpenTideReminderSettings = {
+                                viewModel.openFeatureSheet(UniqueFeatureSheetType.CHANDIPUR_TIDE_REMINDER_SETTINGS)
                             }
                         )
                     }
@@ -3395,6 +3401,9 @@ fun BalasoreApp(
                         },
                         onOpenAdminPanel = {
                             viewModel.openFeatureSheet(UniqueFeatureSheetType.ADMIN_MODERATOR_PANEL)
+                        },
+                        onOpenTideReminderSettings = {
+                            viewModel.openFeatureSheet(UniqueFeatureSheetType.CHANDIPUR_TIDE_REMINDER_SETTINGS)
                         }
                     )
                 }

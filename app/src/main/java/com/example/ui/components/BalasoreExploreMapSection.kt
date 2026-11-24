@@ -108,6 +108,10 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.compose.runtime.collectAsState
+import androidx.compose.material.icons.filled.RateReview
+import com.example.ui.features.map.TourismMapDirectionsHelper
+import com.example.ui.features.map.TourismSpotReviewsAndDirectionsSheet
 import com.example.data.model.AppLanguage
 import com.example.data.model.BalasoreTransitDataSource
 import com.example.data.model.BusRouteOverlay
@@ -215,6 +219,10 @@ fun BalasoreExploreMapSection(
     var selectedHotspot by remember {
         mutableStateOf<TouristLocationItem?>(BALASORE_TOURIST_LOCATIONS.firstOrNull())
     }
+    var reviewModalSpot by remember { mutableStateOf<TouristLocationItem?>(null) }
+    val reviewDao = remember(context) { com.example.data.local.AppDatabase.getInstance(context).reviewDao() }
+    val allMapHotspotReviews by reviewDao.getReviewsByType("HOTSPOT")
+        .collectAsState(initial = emptyList())
 
     // Real-Time Bus GPS Telemetry Feed (CRUT Mo Bus & OSRTC Local Transit Providers)
     val coroutineScope = rememberCoroutineScope()
@@ -3094,15 +3102,49 @@ fun BalasoreExploreMapSection(
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis
                                     )
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                    val spotUserReviews = remember(allMapHotspotReviews, spot.id) {
+                                        allMapHotspotReviews.filter { it.targetId == spot.id }
+                                    }
+                                    val effectiveRating = remember(spotUserReviews, spot.rating) {
+                                        if (spotUserReviews.isEmpty()) {
+                                            spot.rating
+                                        } else {
+                                            val sum = spot.rating + spotUserReviews.sumOf { it.rating.toDouble() }
+                                            kotlin.math.round((sum / (1 + spotUserReviews.size)) * 10.0) / 10.0
+                                        }
+                                    }
+                                    val downloadedSpotIds by BalasoreOfflineAccessManager.downloadedHotspotIdsFlow.collectAsState()
+                                    val isSpotCachedOffline = downloadedSpotIds.contains(spot.id)
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
                                         Text(
                                             text = if (language == AppLanguage.ODIA) spot.categoryOr else spot.categoryEn,
                                             fontSize = 10.5.sp,
                                             color = OceanBlue,
                                             fontWeight = FontWeight.Bold
                                         )
-                                        Spacer(modifier = Modifier.width(6.dp))
-                                        Text(text = "⭐ ${spot.rating}", fontSize = 10.5.sp, color = BentoSlate700)
+                                        Text(
+                                            text = "⭐ $effectiveRating (${spot.reviewCount + spotUserReviews.size})",
+                                            fontSize = 10.5.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = BentoSlate700
+                                        )
+                                        if (isSpotCachedOffline) {
+                                            Surface(
+                                                shape = RoundedCornerShape(6.dp),
+                                                color = Color(0xFFDCFCE7)
+                                            ) {
+                                                Text(
+                                                    text = if (language == AppLanguage.ODIA) "✓ ଅଫଲାଇନ୍" else "✓ Offline",
+                                                    fontSize = 9.sp,
+                                                    fontWeight = FontWeight.ExtraBold,
+                                                    color = Color(0xFF166534),
+                                                    modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
+                                                )
+                                            }
+                                        }
                                     }
                                 }
                             }
@@ -3131,12 +3173,22 @@ fun BalasoreExploreMapSection(
                             }
                         }
 
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        // Swipeable Attraction Photos (with offline bundled fallback)
+                        HotspotOfflineHighResGalleryCarousel(
+                            spotName = spot.nameEn,
+                            spotCategory = spot.categoryEn,
+                            isOdia = language == AppLanguage.ODIA,
+                            compactHeight = 132.dp
+                        )
+
                         Spacer(modifier = Modifier.height(6.dp))
                         Text(
                             text = if (language == AppLanguage.ODIA) spot.shortDescOr else spot.shortDescEn,
                             fontSize = 11.5.sp,
                             color = BentoSlate700,
-                            maxLines = 2,
+                            maxLines = 3,
                             overflow = TextOverflow.Ellipsis
                         )
 
@@ -3164,32 +3216,71 @@ fun BalasoreExploreMapSection(
 
                         Spacer(modifier = Modifier.height(10.dp))
 
+                        val spotUserReviewCount = remember(allMapHotspotReviews, spot.id) {
+                            allMapHotspotReviews.count { it.targetId == spot.id }
+                        }
+
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             Button(
                                 onClick = {
-                                    val gmmIntentUri = Uri.parse("google.navigation:q=${spot.latitude},${spot.longitude}")
-                                    val mapIntent = Intent(Intent.ACTION_VIEW, gmmIntentUri).apply { setPackage("com.google.android.apps.maps") }
-                                    try {
-                                        context.startActivity(mapIntent)
-                                    } catch (_: Exception) {
-                                        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("geo:${spot.latitude},${spot.longitude}?q=${Uri.encode(spot.nameEn)}")))
-                                    }
+                                    TourismMapDirectionsHelper.launchDirections(
+                                        context = context,
+                                        spotName = spot.nameEn,
+                                        destLat = spot.latitude,
+                                        destLng = spot.longitude
+                                    )
                                 },
                                 modifier = Modifier
                                     .weight(1f)
-                                    .height(38.dp)
+                                    .height(44.dp)
                                     .testTag("explore_marker_navigate_btn"),
                                 colors = ButtonDefaults.buttonColors(containerColor = OceanBlue),
                                 shape = RoundedCornerShape(10.dp)
                             ) {
                                 Icon(imageVector = Icons.Default.Navigation, contentDescription = null, modifier = Modifier.size(15.dp), tint = Color.White)
                                 Spacer(modifier = Modifier.width(5.dp))
-                                Text(text = "Navigate", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                Text(
+                                    text = if (language == AppLanguage.ODIA) "ଦିଗନିର୍ଦ୍ଦେଶ" else "Directions",
+                                    fontSize = 11.5.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White
+                                )
                             }
 
+                            OutlinedButton(
+                                onClick = { reviewModalSpot = spot },
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(44.dp)
+                                    .testTag("explore_marker_reviews_btn"),
+                                shape = RoundedCornerShape(10.dp),
+                                border = BorderStroke(1.dp, AmberGold)
+                            ) {
+                                Icon(imageVector = Icons.Default.RateReview, contentDescription = null, modifier = Modifier.size(15.dp), tint = Color(0xFFB45309))
+                                Spacer(modifier = Modifier.width(5.dp))
+                                Text(
+                                    text = if (spotUserReviewCount > 0) {
+                                        if (language == AppLanguage.ODIA) "ରିଭ୍ୟୁ ($spotUserReviewCount)" else "Reviews ($spotUserReviewCount)"
+                                    } else {
+                                        if (language == AppLanguage.ODIA) "ରିଭ୍ୟୁ ଦିଅନ୍ତୁ" else "Reviews & Rate"
+                                    },
+                                    fontSize = 11.5.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFFB45309),
+                                    maxLines = 1
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(6.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
                             OutlinedButton(
                                 onClick = {
                                     val shareText = buildString {
@@ -3206,12 +3297,13 @@ fun BalasoreExploreMapSection(
                                     context.startActivity(Intent.createChooser(sendIntent, "Share ${spot.nameEn}"))
                                 },
                                 modifier = Modifier
-                                    .height(38.dp)
+                                    .weight(1f)
+                                    .height(40.dp)
                                     .testTag("explore_marker_share_btn"),
                                 shape = RoundedCornerShape(10.dp),
                                 border = BorderStroke(1.dp, OceanBlue.copy(alpha = 0.4f))
                             ) {
-                                Text(text = "📤 Share", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = OceanBlue)
+                                Text(text = "📤 Share Spot", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = OceanBlue)
                             }
 
                             OutlinedButton(
@@ -3222,18 +3314,35 @@ fun BalasoreExploreMapSection(
                                     Toast.makeText(context, "Transit guide copied!", Toast.LENGTH_SHORT).show()
                                 },
                                 modifier = Modifier
-                                    .height(38.dp)
+                                    .height(40.dp)
                                     .testTag("explore_marker_copy_btn"),
                                 shape = RoundedCornerShape(10.dp),
                                 border = BorderStroke(1.dp, BentoSlate200)
                             ) {
-                                Icon(imageVector = Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(14.dp), tint = BentoSlate700)
+                                Icon(imageVector = Icons.Default.ContentCopy, contentDescription = "Copy Transit Info", modifier = Modifier.size(14.dp), tint = BentoSlate700)
                             }
                         }
                     }
                 }
             }
         }
+    }
+
+    // Modal Bottom Sheet: Multi-Mode Directions & Community Reviews for Tapped Tourism Attraction
+    reviewModalSpot?.let { modalSpot ->
+        TourismSpotReviewsAndDirectionsSheet(
+            spotId = modalSpot.id,
+            spotName = if (language == AppLanguage.ODIA) modalSpot.nameOr else modalSpot.nameEn,
+            spotCategory = if (language == AppLanguage.ODIA) modalSpot.categoryOr else modalSpot.categoryEn,
+            spotLocation = modalSpot.nearestTransitStop,
+            spotLatitude = modalSpot.latitude,
+            spotLongitude = modalSpot.longitude,
+            baselineRating = modalSpot.rating,
+            language = language,
+            originLat = selectedOrigin.latitude,
+            originLng = selectedOrigin.longitude,
+            onDismiss = { reviewModalSpot = null }
+        )
     }
 
     // Modal Dialog: Full Bus Schedule Timetable with All Daily Departures & Stop Matrix

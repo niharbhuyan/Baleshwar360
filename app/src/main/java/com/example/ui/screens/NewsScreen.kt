@@ -2725,6 +2725,7 @@ fun NewsScreen(
                     mode = "NEWS",
                     language = language,
                     articles = mergedArticles,
+                    onOnlineRefreshCallback = onRefresh,
                     onOpenOfflineManager = {
                         onOpenFeatureSheet(UniqueFeatureSheetType.OFFLINE_MODE_MANAGER)
                     }
@@ -3924,6 +3925,31 @@ fun NewsCard(
                                     )
                                 )
                             }
+                        }
+                    }
+
+                    // Direct 1-5 Star Rating & Comment Button for News Article
+                    Surface(
+                        onClick = {
+                            com.example.util.BalasoreHapticHelper.vibrateButtonClick(context)
+                            onArticleClick?.invoke()
+                        },
+                        shape = RoundedCornerShape(8.dp),
+                        color = Color(0xFFFEF3C7),
+                        border = BorderStroke(1.dp, Color(0xFFF59E0B)),
+                        modifier = Modifier.testTag("rate_news_article_btn_${article.id}")
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp)
+                        ) {
+                            Text(
+                                text = if (language == AppLanguage.ODIA) "★ ରେଟିଂ" else "★ Rate",
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFFB45309)
+                                )
+                            )
                         }
                     }
 

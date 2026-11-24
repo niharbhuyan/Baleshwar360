@@ -63,6 +63,10 @@ fun OfflineModeManagerSheet(
     val prefs = remember {
         context.getSharedPreferences("baleshwar_offline_mode_prefs", Context.MODE_PRIVATE)
     }
+    val networkMonitor = remember { com.example.data.sync.NetworkMonitor(context) }
+    val isDeviceOnline by networkMonitor.isOnline.collectAsStateWithLifecycle(
+        initialValue = networkMonitor.isCurrentlyOnline()
+    )
     var isOfflineModeSimulated by remember {
         mutableStateOf(prefs.getBoolean("simulate_offline_mode_active", false))
     }
@@ -255,6 +259,14 @@ fun OfflineModeManagerSheet(
                     details = "$newsSaved News + 3-Day Weather Forecast + $spotsSaved Hotspots"
                 )
             )
+            com.example.ui.components.BalasoreOfflineAccessManager.syncStateFromOfflineManager(
+                context = context,
+                newsIds = BalasoreRepository.newsArticles.map { it.id }.toSet(),
+                hotspotIds = BalasoreRepository.hotspots.map { it.id }.toSet(),
+                weatherCached = true,
+                weatherSummary = "${cachedWeather?.temperature?.roundToInt() ?: 30}°C • 3-Day Forecast Cached",
+                updateSyncTimestamp = true
+            )
             offlinePackSynced = true
             syncProgress = 1.0f
             mapTileMb = 18.4f
@@ -373,23 +385,66 @@ fun OfflineModeManagerSheet(
                         )
                     }
 
-                    Button(
-                        onClick = downloadCriticalOfflineContent,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .testTag("download_all_critical_offline_btn"),
-                        shape = RoundedCornerShape(10.dp)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Icon(Icons.Default.DownloadForOffline, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(Modifier.width(8.dp))
-                        Text(
-                            text = if (isOdia)
-                                "ସମସ୍ତ ଖବର, ପାଣିପାଗ ଓ ପର୍ଯ୍ୟଟନ ସ୍ଥଳୀ ଡାଉନଲୋଡ୍ କରନ୍ତୁ"
-                            else
-                                "Download News (${cachedNewsList.size}), Weather (3-Day) & Hotspots (${cachedHotspotsList.size})",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 12.sp
-                        )
+                        Button(
+                            onClick = downloadCriticalOfflineContent,
+                            modifier = Modifier
+                                .weight(1.3f)
+                                .height(48.dp)
+                                .testTag("download_all_critical_offline_btn"),
+                            shape = RoundedCornerShape(10.dp),
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
+                        ) {
+                            Icon(Icons.Default.DownloadForOffline, contentDescription = null, modifier = Modifier.size(17.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text(
+                                text = if (isOdia) "ସବୁ ଡାଉନଲୋଡ୍ କରନ୍ତୁ" else "Download All Offline",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 11.5.sp,
+                                maxLines = 1
+                            )
+                        }
+
+                        OutlinedButton(
+                            onClick = {
+                                if (!isDeviceOnline) {
+                                    Toast.makeText(
+                                        context,
+                                        if (isOdia) "ଅପଡେଟ୍ କରିବାକୁ ଇଣ୍ଟରନେଟ୍ ସଂଯୋଗ କରନ୍ତୁ।"
+                                        else "Device is offline. Connect to internet to refresh downloaded packs.",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                } else {
+                                    downloadCriticalOfflineContent()
+                                }
+                            },
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(48.dp)
+                                .testTag("offline_manager_refresh_online_btn"),
+                            shape = RoundedCornerShape(10.dp),
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp)
+                        ) {
+                            Icon(
+                                imageVector = if (isDeviceOnline) Icons.Default.Refresh else Icons.Default.CloudOff,
+                                contentDescription = "Refresh Online",
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(Modifier.width(4.dp))
+                            Text(
+                                text = if (isDeviceOnline) {
+                                    if (isOdia) "ଅନଲାଇନ୍ ରିଫ୍ରେସ୍" else "Refresh Online"
+                                } else {
+                                    if (isOdia) "ଅଫଲାଇନ୍" else "Offline"
+                                },
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 11.sp,
+                                maxLines = 1
+                            )
+                        }
                     }
                 }
             }
@@ -1485,14 +1540,24 @@ fun OfflineModeManagerSheet(
                             coroutineScope.launch {
                                 newsDao.clearNonBookmarked()
                                 hotspotDao.clearAllHotspots()
+                                weatherDao.clearWeatherCache()
+                                weatherDao.clearDailyForecasts()
                                 metadataDao.clearAll()
+                                com.example.ui.components.BalasoreOfflineAccessManager.syncStateFromOfflineManager(
+                                    context = context,
+                                    newsIds = emptySet(),
+                                    hotspotIds = emptySet(),
+                                    weatherCached = false,
+                                    weatherSummary = "Not downloaded yet",
+                                    updateSyncTimestamp = false
+                                )
                                 mapTileMb = 0.0f
                                 offlinePackSynced = false
                                 syncProgress = 0.0f
                                 prefs.edit().putFloat("cached_osm_tiles_mb", 0.0f).apply()
                                 Toast.makeText(
                                     context,
-                                    "Cleared non-bookmarked offline cached data & map tiles!",
+                                    "Cleared offline cached news, weather & tourism data!",
                                     Toast.LENGTH_SHORT
                                 ).show()
                             }

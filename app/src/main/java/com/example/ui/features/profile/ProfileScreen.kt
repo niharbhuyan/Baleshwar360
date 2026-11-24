@@ -46,7 +46,9 @@ fun ProfileScreen(
     onOpenHotspot: (String) -> Unit = {},
     onOpenAdminPanel: () -> Unit = {},
     onNavigateToTab: (Int) -> Unit = {},
-    onOpenCivicEye: () -> Unit = {}
+    onOpenCivicEye: () -> Unit = {},
+    onOpenAuthSheet: () -> Unit = {},
+    onOpenTideReminderSettings: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
@@ -203,11 +205,27 @@ fun ProfileScreen(
                     }
 
                     if (currentUser == null && activeSessionUser == null) {
-                        Row(
+                        Column(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             Button(
+                                onClick = onOpenAuthSheet,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(48.dp)
+                                    .testTag("profile_open_email_auth_btn"),
+                                shape = RoundedCornerShape(10.dp)
+                            ) {
+                                Icon(Icons.Default.Email, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = if (isOdia) "ଇମେଲ୍ ସହିତ ଲଗ୍-ଇନ୍ / ସାଇନ୍-ଅପ୍" else "Log In or Sign Up with Email",
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                            OutlinedButton(
                                 onClick = {
                                     isSigningIn = true
                                     coroutineScope.launch {
@@ -222,13 +240,52 @@ fun ProfileScreen(
                                     }
                                 },
                                 modifier = Modifier
-                                    .weight(1f)
+                                    .fillMaxWidth()
+                                    .height(48.dp)
                                     .testTag("profile_quick_google_signin_btn"),
                                 shape = RoundedCornerShape(10.dp)
                             ) {
                                 Icon(Icons.AutoMirrored.Filled.Login, contentDescription = null, modifier = Modifier.size(16.dp))
                                 Spacer(modifier = Modifier.width(6.dp))
-                                Text(if (isOdia) "ଗୁଗୁଲ୍ ସାଇନ୍-ଇନ୍" else "Sign In with Google", fontSize = 12.sp)
+                                Text(if (isOdia) "ଗୁଗୁଲ୍ ସାଇନ୍-ଇନ୍" else "Continue with Google", fontSize = 12.5.sp)
+                            }
+                        }
+                    } else {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.VerifiedUser,
+                                    contentDescription = "Encrypted session active",
+                                    tint = Color(0xFF16A34A),
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Text(
+                                    text = if (isOdia) "ସୁରକ୍ଷିତ ଏନକ୍ରିପ୍ଟେଡ୍ ସେସନ୍ ସକ୍ରିୟ" else "Encrypted session active",
+                                    fontSize = 11.5.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = Color(0xFF15803D)
+                                )
+                            }
+                            TextButton(
+                                onClick = {
+                                    coroutineScope.launch {
+                                        authManager.signOut(context)
+                                        Toast.makeText(context, if (isOdia) "ଲଗ୍ ଆଉଟ୍ ହୋଇଛନ୍ତି" else "Logged out securely", Toast.LENGTH_SHORT).show()
+                                    }
+                                },
+                                colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                                modifier = Modifier.testTag("profile_hero_logout_btn")
+                            ) {
+                                Icon(Icons.AutoMirrored.Filled.Logout, contentDescription = "Log Out", modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(if (isOdia) "ଲଗ୍ ଆଉଟ୍" else "Log Out", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                             }
                         }
                     }
@@ -394,15 +451,15 @@ fun ProfileScreen(
                                     val activeUid = currentUser?.uid ?: activeSessionUser?.id ?: "local_guest"
                                     val updatedUser = UserEntity(
                                         id = activeUid,
-                                        fullName = editDisplayName.ifBlank { "Balasore Citizen" },
+                                        fullName = editDisplayName.trim().ifBlank { "Balasore Citizen" },
                                         email = currentUser?.email ?: activeSessionUser?.email ?: "",
-                                        passwordHash = "SESSION_MANAGED",
-                                        phoneNumber = editPhoneNumber,
+                                        passwordHash = userProfile?.passwordHash ?: activeSessionUser?.passwordHash ?: "ENCRYPTED_SESSION_ACTIVE",
+                                        phoneNumber = editPhoneNumber.trim(),
                                         locality = editLocality,
-                                        bio = editBio,
+                                        bio = editBio.trim(),
                                         avatarUri = currentUser?.photoUrl?.toString() ?: activeSessionUser?.avatarUri,
-                                        securityQuestion = "Google Auth",
-                                        securityAnswer = "SESSION_MANAGED",
+                                        securityQuestion = userProfile?.securityQuestion ?: activeSessionUser?.securityQuestion ?: "What is your Balasore recovery locality/place?",
+                                        securityAnswer = userProfile?.securityAnswer ?: activeSessionUser?.securityAnswer ?: "ENCRYPTED_SESSION_ACTIVE",
                                         createdAt = userProfile?.createdAt ?: System.currentTimeMillis()
                                     )
                                     coroutineScope.launch {
@@ -429,6 +486,50 @@ fun ProfileScreen(
             }
 
             1 -> {
+                // Section 1: Chandipur 30-Minute Tide Reminder & Alert Sound Settings Card
+                item {
+                    Card(
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f)),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.secondary.copy(alpha = 0.35f)),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onOpenTideReminderSettings() }
+                            .testTag("profile_open_tide_reminder_settings_card")
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Water,
+                                contentDescription = "Chandipur Tide Reminder Settings",
+                                tint = MaterialTheme.colorScheme.secondary,
+                                modifier = Modifier.size(26.dp)
+                            )
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = if (isOdia) "ଚାନ୍ଦିପୁର ୩୦-ମିନିଟ୍ ଜୁଆର ରିମାଇଣ୍ଡର୍ ଓ ସାଉଣ୍ଡ" else "Chandipur 30-Min Tide Reminder & Sound",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 14.sp
+                                )
+                                Text(
+                                    text = if (isOdia) "ସୁରକ୍ଷିତ ଚାଲିବା ସମୟ ରିମାଇଣ୍ଡର୍ ଟଗଲ୍ ଓ ଆଲର୍ଟ ଟୋନ୍ ବଦଳାନ୍ତୁ" else "Toggle 30-min safe walking window alert & customize sound",
+                                    fontSize = 11.5.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.secondary,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
+                }
+
                 // Section 1: Push Notifications Manager (Breaking News, Weather, Tourism)
                 item {
                     Card(

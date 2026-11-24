@@ -521,6 +521,14 @@ fun TourismScreen(
             }
         }
 
+        // 1A. Interactive Balasore Tourism Map (Attractions, Hotspots, Turn-by-Turn Directions & User Reviews)
+        item {
+            BalasoreExploreMapSection(
+                language = language,
+                onOpenFullScreenMap = { onOpenFeatureSheet(UniqueFeatureSheetType.OSM_OFFLINE_TOURISM_MAP) }
+            )
+        }
+
         // 1-Brief. Gemini API 'Daily News Brief' 3-Bullet Highlight Card on Main Dashboard
         item {
             var briefSummary by remember {
@@ -871,14 +879,6 @@ fun TourismScreen(
             )
         }
 
-        // 2. Interactive Google Maps & Vector Map Section with Clickable Hotspot Markers, Details, Navigation & Sharing
-        item {
-            BalasoreExploreMapSection(
-                language = language,
-                onOpenFullScreenMap = { onOpenFeatureSheet(UniqueFeatureSheetType.OSM_OFFLINE_TOURISM_MAP) }
-            )
-        }
-
         // 3. Daily Coastal Cleanup Habit Tracker with Recharts Monthly Bar Chart & 'Coastal Guardian' Badge
         item {
             DailyCoastalCleanupTrackerCard(
@@ -907,6 +907,9 @@ fun TourismScreen(
                     mode = "TOURISM",
                     language = language,
                     hotspots = hotspots,
+                    weather = weather,
+                    forecastDays = forecastDays,
+                    onOnlineRefreshCallback = triggerDashboardPullRefresh,
                     onOpenOfflineManager = {
                         onOpenFeatureSheet(UniqueFeatureSheetType.OFFLINE_MODE_MANAGER)
                     }
@@ -2139,6 +2142,23 @@ fun WeatherScreen(
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
+        // 0. Offline Weather & 3-Day Forecast Download + Refresh When Online Banner
+        item {
+            com.example.ui.components.BalasoreOfflineDownloadBannerCard(
+                mode = "WEATHER",
+                language = language,
+                weather = weather,
+                forecastDays = forecastDays,
+                onOnlineRefreshCallback = {
+                    onRefreshWeather()
+                    onRefreshOpenWeather()
+                },
+                onOpenOfflineManager = {
+                    onOpenFeatureSheet(UniqueFeatureSheetType.OFFLINE_MODE_MANAGER)
+                }
+            )
+        }
+
         // 1. Premier OpenWeatherMap Live Weather & Severe Alerts Dashboard Component
         item {
             com.example.ui.components.LocalWeatherDashboard(

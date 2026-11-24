@@ -25,6 +25,7 @@ class BalasoreWeatherWidgetTest {
             windInfo = "💨 Wind: 14 km/h S • 72% Hum",
             alertText = "⚠️ Heavy Rain Alert: Convective squall approaching Balasore",
             hasAlert = true,
+            civicStatusText = "Civic Eye: Active monitoring",
             lastUpdatedMillis = System.currentTimeMillis()
         )
 
@@ -43,6 +44,7 @@ class BalasoreWeatherWidgetTest {
             windInfo = "💨 Wind: 12 km/h SW • 65% Hum",
             alertText = "✅ Normal Coastal Weather: Sea calm at Chandipur. All clear in Balasore.",
             hasAlert = false,
+            civicStatusText = "Civic Eye: All clear",
             lastUpdatedMillis = System.currentTimeMillis()
         )
 

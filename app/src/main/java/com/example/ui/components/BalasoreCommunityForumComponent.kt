@@ -643,6 +643,137 @@ object BalasoreCommunityForumRepository {
  * Persists downloaded articles and hotspots in Room (`newsDao()`, `hotspotDao()`, `cacheMetadataDao()`)
  * and tracks per-item offline download state with automatic cloud sync when online.
  */
+data class OfflineRefreshResult(
+    val refreshed: Boolean,
+    val isOnline: Boolean,
+    val newsCount: Int = 0,
+    val hotspotCount: Int = 0,
+    val weatherUpdated: Boolean = false,
+    val syncedTimestampMs: Long = 0L,
+    val message: String = ""
+)
+
+data class OfflineSectionIndicator(
+    val isDownloaded: Boolean,
+    val badgeLabelEn: String,
+    val badgeLabelOr: String,
+    val detailSummaryEn: String,
+    val detailSummaryOr: String,
+    val canRefreshNow: Boolean
+)
+
+/**
+ * Pure helper functions for offline download indicator formatting and online refresh gating.
+ */
+object OfflineAccessStatusHelper {
+
+    fun formatRelativeSyncAge(lastSyncMs: Long, nowMs: Long = System.currentTimeMillis()): String {
+        if (lastSyncMs <= 0L) return "Not synced yet"
+        val deltaSec = ((nowMs - lastSyncMs).coerceAtLeast(0L)) / 1000L
+        return when {
+            deltaSec < 60L -> "Just now"
+            deltaSec < 3600L -> "${deltaSec / 60L}m ago"
+            deltaSec < 86400L -> "${deltaSec / 3600L}h ago"
+            else -> "${deltaSec / 86400L}d ago"
+        }
+    }
+
+    fun buildSectionIndicator(
+        mode: String,
+        isOnline: Boolean,
+        downloadedNewsCount: Int,
+        downloadedHotspotsCount: Int,
+        isWeatherDownloaded: Boolean,
+        weatherSummary: String,
+        lastSyncMs: Long,
+        nowMs: Long = System.currentTimeMillis()
+    ): OfflineSectionIndicator {
+        val ageLabel = formatRelativeSyncAge(lastSyncMs, nowMs)
+        return when (mode.uppercase(Locale.US)) {
+            "WEATHER" -> OfflineSectionIndicator(
+                isDownloaded = isWeatherDownloaded,
+                badgeLabelEn = if (isWeatherDownloaded) "✓ Forecast Downloaded" else "Not Downloaded",
+                badgeLabelOr = if (isWeatherDownloaded) "✓ ପାଣିପାଗ ଡାଉନଲୋଡ୍ ହୋଇଛି" else "ଡାଉନଲୋଡ୍ ହୋଇନାହିଁ",
+                detailSummaryEn = if (isWeatherDownloaded) {
+                    "$weatherSummary • Updated $ageLabel"
+                } else {
+                    "Download 3-day Balasore weather & Chandipur tide forecast for offline viewing"
+                },
+                detailSummaryOr = if (isWeatherDownloaded) {
+                    "ଅଫଲାଇନ୍ ପାଣିପାଗ ଓ ୩-ଦିନିଆ ପୂର୍ବାନୁମାନ ଉପଲବ୍ଧ • ଅପଡେଟ୍: $ageLabel"
+                } else {
+                    "ବିନା ଇଣ୍ଟରନେଟରେ ଦେଖିବା ପାଇଁ ପାଣିପାଗ ପୂର୍ବାନୁମାନ ଡାଉନଲୋଡ୍ କରନ୍ତୁ"
+                },
+                canRefreshNow = isOnline
+            )
+            "NEWS" -> OfflineSectionIndicator(
+                isDownloaded = downloadedNewsCount > 0,
+                badgeLabelEn = if (downloadedNewsCount > 0) "✓ $downloadedNewsCount Articles Offline" else "Not Downloaded",
+                badgeLabelOr = if (downloadedNewsCount > 0) "✓ $downloadedNewsCount ଖବର ଅଫଲାଇନ୍" else "ଡାଉନଲୋଡ୍ ହୋଇନାହିଁ",
+                detailSummaryEn = if (downloadedNewsCount > 0) {
+                    "$downloadedNewsCount news articles saved locally • Refreshed $ageLabel"
+                } else {
+                    "Download latest Balasore news articles to read without internet"
+                },
+                detailSummaryOr = if (downloadedNewsCount > 0) {
+                    "$downloadedNewsCount ଟି ଖବର ଅଫଲାଇନ୍ ପଠନ ପାଇଁ ସେଭ୍ ଅଛି • ଅପଡେଟ୍: $ageLabel"
+                } else {
+                    "ବିନା ଇଣ୍ଟରନେଟରେ ପଢ଼ିବା ପାଇଁ ସଦ୍ୟତମ ଖବର ଡାଉନଲୋଡ୍ କରନ୍ତୁ"
+                },
+                canRefreshNow = isOnline
+            )
+            else -> OfflineSectionIndicator(
+                isDownloaded = downloadedHotspotsCount > 0,
+                badgeLabelEn = if (downloadedHotspotsCount > 0) "✓ $downloadedHotspotsCount Hotspots Offline" else "Not Downloaded",
+                badgeLabelOr = if (downloadedHotspotsCount > 0) "✓ $downloadedHotspotsCount ପର୍ଯ୍ୟଟନ ସ୍ଥଳୀ ଅଫଲାଇନ୍" else "ଡାଉନଲୋଡ୍ ହୋଇନାହିଁ",
+                detailSummaryEn = if (downloadedHotspotsCount > 0) {
+                    "$downloadedHotspotsCount tourism guides & map details saved • Refreshed $ageLabel"
+                } else {
+                    "Download Balasore beaches, temples & guides for offline viewing"
+                },
+                detailSummaryOr = if (downloadedHotspotsCount > 0) {
+                    "$downloadedHotspotsCount ଟି ପର୍ଯ୍ୟଟନ ସ୍ଥଳୀ ଅଫଲାଇନ୍ ସେଭ୍ ଅଛି • ଅପଡେଟ୍: $ageLabel"
+                } else {
+                    "ବିନା ଇଣ୍ଟରନେଟରେ ଦେଖିବା ପାଇଁ ପର୍ଯ୍ୟଟନ ବିବରଣୀ ଡାଉନଲୋଡ୍ କରନ୍ତୁ"
+                },
+                canRefreshNow = isOnline
+            )
+        }
+    }
+
+    /**
+     * Estimates total local offline cache footprint in KB across downloaded news articles,
+     * tourism hotspot guides, and the cached weather & 3-day tide forecast pack.
+     */
+    fun calculateOfflineStorageFootprintKb(
+        newsCount: Int,
+        hotspotsCount: Int,
+        isWeatherCached: Boolean
+    ): Int {
+        val newsKb = newsCount.coerceAtLeast(0) * 28
+        val hotspotsKb = hotspotsCount.coerceAtLeast(0) * 42
+        val weatherKb = if (isWeatherCached) 36 else 0
+        return newsKb + hotspotsKb + weatherKb
+    }
+
+    /**
+     * Enforces efficient offline data retention by preserving all bookmarked news articles
+     * while capping non-bookmarked cached articles to the most recent [maxNonBookmarkedArticles].
+     */
+    fun selectArticlesForRetention(
+        articles: List<NewsArticleEntity>,
+        maxNonBookmarkedArticles: Int = 12
+    ): List<NewsArticleEntity> {
+        val cap = maxNonBookmarkedArticles.coerceAtLeast(1)
+        val bookmarked = articles.filter { it.isBookmarked }.sortedByDescending { it.timestamp }
+        val nonBookmarked = articles
+            .filter { !it.isBookmarked }
+            .sortedByDescending { it.timestamp }
+            .take(cap)
+        return (bookmarked + nonBookmarked).sortedByDescending { it.timestamp }
+    }
+}
+
 object BalasoreOfflineAccessManager {
     private const val PREFS_NAME = "balasore_offline_downloads_store"
     private const val KEY_DOWNLOADED_NEWS_IDS = "downloaded_news_ids"
@@ -661,7 +792,7 @@ object BalasoreOfflineAccessManager {
     private val _isWeatherCachedOfflineFlow = MutableStateFlow(true)
     val isWeatherCachedOfflineFlow: StateFlow<Boolean> = _isWeatherCachedOfflineFlow.asStateFlow()
 
-    private val _cachedWeatherSummaryFlow = MutableStateFlow("31°C • Partly Cloudy • AQI 42 • Chandipur Low Tide + 3-Day Forecast")
+    private val _cachedWeatherSummaryFlow = MutableStateFlow("31°C • Partly Cloudy • Chandipur Low Tide + 3-Day Forecast")
     val cachedWeatherSummaryFlow: StateFlow<String> = _cachedWeatherSummaryFlow.asStateFlow()
 
     private val _lastSyncTimestampFlow = MutableStateFlow(System.currentTimeMillis())
@@ -686,10 +817,29 @@ object BalasoreOfflineAccessManager {
         _isWeatherCachedOfflineFlow.value = prefs.getBoolean(KEY_WEATHER_CACHED, true)
         _cachedWeatherSummaryFlow.value = prefs.getString(
             KEY_WEATHER_SUMMARY,
-            "31°C • Partly Cloudy • AQI 42 • Chandipur Low Tide + 3-Day Forecast"
-        ) ?: "31°C • Partly Cloudy • AQI 42 • Chandipur Low Tide + 3-Day Forecast"
+            "31°C • Partly Cloudy • Chandipur Low Tide + 3-Day Forecast"
+        ) ?: "31°C • Partly Cloudy • Chandipur Low Tide + 3-Day Forecast"
         _lastSyncTimestampFlow.value = prefs.getLong(KEY_LAST_SYNC_MS, System.currentTimeMillis())
         _pendingSyncActionsFlow.value = prefs.getInt(KEY_PENDING_SYNC_ACTIONS, 0)
+    }
+
+    fun syncStateFromOfflineManager(
+        context: Context,
+        newsIds: Set<String>? = null,
+        hotspotIds: Set<String>? = null,
+        weatherCached: Boolean? = null,
+        weatherSummary: String? = null,
+        updateSyncTimestamp: Boolean = true
+    ) {
+        ensureInitialized(context)
+        newsIds?.let { _downloadedNewsIdsFlow.value = it }
+        hotspotIds?.let { _downloadedHotspotIdsFlow.value = it }
+        weatherCached?.let { _isWeatherCachedOfflineFlow.value = it }
+        weatherSummary?.let { _cachedWeatherSummaryFlow.value = it }
+        if (updateSyncTimestamp) {
+            _lastSyncTimestampFlow.value = System.currentTimeMillis()
+        }
+        saveSetsToPrefs(context)
     }
 
     suspend fun downloadWeatherForOffline(
@@ -763,8 +913,9 @@ object BalasoreOfflineAccessManager {
             )
         )
         db.weatherDao().insertOrUpdateWeather(weatherEntity)
+        db.weatherDao().clearDailyForecasts()
         db.weatherDao().insertDailyForecasts(forecasts)
-        val summary = "${temperatureC.toInt()}°C • $weatherDescription • Tide: $tideState • 3-Day Forecast Cached"
+        val summary = "${temperatureC.toInt()}°C • $weatherDescription • 3-Day Forecast"
         db.cacheMetadataDao().insertOrUpdate(
             CacheSyncMetadataEntity(
                 cacheKey = "WEATHER",
@@ -777,6 +928,81 @@ object BalasoreOfflineAccessManager {
         )
         _isWeatherCachedOfflineFlow.value = true
         _cachedWeatherSummaryFlow.value = summary
+        _lastSyncTimestampFlow.value = now
+        saveSetsToPrefs(context)
+        summary
+    }
+
+    suspend fun downloadWeatherForecastForOffline(
+        context: Context,
+        weather: com.example.data.model.WeatherInfo,
+        forecastDays: List<com.example.data.model.BalasoreForecastDay> = BalasoreRepository.forecast3Days
+    ): String = withContext(Dispatchers.IO) {
+        ensureInitialized(context)
+        val db = AppDatabase.getInstance(context)
+        val now = System.currentTimeMillis()
+        val parsedHumidity = weather.humidity.filter { it.isDigit() }.toIntOrNull() ?: 74
+        val parsedWind = weather.windSpeedKmh.filter { it.isDigit() || it == '.' }.toDoubleOrNull() ?: 18.0
+        val parsedGust = weather.windGustsKmh.filter { it.isDigit() || it == '.' }.toDoubleOrNull() ?: (parsedWind + 6.0)
+        val firstDay = forecastDays.firstOrNull()
+
+        db.weatherDao().insertOrUpdateWeather(
+            WeatherCacheEntity(
+                id = 1,
+                temperature = weather.tempCelsius.toDouble(),
+                apparentTemperature = weather.feelsLikeCelsius.toDouble(),
+                weatherCode = weather.weatherCode,
+                weatherDescription = weather.condition,
+                windSpeed = parsedWind,
+                windGusts = parsedGust,
+                humidity = parsedHumidity,
+                alertLevel = if (weather.cycloneAlert.isNullOrBlank()) "NORMAL" else "ADVISORY",
+                alertTitle = weather.cycloneAlert ?: "Balasore Coastal & Tide Snapshot",
+                alertMessage = "${weather.tideStatus} • ${weather.seaCondition}",
+                tideState = if (weather.tideStatus.contains("Low", ignoreCase = true)) "LOW_TIDE" else "HIGH_TIDE",
+                tideDescription = weather.tideStatus,
+                sunrise = "05:42 AM",
+                sunset = "05:18 PM",
+                uvIndex = weather.uvIndex,
+                maxTemp = (firstDay?.highTempC ?: (weather.tempCelsius + 3)).toDouble(),
+                minTemp = (firstDay?.lowTempC ?: (weather.tempCelsius - 5)).toDouble(),
+                lastUpdated = now
+            )
+        )
+
+        val forecastEntities = forecastDays.take(5).map { day ->
+            DailyForecastEntity(
+                date = "${day.dayLabel} (${day.dateFormatted})",
+                dayOfWeek = "${day.odiaDayLabel} • Rain ${day.rainProbability}% • Wind ${day.windSummary}",
+                weatherCode = if (day.rainProbability >= 50) 500 else 800,
+                weatherDescription = "${day.condition} • ${day.marineNotice}",
+                maxTemp = day.highTempC.toDouble(),
+                minTemp = day.lowTempC.toDouble(),
+                sunrise = "05:42 AM",
+                sunset = "05:18 PM",
+                uvIndex = day.uvIndex.filter { it.isDigit() || it == '.' }.toDoubleOrNull() ?: weather.uvIndex,
+                cachedAt = now
+            )
+        }
+        if (forecastEntities.isNotEmpty()) {
+            db.weatherDao().clearDailyForecasts()
+            db.weatherDao().insertDailyForecasts(forecastEntities)
+        }
+
+        val summary = "${weather.tempCelsius}°C • ${weather.condition} • ${forecastEntities.size}-Day Forecast"
+        db.cacheMetadataDao().insertOrUpdate(
+            CacheSyncMetadataEntity(
+                cacheKey = "WEATHER",
+                lastSyncedAt = now,
+                itemCount = 1 + forecastEntities.size,
+                status = "OFFLINE_READY",
+                cacheLabel = "Downloaded Weather & Forecast Pack",
+                details = summary
+            )
+        )
+        _isWeatherCachedOfflineFlow.value = true
+        _cachedWeatherSummaryFlow.value = summary
+        _lastSyncTimestampFlow.value = now
         saveSetsToPrefs(context)
         summary
     }
@@ -824,6 +1050,7 @@ object BalasoreOfflineAccessManager {
             )
         }
         _downloadedNewsIdsFlow.value = current
+        _lastSyncTimestampFlow.value = System.currentTimeMillis()
         saveSetsToPrefs(context)
         isNowDownloaded
     }
@@ -834,6 +1061,7 @@ object BalasoreOfflineAccessManager {
     ): Int = withContext(Dispatchers.IO) {
         ensureInitialized(context)
         val db = AppDatabase.getInstance(context)
+        val now = System.currentTimeMillis()
         val entities = articles.mapIndexed { idx, art ->
             NewsArticleEntity(
                 id = (idx + 1).toLong(),
@@ -843,7 +1071,7 @@ object BalasoreOfflineAccessManager {
                 category = art.category,
                 source = art.source,
                 publishedAt = art.timeAgo,
-                timestamp = System.currentTimeMillis() - idx * 60_000L,
+                timestamp = now - idx * 60_000L,
                 isBreaking = idx == 0,
                 isBookmarked = true
             )
@@ -853,7 +1081,7 @@ object BalasoreOfflineAccessManager {
             db.cacheMetadataDao().insertOrUpdate(
                 CacheSyncMetadataEntity(
                     cacheKey = "NEWS",
-                    lastSyncedAt = System.currentTimeMillis(),
+                    lastSyncedAt = now,
                     itemCount = entities.size,
                     status = "OFFLINE_READY",
                     cacheLabel = "Downloaded News Articles Pack",
@@ -863,6 +1091,7 @@ object BalasoreOfflineAccessManager {
         }
         val allIds = (_downloadedNewsIdsFlow.value + articles.map { it.id }).toSet()
         _downloadedNewsIdsFlow.value = allIds
+        _lastSyncTimestampFlow.value = now
         saveSetsToPrefs(context)
         allIds.size
     }
@@ -915,6 +1144,7 @@ object BalasoreOfflineAccessManager {
             )
         }
         _downloadedHotspotIdsFlow.value = current
+        _lastSyncTimestampFlow.value = System.currentTimeMillis()
         saveSetsToPrefs(context)
         isNowDownloaded
     }
@@ -925,6 +1155,7 @@ object BalasoreOfflineAccessManager {
     ): Int = withContext(Dispatchers.IO) {
         ensureInitialized(context)
         val db = AppDatabase.getInstance(context)
+        val now = System.currentTimeMillis()
         val entities = hotspots.map { spot ->
             HotspotEntity(
                 id = spot.id,
@@ -950,7 +1181,7 @@ object BalasoreOfflineAccessManager {
             db.cacheMetadataDao().insertOrUpdate(
                 CacheSyncMetadataEntity(
                     cacheKey = "TOURISM",
-                    lastSyncedAt = System.currentTimeMillis(),
+                    lastSyncedAt = now,
                     itemCount = entities.size,
                     status = "OFFLINE_READY",
                     cacheLabel = "Downloaded Tourism Hotspots Pack",
@@ -960,29 +1191,72 @@ object BalasoreOfflineAccessManager {
         }
         val allIds = (_downloadedHotspotIdsFlow.value + hotspots.map { it.id }).toSet()
         _downloadedHotspotIdsFlow.value = allIds
+        _lastSyncTimestampFlow.value = now
         saveSetsToPrefs(context)
         allIds.size
+    }
+
+    suspend fun refreshAllOfflinePacksIfOnline(
+        context: Context,
+        articles: List<NewsArticle> = BalasoreRepository.newsArticles,
+        hotspots: List<Hotspot> = BalasoreRepository.hotspots,
+        weather: com.example.data.model.WeatherInfo? = null,
+        forecastDays: List<com.example.data.model.BalasoreForecastDay> = BalasoreRepository.forecast3Days
+    ): OfflineRefreshResult = withContext(Dispatchers.IO) {
+        ensureInitialized(context)
+        val online = NetworkMonitor(context).isCurrentlyOnline()
+        if (!online) {
+            return@withContext OfflineRefreshResult(
+                refreshed = false,
+                isOnline = false,
+                newsCount = _downloadedNewsIdsFlow.value.size,
+                hotspotCount = _downloadedHotspotIdsFlow.value.size,
+                weatherUpdated = _isWeatherCachedOfflineFlow.value,
+                syncedTimestampMs = _lastSyncTimestampFlow.value,
+                message = "Device is offline. Connect to internet to refresh downloaded news, weather & tourism packs."
+            )
+        }
+
+        _isSyncingOfflineDataFlow.value = true
+        try {
+            val newsSaved = downloadAllNewsArticlesForOffline(context, articles)
+            val spotsSaved = downloadAllHotspotsForOffline(context, hotspots)
+            if (weather != null) {
+                downloadWeatherForecastForOffline(context, weather, forecastDays)
+            } else {
+                downloadWeatherForOffline(context)
+            }
+            runCatching {
+                BalasoreCommunityForumRepository.syncPendingForumPostsWithCloud(context)
+            }
+            val now = System.currentTimeMillis()
+            _lastSyncTimestampFlow.value = now
+            _pendingSyncActionsFlow.value = 0
+            saveSetsToPrefs(context)
+            OfflineRefreshResult(
+                refreshed = true,
+                isOnline = true,
+                newsCount = newsSaved,
+                hotspotCount = spotsSaved,
+                weatherUpdated = true,
+                syncedTimestampMs = now,
+                message = "Refreshed $newsSaved news articles, weather forecast & $spotsSaved tourism hotspots!"
+            )
+        } finally {
+            _isSyncingOfflineDataFlow.value = false
+        }
     }
 
     suspend fun syncOfflinePackWhenOnline(
         context: Context,
         articles: List<NewsArticle> = BalasoreRepository.newsArticles,
         hotspots: List<Hotspot> = BalasoreRepository.hotspots
-    ) = withContext(Dispatchers.IO) {
-        ensureInitialized(context)
-        _isSyncingOfflineDataFlow.value = true
-        try {
-            downloadAllNewsArticlesForOffline(context, articles)
-            downloadAllHotspotsForOffline(context, hotspots)
-            downloadWeatherForOffline(context)
-            BalasoreCommunityForumRepository.syncPendingForumPostsWithCloud(context)
-            val now = System.currentTimeMillis()
-            _lastSyncTimestampFlow.value = now
-            _pendingSyncActionsFlow.value = 0
-            saveSetsToPrefs(context)
-        } finally {
-            _isSyncingOfflineDataFlow.value = false
-        }
+    ) {
+        refreshAllOfflinePacksIfOnline(
+            context = context,
+            articles = articles,
+            hotspots = hotspots
+        )
     }
 
     private fun saveSetsToPrefs(context: Context) {
@@ -1000,16 +1274,18 @@ object BalasoreOfflineAccessManager {
 }
 
 /**
- * Compact Offline Access & Auto-Sync Banner for NewsScreen and TourismScreen.
- * Allows users to 1-tap download all News Articles or Tourism Hotspots for offline viewing,
- * inspect offline storage status, and sync with Room + Firestore when back online.
+ * Compact Offline Access, Downloaded Content Indicator & Refresh-When-Online Banner
+ * for NewsScreen ("NEWS"), WeatherScreen ("WEATHER"), and TourismScreen ("TOURISM").
  */
 @Composable
 fun BalasoreOfflineDownloadBannerCard(
-    mode: String, // "NEWS" or "TOURISM"
+    mode: String, // "NEWS", "WEATHER", or "TOURISM"
     language: AppLanguage,
     articles: List<NewsArticle> = BalasoreRepository.newsArticles,
     hotspots: List<Hotspot> = BalasoreRepository.hotspots,
+    weather: com.example.data.model.WeatherInfo = BalasoreRepository.weather,
+    forecastDays: List<com.example.data.model.BalasoreForecastDay> = BalasoreRepository.forecast3Days,
+    onOnlineRefreshCallback: (() -> Unit)? = null,
     onOpenOfflineManager: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
@@ -1027,23 +1303,61 @@ fun BalasoreOfflineDownloadBannerCard(
     )
     val downloadedNewsIds by BalasoreOfflineAccessManager.downloadedNewsIdsFlow.collectAsStateWithLifecycle()
     val downloadedHotspotIds by BalasoreOfflineAccessManager.downloadedHotspotIdsFlow.collectAsStateWithLifecycle()
+    val isWeatherCached by BalasoreOfflineAccessManager.isWeatherCachedOfflineFlow.collectAsStateWithLifecycle()
+    val cachedWeatherSummary by BalasoreOfflineAccessManager.cachedWeatherSummaryFlow.collectAsStateWithLifecycle()
     val lastSyncTs by BalasoreOfflineAccessManager.lastSyncTimestampFlow.collectAsStateWithLifecycle()
     val isSyncing by BalasoreOfflineAccessManager.isSyncingOfflineDataFlow.collectAsStateWithLifecycle()
 
-    // Automatically sync pending offline downloads & forum discussions when device comes back online
+    // Automatically refresh downloaded content when device reconnects from offline -> online
+    var wasPreviouslyOffline by remember { mutableStateOf(!isOnline) }
     LaunchedEffect(isOnline) {
-        if (isOnline) {
-            BalasoreCommunityForumRepository.syncPendingForumPostsWithCloud(context)
+        if (isOnline && wasPreviouslyOffline) {
+            wasPreviouslyOffline = false
+            onOnlineRefreshCallback?.invoke()
+            BalasoreOfflineAccessManager.refreshAllOfflinePacksIfOnline(
+                context = context,
+                articles = articles,
+                hotspots = hotspots,
+                weather = weather,
+                forecastDays = forecastDays
+            )
+        } else if (!isOnline) {
+            wasPreviouslyOffline = true
         }
     }
 
-    val formattedSyncTime = remember(lastSyncTs) {
-        SimpleDateFormat("hh:mm a", Locale.getDefault()).format(Date(lastSyncTs))
+    val sectionIndicator = remember(
+        mode,
+        isOnline,
+        downloadedNewsIds.size,
+        downloadedHotspotIds.size,
+        isWeatherCached,
+        cachedWeatherSummary,
+        lastSyncTs
+    ) {
+        OfflineAccessStatusHelper.buildSectionIndicator(
+            mode = mode,
+            isOnline = isOnline,
+            downloadedNewsCount = downloadedNewsIds.size,
+            downloadedHotspotsCount = downloadedHotspotIds.size,
+            isWeatherDownloaded = isWeatherCached,
+            weatherSummary = cachedWeatherSummary,
+            lastSyncMs = lastSyncTs
+        )
     }
 
-    val bannerTag = if (mode == "NEWS") "news_offline_access_banner" else "tourism_offline_access_banner"
-    val downloadBtnTag = if (mode == "NEWS") "news_download_all_offline_btn" else "tourism_download_all_offline_btn"
-    val syncBtnTag = if (mode == "NEWS") "news_sync_offline_data_btn" else "tourism_sync_offline_btn"
+    val modeKey = mode.lowercase(Locale.US)
+    val bannerTag = "${modeKey}_offline_access_banner"
+    val downloadBtnTag = when (mode.uppercase(Locale.US)) {
+        "NEWS" -> "news_download_all_offline_btn"
+        "WEATHER" -> "weather_download_offline_btn"
+        else -> "tourism_download_all_offline_btn"
+    }
+    val syncBtnTag = when (mode.uppercase(Locale.US)) {
+        "NEWS" -> "news_sync_offline_data_btn"
+        "WEATHER" -> "weather_refresh_online_btn"
+        else -> "tourism_sync_offline_btn"
+    }
 
     Card(
         modifier = modifier
@@ -1079,7 +1393,7 @@ fun BalasoreOfflineDownloadBannerCard(
                         Box(contentAlignment = Alignment.Center) {
                             Icon(
                                 imageVector = if (isOnline) Icons.Default.CloudDone else Icons.Default.CloudOff,
-                                contentDescription = "Offline Access Status",
+                                contentDescription = if (isOnline) "Online Connected" else "Offline Mode",
                                 tint = if (isOnline) EmeraldGreen else Color(0xFFD97706),
                                 modifier = Modifier.size(20.dp)
                             )
@@ -1088,35 +1402,62 @@ fun BalasoreOfflineDownloadBannerCard(
                     Spacer(modifier = Modifier.width(10.dp))
                     Column {
                         Text(
-                            text = if (mode == "NEWS") {
-                                if (isOdia) "📥 ଅଫଲାଇନ୍ ସମ୍ବାଦ ପଠନ ଓ ଅଟୋ-ସିଙ୍କ୍"
-                                else "📥 Offline News Access & Auto-Sync"
-                            } else {
-                                if (isOdia) "📥 ଅଫଲାଇନ୍ ପର୍ଯ୍ୟଟନ ଗାଇଡ୍ ଓ ଅଟୋ-ସିଙ୍କ୍"
-                                else "📥 Offline Tourism Hotspots & Auto-Sync"
+                            text = when (mode.uppercase(Locale.US)) {
+                                "NEWS" -> if (isOdia) "ଅଫଲାଇନ୍ ସମ୍ବାଦ ପଠନ" else "Offline News Access"
+                                "WEATHER" -> if (isOdia) "ଅଫଲାଇନ୍ ପାଣିପାଗ ପୂର୍ବାନୁମାନ" else "Offline Weather & Forecast"
+                                else -> if (isOdia) "ଅଫଲାଇନ୍ ପର୍ଯ୍ୟଟନ ଗାଇଡ୍" else "Offline Tourism Details"
                             },
                             fontWeight = FontWeight.ExtraBold,
                             fontSize = 13.5.sp,
                             color = BentoSlate900
                         )
                         Text(
-                            text = if (isOnline) {
-                                if (isOdia) {
-                                    "ଅନଲାଇନ୍ • ${downloadedNewsIds.size} ଖବର ଓ ${downloadedHotspotIds.size} ପର୍ଯ୍ୟଟନ ସ୍ଥଳୀ ଅଫଲାଇନ୍ ସେଭ୍ • ସିଙ୍କ୍: $formattedSyncTime"
-                                } else {
-                                    "Online Synced ($formattedSyncTime) • ${downloadedNewsIds.size} News & ${downloadedHotspotIds.size} Hotspots Offline Ready"
-                                }
-                            } else {
-                                if (isOdia) {
-                                    "ଅଫଲାଇନ୍ ମୋଡ୍ • ${downloadedNewsIds.size} ଖବର ଓ ${downloadedHotspotIds.size} ପର୍ଯ୍ୟଟନ ସ୍ଥଳୀ ବିନା ଇଣ୍ଟରନେଟରେ ଉପଲବ୍ଧ"
-                                } else {
-                                    "Offline Mode • Serving ${downloadedNewsIds.size} News & ${downloadedHotspotIds.size} Hotspots from Room DB"
-                                }
-                            },
+                            text = if (isOdia) sectionIndicator.detailSummaryOr else sectionIndicator.detailSummaryEn,
                             fontSize = 11.sp,
-                            color = BentoSlate700
+                            color = BentoSlate700,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
+                }
+            }
+
+            // Clear Status Indicators Row: Downloaded Content Pill + Online/Offline Pill
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = if (sectionIndicator.isDownloaded) Color(0xFFDCFCE7) else BentoSlate100,
+                    modifier = Modifier.testTag("${modeKey}_downloaded_indicator_badge")
+                ) {
+                    Text(
+                        text = if (isOdia) sectionIndicator.badgeLabelOr else sectionIndicator.badgeLabelEn,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = if (sectionIndicator.isDownloaded) Color(0xFF166534) else BentoSlate700,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                    )
+                }
+
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = if (isOnline) Color(0xFFE0F2FE) else Color(0xFFFEF3C7),
+                    modifier = Modifier.testTag("${modeKey}_connectivity_status_badge")
+                ) {
+                    Text(
+                        text = if (isOnline) {
+                            if (isOdia) "● ଅନଲାଇନ୍" else "● Online"
+                        } else {
+                            if (isOdia) "● ଅଫଲାଇନ୍ ମୋଡ୍" else "● Offline Mode"
+                        },
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = if (isOnline) Color(0xFF0369A1) else Color(0xFFB45309),
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                    )
                 }
             }
 
@@ -1139,20 +1480,38 @@ fun BalasoreOfflineDownloadBannerCard(
                     onClick = {
                         BalasoreHapticHelper.vibrateButtonClick(context)
                         coroutineScope.launch {
-                            if (mode == "NEWS") {
-                                val count = BalasoreOfflineAccessManager.downloadAllNewsArticlesForOffline(context, articles)
-                                Toast.makeText(
-                                    context,
-                                    "Downloaded $count News Articles to Room DB for offline reading!",
-                                    Toast.LENGTH_SHORT
-                                ).show()
-                            } else {
-                                val count = BalasoreOfflineAccessManager.downloadAllHotspotsForOffline(context, hotspots)
-                                Toast.makeText(
-                                    context,
-                                    "Downloaded $count Tourism Hotspots to Room DB for offline viewing!",
-                                    Toast.LENGTH_SHORT
-                                ).show()
+                            when (mode.uppercase(Locale.US)) {
+                                "NEWS" -> {
+                                    val count = BalasoreOfflineAccessManager.downloadAllNewsArticlesForOffline(context, articles)
+                                    Toast.makeText(
+                                        context,
+                                        if (isOdia) "$count ଟି ଖବର ଅଫଲାଇନ୍ ପଠନ ପାଇଁ ଡାଉନଲୋଡ୍ ହେଲା!"
+                                        else "Downloaded $count News Articles for offline reading!",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                }
+                                "WEATHER" -> {
+                                    val summary = BalasoreOfflineAccessManager.downloadWeatherForecastForOffline(
+                                        context = context,
+                                        weather = weather,
+                                        forecastDays = forecastDays
+                                    )
+                                    Toast.makeText(
+                                        context,
+                                        if (isOdia) "ପାଣିପାଗ ପୂର୍ବାନୁମାନ ଅଫଲାଇନ୍ ସେଭ୍ ହେଲା!"
+                                        else "Saved offline forecast: $summary",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                }
+                                else -> {
+                                    val count = BalasoreOfflineAccessManager.downloadAllHotspotsForOffline(context, hotspots)
+                                    Toast.makeText(
+                                        context,
+                                        if (isOdia) "$count ଟି ପର୍ଯ୍ୟଟନ ସ୍ଥଳୀ ଅଫଲାଇନ୍ ଡାଉନଲୋଡ୍ ହେଲା!"
+                                        else "Downloaded $count Tourism Hotspots for offline viewing!",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                }
                             }
                         }
                     },
@@ -1161,20 +1520,20 @@ fun BalasoreOfflineDownloadBannerCard(
                     contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
                     modifier = Modifier
                         .weight(1.2f)
-                        .height(38.dp)
+                        .height(44.dp)
                         .testTag(downloadBtnTag)
                 ) {
                     Icon(
-                        imageVector = Icons.Default.CloudDownload,
+                        imageVector = if (sectionIndicator.isDownloaded) Icons.Default.DownloadDone else Icons.Default.CloudDownload,
                         contentDescription = null,
                         modifier = Modifier.size(15.dp)
                     )
                     Spacer(modifier = Modifier.width(5.dp))
                     Text(
-                        text = if (mode == "NEWS") {
-                            if (isOdia) "ସବୁ ଖବର ଡାଉନଲୋଡ୍" else "Download News Offline"
-                        } else {
-                            if (isOdia) "ସବୁ ପର୍ଯ୍ୟଟନ ଡାଉନଲୋଡ୍" else "Download Hotspots"
+                        text = when (mode.uppercase(Locale.US)) {
+                            "NEWS" -> if (isOdia) "ଖବର ଡାଉନଲୋଡ୍" else "Download News"
+                            "WEATHER" -> if (isOdia) "ପାଣିପାଗ ସେଭ୍" else "Save Forecast"
+                            else -> if (isOdia) "ପର୍ଯ୍ୟଟନ ସେଭ୍" else "Save Hotspots"
                         },
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
@@ -1185,34 +1544,50 @@ fun BalasoreOfflineDownloadBannerCard(
                 OutlinedButton(
                     onClick = {
                         BalasoreHapticHelper.vibrateButtonClick(context)
-                        coroutineScope.launch {
-                            BalasoreOfflineAccessManager.syncOfflinePackWhenOnline(context, articles, hotspots)
+                        if (!isOnline) {
                             Toast.makeText(
                                 context,
-                                "Synced offline News, Hotspots & Community Forum with Cloud!",
+                                if (isOdia) "ଅପଡେଟ୍ କରିବାକୁ ଦୟାକରି ଇଣ୍ଟରନେଟ୍ ସଂଯୋଗ କରନ୍ତୁ।"
+                                else "You are currently offline. Connect to internet to refresh downloaded content.",
                                 Toast.LENGTH_SHORT
                             ).show()
+                            return@OutlinedButton
+                        }
+                        coroutineScope.launch {
+                            onOnlineRefreshCallback?.invoke()
+                            val res = BalasoreOfflineAccessManager.refreshAllOfflinePacksIfOnline(
+                                context = context,
+                                articles = articles,
+                                hotspots = hotspots,
+                                weather = weather,
+                                forecastDays = forecastDays
+                            )
+                            Toast.makeText(context, res.message, Toast.LENGTH_SHORT).show()
                         }
                     },
                     shape = RoundedCornerShape(10.dp),
-                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp),
                     modifier = Modifier
-                        .weight(0.9f)
-                        .height(38.dp)
+                        .weight(1f)
+                        .height(44.dp)
                         .testTag(syncBtnTag)
                 ) {
                     Icon(
-                        imageVector = Icons.Default.CloudSync,
-                        contentDescription = null,
-                        tint = OceanBlue,
+                        imageVector = if (isOnline) Icons.Default.Refresh else Icons.Default.CloudOff,
+                        contentDescription = "Refresh Online",
+                        tint = if (isOnline) OceanBlue else BentoSlate600,
                         modifier = Modifier.size(15.dp)
                     )
                     Spacer(modifier = Modifier.width(4.dp))
                     Text(
-                        text = if (isOdia) "ସିଙ୍କ୍ କରନ୍ତୁ" else "Sync Now",
+                        text = if (isOnline) {
+                            if (isOdia) "ଅନଲାଇନ୍ ରିଫ୍ରେସ୍" else "Refresh Online"
+                        } else {
+                            if (isOdia) "ଅଫଲାଇନ୍" else "Offline"
+                        },
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
-                        color = OceanBlue,
+                        color = if (isOnline) OceanBlue else BentoSlate600,
                         maxLines = 1
                     )
                 }
@@ -1225,12 +1600,12 @@ fun BalasoreOfflineDownloadBannerCard(
                     shape = RoundedCornerShape(10.dp),
                     contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp),
                     modifier = Modifier
-                        .height(38.dp)
-                        .testTag("${mode.lowercase()}_open_offline_hub_btn")
+                        .height(44.dp)
+                        .testTag("${modeKey}_open_offline_hub_btn")
                 ) {
                     Text(
-                        text = if (isOdia) "ଅଫଲାଇନ୍ ହବ୍" else "Offline Hub",
-                        fontSize = 10.5.sp,
+                        text = if (isOdia) "ହବ୍" else "Hub",
+                        fontSize = 11.sp,
                         fontWeight = FontWeight.Bold
                     )
                 }
