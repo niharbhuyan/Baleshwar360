@@ -425,6 +425,71 @@ fun TourismSpotReviewsAndDirectionsSheet(
                 }
             }
 
+            // 1B. Social Sharing Bar (WhatsApp, Facebook, X/Twitter, More)
+            item {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("tourism_sheet_social_share_row"),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    val shareSpotTo: (com.example.util.SocialPlatform) -> Unit = { platform ->
+                        com.example.util.ShareHelper.shareTourismHotspotToPlatform(
+                            context = context,
+                            spotId = spotId,
+                            name = spotName,
+                            category = spotCategory,
+                            location = spotLocation,
+                            rating = summaryStats.averageRating,
+                            description = "Discover $spotName ($spotCategory) in $spotLocation, Balasore — ${String.format(Locale.US, "%.1f", distanceKm)} km from Balasore Station.",
+                            platform = platform
+                        )
+                    }
+                    Surface(
+                        onClick = { shareSpotTo(com.example.util.SocialPlatform.WHATSAPP) },
+                        shape = RoundedCornerShape(10.dp),
+                        color = Color(0xFFDCFCE7),
+                        border = BorderStroke(1.dp, Color(0xFF22C55E)),
+                        modifier = Modifier
+                            .weight(1f)
+                            .heightIn(min = 48.dp)
+                            .testTag("tourism_sheet_share_whatsapp_btn")
+                    ) {
+                        Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(horizontal = 6.dp, vertical = 10.dp)) {
+                            Text("💬 WhatsApp", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = Color(0xFF15803D), maxLines = 1)
+                        }
+                    }
+                    Surface(
+                        onClick = { shareSpotTo(com.example.util.SocialPlatform.FACEBOOK) },
+                        shape = RoundedCornerShape(10.dp),
+                        color = Color(0xFFDBEAFE),
+                        border = BorderStroke(1.dp, Color(0xFF1877F2)),
+                        modifier = Modifier
+                            .weight(1f)
+                            .heightIn(min = 48.dp)
+                            .testTag("tourism_sheet_share_facebook_btn")
+                    ) {
+                        Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(horizontal = 6.dp, vertical = 10.dp)) {
+                            Text("📘 Facebook", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = Color(0xFF1877F2), maxLines = 1)
+                        }
+                    }
+                    Surface(
+                        onClick = { shareSpotTo(com.example.util.SocialPlatform.TWITTER) },
+                        shape = RoundedCornerShape(10.dp),
+                        color = Color(0xFFF1F5F9),
+                        border = BorderStroke(1.dp, Color(0xFF334155)),
+                        modifier = Modifier
+                            .weight(1f)
+                            .heightIn(min = 48.dp)
+                            .testTag("tourism_sheet_share_twitter_btn")
+                    ) {
+                        Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(horizontal = 6.dp, vertical = 10.dp)) {
+                            Text("𝕏 Twitter", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = Color(0xFF0F172A), maxLines = 1)
+                        }
+                    }
+                }
+            }
+
             // 2. Multi-Mode Directions Card
             item {
                 Card(

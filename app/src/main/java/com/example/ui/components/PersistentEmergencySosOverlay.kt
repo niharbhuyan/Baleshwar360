@@ -1,8 +1,10 @@
 package com.example.ui.components
 
+import android.Manifest
 import android.app.Activity
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.os.Build
 import android.os.VibrationEffect
 import android.os.Vibrator
@@ -43,6 +45,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Emergency
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.MicOff
 import androidx.compose.material.icons.filled.People
 import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material.icons.filled.Security
@@ -58,11 +61,16 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -76,11 +84,18 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.example.data.emergency.EmergencySosContact
 import com.example.data.emergency.EmergencySosManager
+import com.example.data.emergency.ForegroundVoiceHelpTrigger
 import com.example.data.model.AppLanguage
+import kotlinx.coroutines.delay
 import java.util.Locale
 
 /**
@@ -98,6 +113,7 @@ fun PersistentEmergencySosOverlay(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
     var isExpanded by remember { mutableStateOf(false) }
     var showConfigureContactsDialog by remember { mutableStateOf(false) }
     var emergencyContacts by remember {
@@ -105,6 +121,143 @@ fun PersistentEmergencySosOverlay(
     }
     var lastKnownLocationText by remember { mutableStateOf("Resolving GPS...") }
     var isVoiceListening by remember { mutableStateOf(false) }
+
+    // Foreground "Help me" -> 112 auto-call confirmation dialog state
+    var pendingVoiceHelpPhrase by remember { mutableStateOf<String?>(null) }
+    var voiceCallCountdownSeconds by remember { mutableIntStateOf(3) }
+
+    // Lifecycle-scoped foreground SpeechRecognizer controller for "Help me"
+    val foregroundVoiceTrigger = remember(context) {
+        ForegroundVoiceHelpTrigger(context) { matchedPhrase ->
+            vibrateUrgent(context)
+            voiceCallCountdownSeconds = 3
+            pendingVoiceHelpPhrase = matchedPhrase
+        }
+    }
+    val voiceGuardState by foregroundVoiceTrigger.state.collectAsState()
+
+    // Keep recognizer locale synchronized with app language (English / Odia)
+    LaunchedEffect(language) {
+        foregroundVoiceTrigger.setLocale(if (language == AppLanguage.ODIA) "or-IN" else "en-IN")
+    }
+
+    // Bind ForegroundVoiceHelpTrigger strictly to foreground lifecycle (ON_RESUME / ON_PAUSE)
+    DisposableEffect(lifecycleOwner, foregroundVoiceTrigger) {
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_RESUME -> foregroundVoiceTrigger.onAppResumed()
+                Lifecycle.Event.ON_PAUSE, Lifecycle.Event.ON_STOP -> foregroundVoiceTrigger.onAppPaused()
+                Lifecycle.Event.ON_DESTROY -> foregroundVoiceTrigger.destroy()
+                else -> {}
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        if (lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) {
+            foregroundVoiceTrigger.onAppResumed()
+        }
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+            foregroundVoiceTrigger.destroy()
+        }
+    }
+
+    // 3-second automatic countdown that initiates the emergency call to 112 when "Help me" is heard
+    LaunchedEffect(pendingVoiceHelpPhrase) {
+        if (pendingVoiceHelpPhrase != null) {
+            voiceCallCountdownSeconds = 3
+            while (voiceCallCountdownSeconds > 0 && pendingVoiceHelpPhrase != null) {
+                delay(1000L)
+                voiceCallCountdownSeconds--
+            }
+            if (pendingVoiceHelpPhrase != null) {
+                val heard = pendingVoiceHelpPhrase ?: "Help me"
+                pendingVoiceHelpPhrase = null
+                foregroundVoiceTrigger.pauseForAlertConfirmation(false)
+                Toast.makeText(
+                    context,
+                    if (language == AppLanguage.ODIA)
+                        "\"$heard\" ଚିହ୍ନଟ — ୧୧୨ ଜରୁରୀକାଳୀନ କଲ୍ ଆରମ୍ଭ ହେଉଛି!"
+                    else
+                        "\"$heard\" detected — Initiating Emergency Call to 112!",
+                    Toast.LENGTH_LONG
+                ).show()
+                onTriggerSosCall()
+            }
+        }
+    }
+
+    // Runtime permission launcher for RECORD_AUDIO (+ CALL_PHONE for direct 112 call)
+    val voiceGuardPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        val micGranted = permissions[Manifest.permission.RECORD_AUDIO] == true ||
+            ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
+        if (micGranted) {
+            foregroundVoiceTrigger.setArmed(true)
+            foregroundVoiceTrigger.onAppResumed()
+            Toast.makeText(
+                context,
+                if (language == AppLanguage.ODIA)
+                    "🎤 ଫୋରଗ୍ରାଉଣ୍ଡ 'Help me' ଭଏସ୍ ଗାର୍ଡ ସକ୍ରିୟ! ଆପ୍ ଖୋଲା ଥିବା ବେଳେ 'Help me' କୁହନ୍ତୁ।"
+                else
+                    "🎤 Foreground 'Help me' Voice Guard active! Say 'Help me' anytime while app is open to call 112.",
+                Toast.LENGTH_LONG
+            ).show()
+        } else {
+            foregroundVoiceTrigger.setArmed(false)
+            Toast.makeText(
+                context,
+                if (language == AppLanguage.ODIA)
+                    "'Help me' ଭଏସ୍ ଟ୍ରିଗର୍ ପାଇଁ ମାଇକ୍ରୋଫୋନ୍ ଅନୁମତି ଆବଶ୍ୟକ।"
+                else
+                    "Microphone permission is required for the foreground 'Help me' voice trigger.",
+                Toast.LENGTH_SHORT
+            ).show()
+        }
+    }
+
+    val toggleForegroundVoiceGuard: (Boolean) -> Unit = { enable ->
+        if (enable) {
+            val hasMic = ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.RECORD_AUDIO
+            ) == PackageManager.PERMISSION_GRANTED
+            val hasCall = ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.CALL_PHONE
+            ) == PackageManager.PERMISSION_GRANTED
+            if (hasMic) {
+                foregroundVoiceTrigger.setArmed(true)
+                foregroundVoiceTrigger.onAppResumed()
+                if (!hasCall) {
+                    voiceGuardPermissionLauncher.launch(arrayOf(Manifest.permission.CALL_PHONE))
+                } else {
+                    Toast.makeText(
+                        context,
+                        if (language == AppLanguage.ODIA)
+                            "🎤 'Help me' ଭଏସ୍ ଗାର୍ଡ ସକ୍ରିୟ ହେଲା (୧୧୨ ଜରୁରୀ କଲ୍)"
+                        else
+                            "🎤 Listening in foreground: Say 'Help me' to call 112",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+            } else {
+                val needed = mutableListOf(Manifest.permission.RECORD_AUDIO)
+                if (!hasCall) needed.add(Manifest.permission.CALL_PHONE)
+                voiceGuardPermissionLauncher.launch(needed.toTypedArray())
+            }
+        } else {
+            foregroundVoiceTrigger.setArmed(false)
+            Toast.makeText(
+                context,
+                if (language == AppLanguage.ODIA)
+                    "🔇 'Help me' ଭଏସ୍ ଗାର୍ଡ ବନ୍ଦ କରାଗଲା"
+                else
+                    "🔇 Foreground 'Help me' Voice Guard turned off",
+                Toast.LENGTH_SHORT
+            ).show()
+        }
+    }
 
     // Pulsing animation for the SOS emergency radar beacon
     val infiniteTransition = rememberInfiniteTransition(label = "sos_pulse")
@@ -125,11 +278,12 @@ fun PersistentEmergencySosOverlay(
         }
     }
 
-    // Voice recognition launcher for urgent distress speech commands
+    // Manual one-shot voice recognition launcher fallback
     val voiceSpeechLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
     ) { result ->
         isVoiceListening = false
+        foregroundVoiceTrigger.pauseForAlertConfirmation(false)
         if (result.resultCode == Activity.RESULT_OK) {
             val spokenMatches = result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
             val spokenText = spokenMatches?.firstOrNull() ?: ""
@@ -140,24 +294,21 @@ fun PersistentEmergencySosOverlay(
                     Toast.makeText(
                         context,
                         if (language == AppLanguage.ODIA)
-                            "ସ୍ୱର ଚିହ୍ନଟ: \"$spokenText\" • ୧୧୨ କଲ୍ ଓ ଲୋକେସନ୍ ପ୍ରେରଣ ହେଉଛି!"
+                            "ସ୍ୱର ଚିହ୍ନଟ: \"$spokenText\" • ୧୧୨ କଲ୍ ଆରମ୍ଭ ହେଉଛି!"
                         else
-                            "Emergency Voice Command Recognized: \"$spokenText\" • Triggering 112 SOS!",
+                            "Emergency Voice Command Recognized: \"$spokenText\" • Calling 112!",
                         Toast.LENGTH_LONG
                     ).show()
 
                     // Execute immediate 112 dispatch
                     onTriggerSosCall()
-                    EmergencySosManager.triggerInstantSosOverlayAction(context) { statusMsg ->
-                        Toast.makeText(context, statusMsg, Toast.LENGTH_SHORT).show()
-                    }
                 } else {
                     Toast.makeText(
                         context,
                         if (language == AppLanguage.ODIA)
-                            "କମାଣ୍ଡ ଚିହ୍ନଟ ହୋଇପାରିଲା ନାହିଁ (\"$spokenText\")। ଦୟାକରି କୁହନ୍ତୁ 'Call Balasore Emergency'"
+                            "କମାଣ୍ଡ ଚିହ୍ନଟ ହୋଇପାରିଲା ନାହିଁ (\"$spokenText\")। ଦୟାକରି କୁହନ୍ତୁ 'Help me'"
                         else
-                            "Unrecognized command (\"$spokenText\"). Please speak 'Call Balasore Emergency'",
+                            "Unrecognized command (\"$spokenText\"). Please say 'Help me'",
                         Toast.LENGTH_SHORT
                     ).show()
                 }
@@ -167,19 +318,21 @@ fun PersistentEmergencySosOverlay(
 
     val startVoiceEmergencyTrigger = {
         try {
+            foregroundVoiceTrigger.pauseForAlertConfirmation(true)
             isVoiceListening = true
             val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
                 putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
                 putExtra(RecognizerIntent.EXTRA_LANGUAGE, if (language == AppLanguage.ODIA) "or-IN" else "en-IN")
                 putExtra(RecognizerIntent.EXTRA_PROMPT, if (language == AppLanguage.ODIA)
-                    "ଜରୁରୀକାଳୀନ କମାଣ୍ଡ କୁହନ୍ତୁ (ଯଥା: 'Call Balasore Emergency' ବା '112')"
+                    "ଜରୁରୀକାଳୀନ କମାଣ୍ଡ କୁହନ୍ତୁ: 'Help me' ବା 'ମୋତେ ସାହାଯ୍ୟ କର'"
                 else
-                    "Speak emergency command: 'Call Balasore Emergency' or 'Call 112'"
+                    "Say 'Help me' to call 112 Emergency"
                 )
             }
             voiceSpeechLauncher.launch(intent)
         } catch (e: Exception) {
             isVoiceListening = false
+            foregroundVoiceTrigger.pauseForAlertConfirmation(false)
             Toast.makeText(
                 context,
                 "Voice recognizer unavailable: ${e.message}",
@@ -372,7 +525,93 @@ fun PersistentEmergencySosOverlay(
 
                         Spacer(modifier = Modifier.height(8.dp))
 
-                        // Voice Trigger Button: "Speak 'Call Balasore Emergency'"
+                        // Foreground Hands-Free Voice Guard Card: Say "Help me" while app is open -> Calls 112
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = if (voiceGuardState.isArmed) Color(0xFF0C4A6E) else Color(0xFF0F172A),
+                            border = BorderStroke(
+                                1.2.dp,
+                                if (voiceGuardState.isArmed) Color(0xFF38BDF8) else Color(0xFF475569)
+                            ),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("foreground_voice_help_card")
+                        ) {
+                            Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier.weight(1f)
+                                    ) {
+                                        Icon(
+                                            imageVector = if (voiceGuardState.isArmed) Icons.Default.Mic else Icons.Default.MicOff,
+                                            contentDescription = "Foreground Voice Guard",
+                                            tint = if (voiceGuardState.isArmed) Color(0xFF38BDF8) else Color(0xFF94A3B8),
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Column {
+                                            Text(
+                                                text = if (language == AppLanguage.ODIA)
+                                                    "ଫୋରଗ୍ରାଉଣ୍ଡ 'Help me' → ୧୧୨ ଗାର୍ଡ"
+                                                else
+                                                    "Foreground 'Help me' → 112 Guard",
+                                                fontSize = 11.5.sp,
+                                                fontWeight = FontWeight.ExtraBold,
+                                                color = Color.White
+                                            )
+                                            Text(
+                                                text = if (voiceGuardState.isArmed) {
+                                                    if (language == AppLanguage.ODIA)
+                                                        "ସକ୍ରିୟ: ଆପ୍ ଖୋଲା ଥିବା ବେଳେ 'Help me' କୁହନ୍ତୁ"
+                                                    else
+                                                        "Listening: Say \"Help me\" to call 112"
+                                                } else {
+                                                    if (language == AppLanguage.ODIA)
+                                                        "ଆପ୍ ଖୋଲା ଥିବା ବେଳେ ହ୍ୟାଣ୍ଡସ୍-ଫ୍ରି ୧୧୨ କଲ୍"
+                                                    else
+                                                        "Hands-free 112 call while app is open"
+                                                },
+                                                fontSize = 9.5.sp,
+                                                color = if (voiceGuardState.isArmed) Color(0xFFBAE6FD) else Color(0xFF94A3B8),
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+                                        }
+                                    }
+                                    Switch(
+                                        checked = voiceGuardState.isArmed,
+                                        onCheckedChange = { toggleForegroundVoiceGuard(it) },
+                                        modifier = Modifier.testTag("foreground_voice_help_toggle"),
+                                        colors = SwitchDefaults.colors(
+                                            checkedThumbColor = Color.White,
+                                            checkedTrackColor = Color(0xFF0284C7),
+                                            uncheckedThumbColor = Color(0xFFCBD5E1),
+                                            uncheckedTrackColor = Color(0xFF334155)
+                                        )
+                                    )
+                                }
+
+                                if (voiceGuardState.isArmed && voiceGuardState.lastHeardSnippet.isNotBlank()) {
+                                    Text(
+                                        text = "Last heard: \"${voiceGuardState.lastHeardSnippet}\"",
+                                        fontSize = 9.sp,
+                                        color = Color(0xFF7DD3FC),
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                        modifier = Modifier.padding(top = 4.dp)
+                                    )
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(6.dp))
+
+                        // Manual One-Tap Voice Prompt: Say "Help me"
                         OutlinedButton(
                             onClick = {
                                 isExpanded = false
@@ -380,7 +619,7 @@ fun PersistentEmergencySosOverlay(
                             },
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(44.dp)
+                                .height(48.dp)
                                 .testTag("sos_overlay_voice_trigger_btn"),
                             shape = RoundedCornerShape(12.dp),
                             border = BorderStroke(1.2.dp, Color(0xFF38BDF8)),
@@ -395,9 +634,9 @@ fun PersistentEmergencySosOverlay(
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
                                 text = if (language == AppLanguage.ODIA)
-                                    "ସ୍ୱରରେ କୁହନ୍ତୁ: 'Call Balasore Emergency'"
+                                    "ଏବେ କୁହନ୍ତୁ: 'Help me' (୧୧୨ କଲ୍)"
                                 else
-                                    "Voice: Speak \"Call Balasore Emergency\"",
+                                    "Tap & Say \"Help me\" (Call 112)",
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 11.5.sp,
                                 color = Color(0xFF38BDF8)
@@ -542,28 +781,72 @@ fun PersistentEmergencySosOverlay(
                 }
             }
 
+            // Compact Live Foreground Listening Chip when 'Help me' Voice Guard is Armed
+            AnimatedVisibility(visible = voiceGuardState.isArmed && !isExpanded) {
+                Surface(
+                    shape = RoundedCornerShape(16.dp),
+                    color = Color(0xFF0C4A6E),
+                    border = BorderStroke(1.dp, Color(0xFF38BDF8)),
+                    modifier = Modifier
+                        .padding(bottom = 6.dp)
+                        .shadow(6.dp, RoundedCornerShape(16.dp))
+                        .clickable { toggleForegroundVoiceGuard(false) }
+                        .testTag("foreground_voice_listening_status_chip")
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(7.dp)
+                                .clip(CircleShape)
+                                .background(if (voiceGuardState.isListening) Color(0xFF4ADE80) else Color(0xFF38BDF8))
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = if (language == AppLanguage.ODIA)
+                                "ଶୁଣୁଛି: 'Help me' → ୧୧୨"
+                            else
+                                "Listening: \"Help me\" → 112",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = Color.White
+                        )
+                    }
+                }
+            }
+
             // Persistent Floating Pill Overlay
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.End
             ) {
-                // Secondary Quick Voice Mic Icon
+                // Quick Foreground 'Help me' Voice Guard Toggle Button (48.dp touch target)
                 Surface(
-                    onClick = { startVoiceEmergencyTrigger() },
+                    onClick = { toggleForegroundVoiceGuard(!voiceGuardState.isArmed) },
                     shape = CircleShape,
-                    color = Color(0xFF0F172A),
-                    border = BorderStroke(1.2.dp, Color(0xFF38BDF8)),
+                    color = if (voiceGuardState.isArmed) Color(0xFF0284C7) else Color(0xFF0F172A),
+                    border = BorderStroke(
+                        1.5.dp,
+                        if (voiceGuardState.isArmed) Color(0xFF4ADE80) else Color(0xFF38BDF8)
+                    ),
                     modifier = Modifier
-                        .size(42.dp)
+                        .size(48.dp)
+                        .scale(if (voiceGuardState.isArmed && voiceGuardState.isListening) pulseScale else 1f)
                         .shadow(8.dp, CircleShape)
                         .testTag("floating_quick_voice_sos_btn")
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         Icon(
-                            imageVector = Icons.Default.Mic,
-                            contentDescription = "Voice SOS",
-                            tint = Color(0xFF38BDF8),
-                            modifier = Modifier.size(20.dp)
+                            imageVector = if (voiceGuardState.isArmed) Icons.Default.Mic else Icons.Default.MicOff,
+                            contentDescription = if (voiceGuardState.isArmed) {
+                                "Foreground Help me Voice Guard Active — tap to turn off"
+                            } else {
+                                "Enable Foreground Help me Voice Guard for 112"
+                            },
+                            tint = if (voiceGuardState.isArmed) Color.White else Color(0xFF38BDF8),
+                            modifier = Modifier.size(22.dp)
                         )
                     }
                 }
@@ -766,6 +1049,112 @@ fun PersistentEmergencySosOverlay(
             dismissButton = {
                 TextButton(onClick = { showConfigureContactsDialog = false }) {
                     Text("Cancel")
+                }
+            }
+        )
+    }
+
+    // 3-Second Auto-Call 112 Confirmation Dialog triggered when user says "Help me" in foreground
+    pendingVoiceHelpPhrase?.let { heardPhrase ->
+        AlertDialog(
+            onDismissRequest = {
+                pendingVoiceHelpPhrase = null
+                foregroundVoiceTrigger.pauseForAlertConfirmation(false)
+            },
+            modifier = Modifier.testTag("voice_help_112_countdown_dialog"),
+            containerColor = Color(0xFF1E293B),
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFFDC2626)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Phone,
+                            contentDescription = "Emergency Call 112",
+                            tint = Color.White,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Text(
+                        text = if (language == AppLanguage.ODIA)
+                            "\"$heardPhrase\" ଶୁଣାଗଲା — ୧୧୨ କଲ୍!"
+                        else
+                            "Heard \"$heardPhrase\" — Calling 112!",
+                        color = Color.White,
+                        fontWeight = FontWeight.ExtraBold,
+                        fontSize = 15.sp
+                    )
+                }
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        text = if (language == AppLanguage.ODIA)
+                            "ଆପ୍ ଫୋରଗ୍ରାଉଣ୍ଡ ଭଏସ୍ ଟ୍ରିଗର୍ ସକ୍ରିୟ ହୋଇଛି। $voiceCallCountdownSeconds ସେକେଣ୍ଡରେ ୧୧୨ ଜରୁରୀକାଳୀନ କଲ୍ ସଂଯୋଗ ହେବ..."
+                        else
+                            "Foreground voice trigger activated. Automatically initiating emergency call to 112 in $voiceCallCountdownSeconds seconds...",
+                        color = Color(0xFFE2E8F0),
+                        fontSize = 13.sp
+                    )
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = Color(0xFF7F1D1D),
+                        border = BorderStroke(1.dp, Color(0xFFFCA5A5)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = if (language == AppLanguage.ODIA)
+                                "🚨 ୧୧୨ ଜରୁରୀକାଳୀନ କଲ୍: ${voiceCallCountdownSeconds}s"
+                            else
+                                "🚨 Dialing Emergency 112 in ${voiceCallCountdownSeconds}s",
+                            color = Color.White,
+                            fontWeight = FontWeight.Black,
+                            fontSize = 14.sp,
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        pendingVoiceHelpPhrase = null
+                        foregroundVoiceTrigger.pauseForAlertConfirmation(false)
+                        onTriggerSosCall()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFDC2626)),
+                    modifier = Modifier.testTag("voice_help_call_now_btn")
+                ) {
+                    Text(
+                        text = if (language == AppLanguage.ODIA) "ଏବେ ୧୧୨ କଲ୍ କରନ୍ତୁ" else "Call 112 Now",
+                        fontWeight = FontWeight.ExtraBold,
+                        color = Color.White
+                    )
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        pendingVoiceHelpPhrase = null
+                        foregroundVoiceTrigger.pauseForAlertConfirmation(false)
+                        Toast.makeText(
+                            context,
+                            if (language == AppLanguage.ODIA) "୧୧୨ କଲ୍ ବାତିଲ୍ କରାଗଲା" else "112 Emergency Call cancelled",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    },
+                    modifier = Modifier.testTag("voice_help_cancel_btn")
+                ) {
+                    Text(
+                        text = if (language == AppLanguage.ODIA) "ବାତିଲ୍ କରନ୍ତୁ" else "Cancel",
+                        color = Color(0xFF94A3B8),
+                        fontWeight = FontWeight.Bold
+                    )
                 }
             }
         )

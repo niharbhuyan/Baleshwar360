@@ -149,6 +149,32 @@ fun SpecialFeaturesScreen(
     val allFeatures = remember {
         listOf(
             SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.BALASORE_AUDIO_BRIEFING,
+                titleEn = "Listen to Balasore Today (Odia Voice Reader)",
+                titleOd = "ଆଜିର ବାଲେଶ୍ୱର ଅଡିଓ ବୁଲେଟିନ୍ (ଓଡ଼ିଆ ଭଏସ୍ ରିଡର୍)",
+                category = "News & Audio",
+                iconEmoji = "🎧",
+                descriptionEn = "Hands-free Odia & English audio briefing reading Balasore headlines, weather/tide alerts, and DRDO Chandipur coastal test advisories aloud.",
+                descriptionOd = "ଓଡ଼ିଆ ଓ ଇଂରାଜୀରେ ବାଲେଶ୍ୱର ମୁଖ୍ୟ ଖବର, ପାଣିପାଗ ସତର୍କତା ଏବଂ DRDO ଚାନ୍ଦିପୁର ଉପକୂଳ ସୂଚନା ଶୁଣନ୍ତୁ।",
+                tagText = "HANDS-FREE ODIA / EN TTS",
+                primaryColor = Color(0xFFE0F2FE),
+                borderColor = Color(0xFF38BDF8),
+                isAutoUpdated = true
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.SMART_COMMUTE_MANDI_BOARD,
+                titleEn = "Smart Commute & Fish/Mandi Daily Price Board",
+                titleOd = "ସ୍ମାର୍ଟ ଯାତାୟାତ ଓ ବଳରାମଗଡ଼ି/ମୋତିଗଞ୍ଜ ଦର ବୋର୍ଡ",
+                category = "Transit & Markets",
+                iconEmoji = "🚆",
+                descriptionEn = "Daily ticker for Balasore–Bhubaneswar/Howrah train running status, local bus departures, and morning rates from Balaramgadi harbor & Motiganj bazaar.",
+                descriptionOd = "ବାଲେଶ୍ୱର-ଭୁବନେଶ୍ୱର/ହାଓଡ଼ା ଟ୍ରେନ୍ ସ୍ଥିତି, ଲୋକାଲ୍ ବସ୍ ସମୟ ଏବଂ ବଳରାମଗଡ଼ି ମାଛ ଓ ମୋତିଗଞ୍ଜ ମଣ୍ଡି ସକାଳ ଦର।",
+                tagText = "TRAINS • BUSES • HARBOR & MANDI",
+                primaryColor = Color(0xFFECFDF5),
+                borderColor = Color(0xFF34D399),
+                isAutoUpdated = true
+            ),
+            SpecialFeatureItem(
                 sheetType = UniqueFeatureSheetType.BATTERY_HEALTH_MONITOR,
                 titleEn = "Battery Health Monitor & Services Energy Dashboard",
                 titleOd = "ବ୍ୟାଟେରୀ ସ୍ୱାସ୍ଥ୍ୟ ମନିଟର୍ ଓ ବ୍ୟାକଗ୍ରାଉଣ୍ଡ ଶକ୍ତି ଡ୍ୟାସବୋର୍ଡ",

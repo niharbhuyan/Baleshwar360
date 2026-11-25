@@ -52,6 +52,7 @@ service cloud.firestore {
           'notifyLocalEvents',
           'notifyTempleFestivals',
           'notifyBreakingNews',
+          'notifyCommunityAnnouncements',
           'notifyTourismHotspots',
           'notifyDefenseAdvisories',
           'notifyFloodAlerts',
@@ -62,6 +63,9 @@ service cloud.firestore {
           'minTempThreshold',
           'maxTempThreshold',
           'preferredNewsCategories',
+          'minWeatherAlertSeverity',
+          'notificationFrequency',
+          'preferredNotificationWindow',
           'updatedAt'
         ]) &&
         data.userId is string && data.userId.size() <= 128 &&
@@ -72,6 +76,7 @@ service cloud.firestore {
         (!('notifyLocalEvents' in data) || data.notifyLocalEvents is bool) &&
         (!('notifyTempleFestivals' in data) || data.notifyTempleFestivals is bool) &&
         (!('notifyBreakingNews' in data) || data.notifyBreakingNews is bool) &&
+        (!('notifyCommunityAnnouncements' in data) || data.notifyCommunityAnnouncements is bool) &&
         (!('notifyTourismHotspots' in data) || data.notifyTourismHotspots is bool) &&
         (!('notifyDefenseAdvisories' in data) || data.notifyDefenseAdvisories is bool) &&
         (!('notifyFloodAlerts' in data) || data.notifyFloodAlerts is bool) &&
@@ -86,6 +91,9 @@ service cloud.firestore {
           data.preferredNewsCategories.size() <= 20 &&
           (data.preferredNewsCategories.size() == 0 || data.preferredNewsCategories[0] is string)
         )) &&
+        (!('minWeatherAlertSeverity' in data) || (data.minWeatherAlertSeverity is string && data.minWeatherAlertSeverity.size() <= 30)) &&
+        (!('notificationFrequency' in data) || (data.notificationFrequency is string && data.notificationFrequency.size() <= 30)) &&
+        (!('preferredNotificationWindow' in data) || (data.preferredNotificationWindow is string && data.preferredNotificationWindow.size() <= 40)) &&
         data.updatedAt is int;
     }
 

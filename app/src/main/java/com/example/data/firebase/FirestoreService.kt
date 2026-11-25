@@ -346,6 +346,10 @@ class FirestoreService(
                 .putInt("${userId}_highTideAlertHoursBefore", prefs.highTideAlertHoursBefore)
                 .putInt("${userId}_minTempThreshold", prefs.minTempThreshold)
                 .putInt("${userId}_maxTempThreshold", prefs.maxTempThreshold)
+                .putStringSet("${userId}_preferredNewsCategories", prefs.preferredNewsCategories.toSet())
+                .putString("${userId}_minWeatherAlertSeverity", prefs.minWeatherAlertSeverity)
+                .putString("${userId}_notificationFrequency", prefs.notificationFrequency)
+                .putString("${userId}_preferredNotificationWindow", prefs.preferredNotificationWindow)
                 .putLong("${userId}_updatedAt", System.currentTimeMillis())
                 .apply()
 
@@ -371,6 +375,10 @@ class FirestoreService(
     suspend fun fetchWeatherPreferences(userId: String): Result<com.example.data.model.UserWeatherPreferences?> = withContext(Dispatchers.IO) {
         val localPrefs = context.getSharedPreferences("balasore_user_notif_prefs", Context.MODE_PRIVATE)
         fun loadFromLocal(): com.example.data.model.UserWeatherPreferences {
+            val savedCats = localPrefs.getStringSet("${userId}_preferredNewsCategories", null)
+                ?.toList()
+                ?.takeIf { it.isNotEmpty() }
+                ?: listOf("Civic", "Events", "Traffic", "Weather", "Defense", "Tourism", "Culture")
             return com.example.data.model.UserWeatherPreferences(
                 userId = userId,
                 notifyCyclone = localPrefs.getBoolean("${userId}_notifyCyclone", true),
@@ -389,6 +397,10 @@ class FirestoreService(
                 highTideAlertHoursBefore = localPrefs.getInt("${userId}_highTideAlertHoursBefore", 2),
                 minTempThreshold = localPrefs.getInt("${userId}_minTempThreshold", 12),
                 maxTempThreshold = localPrefs.getInt("${userId}_maxTempThreshold", 38),
+                preferredNewsCategories = savedCats,
+                minWeatherAlertSeverity = localPrefs.getString("${userId}_minWeatherAlertSeverity", "MODERATE") ?: "MODERATE",
+                notificationFrequency = localPrefs.getString("${userId}_notificationFrequency", "REAL_TIME") ?: "REAL_TIME",
+                preferredNotificationWindow = localPrefs.getString("${userId}_preferredNotificationWindow", "ANYTIME") ?: "ANYTIME",
                 updatedAt = localPrefs.getLong("${userId}_updatedAt", System.currentTimeMillis())
             )
         }

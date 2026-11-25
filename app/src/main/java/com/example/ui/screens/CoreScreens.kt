@@ -18,9 +18,11 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import com.example.util.ShareHelper
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -245,8 +247,36 @@ fun TourismScreen(
         }
     }
 
-    val filteredHotspots = remember(hotspots, selectedCategory, localSearchQuery) {
-        hotspots.filter { spot ->
+    val roomCachedHotspots by remember(context) {
+        AppDatabase.getInstance(context).hotspotDao().getAllHotspots()
+    }.collectAsStateWithLifecycle(initialValue = emptyList())
+
+    val effectiveHotspots = remember(hotspots, roomCachedHotspots) {
+        val offlineConverted = roomCachedHotspots.map { entity ->
+            Hotspot(
+                id = entity.id,
+                name = entity.name,
+                odiaName = entity.odiaName.ifBlank { entity.name },
+                category = entity.category,
+                description = entity.shortDescription,
+                location = "Balasore (${entity.distanceKmFromBls} km)",
+                rating = 4.6,
+                timing = entity.timings.ifBlank { "6:00 AM - 6:00 PM" },
+                distanceKm = entity.distanceKmFromBls.toDouble(),
+                detailedDescription = entity.fullDescription.ifBlank { entity.shortDescription },
+                historicalSignificance = entity.specialty,
+                operatingHours = entity.timings,
+                latitude = entity.latitude,
+                longitude = entity.longitude
+            )
+        }
+        (hotspots + offlineConverted).distinctBy { it.id.ifBlank { it.name.lowercase() } }
+    }
+
+    var socialShareHotspot by remember { mutableStateOf<Hotspot?>(null) }
+
+    val filteredHotspots = remember(effectiveHotspots, selectedCategory, localSearchQuery) {
+        effectiveHotspots.filter { spot ->
             val categoryMatch = selectedCategory.equals("All", ignoreCase = true) ||
                 selectedCategory.isBlank() ||
                 spot.category.contains(selectedCategory, ignoreCase = true)
@@ -1426,7 +1456,7 @@ fun TourismScreen(
                             Text(if (isOdia) "ରେଟିଂ ଦିଅନ୍ତୁ" else "Rate (${spotReviews.size})", fontSize = 11.5.sp)
                         }
 
-                        // View Details & Share button
+                        // View Details button
                         OutlinedButton(
                             onClick = { selectedDetailHotspot = spot },
                             shape = RoundedCornerShape(10.dp),
@@ -1436,6 +1466,18 @@ fun TourismScreen(
                             Icon(Icons.Default.Info, contentDescription = "View Hotspot Details", tint = OceanBlue, modifier = Modifier.size(14.dp))
                             Spacer(modifier = Modifier.width(4.dp))
                             Text(if (isOdia) "ବିବରଣୀ" else "Details", fontSize = 11.5.sp)
+                        }
+
+                        // Social Share (WhatsApp / Facebook / X) button
+                        OutlinedButton(
+                            onClick = { socialShareHotspot = spot },
+                            shape = RoundedCornerShape(10.dp),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                            modifier = Modifier.testTag("share_hotspot_social_btn_${spot.id}")
+                        ) {
+                            Icon(Icons.Default.Share, contentDescription = "Share ${spot.name} on social media", tint = OceanBlue, modifier = Modifier.size(14.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(if (isOdia) "ସେୟାର୍" else "Share", fontSize = 11.5.sp)
                         }
 
                         // Navigate button
@@ -1623,26 +1665,7 @@ fun TourismScreen(
                         )
                     }
                     IconButton(
-                        onClick = {
-                            val shareText = buildString {
-                                append("📍 ${detailSpot.name} (${detailSpot.odiaName})\n")
-                                append("Category: ${detailSpot.category} | Rating: ⭐ ${detailSpot.rating}\n")
-                                append("Location: ${detailSpot.location} | Timings: ${detailSpot.effectiveOperatingHours}\n\n")
-                                append("${detailSpot.effectiveDetailedDescription}\n\n")
-                                if (detailSpot.historicalSignificance.isNotBlank()) {
-                                    append("🏛️ Historical Significance: ${detailSpot.historicalSignificance}")
-                                }
-                            }
-                            val sendIntent = Intent(Intent.ACTION_SEND).apply {
-                                type = "text/plain"
-                                putExtra(Intent.EXTRA_SUBJECT, detailSpot.name)
-                                putExtra(Intent.EXTRA_TEXT, shareText)
-                            }
-                            context.startActivity(
-                                Intent.createChooser(sendIntent, "Share ${detailSpot.name}")
-                                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                            )
-                        },
+                        onClick = { socialShareHotspot = detailSpot },
                         modifier = Modifier.testTag("hotspot_details_share_button")
                     ) {
                         Icon(
@@ -1658,6 +1681,105 @@ fun TourismScreen(
                     modifier = Modifier.verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
+                    // Quick Social Media Share Row (WhatsApp, Facebook, X/Twitter)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Surface(
+                            onClick = {
+                                ShareHelper.shareTourismHotspotToPlatform(
+                                    context = context,
+                                    spotId = detailSpot.id,
+                                    name = detailSpot.name,
+                                    odiaName = detailSpot.odiaName,
+                                    category = detailSpot.category,
+                                    location = detailSpot.location,
+                                    rating = detailSpot.rating,
+                                    description = detailSpot.effectiveDetailedDescription,
+                                    operatingHours = detailSpot.effectiveOperatingHours,
+                                    platform = com.example.util.SocialPlatform.WHATSAPP
+                                )
+                            },
+                            shape = RoundedCornerShape(8.dp),
+                            color = Color(0xFFDCFCE7),
+                            border = BorderStroke(1.dp, Color(0xFF22C55E)),
+                            modifier = Modifier
+                                .weight(1f)
+                                .testTag("hotspot_detail_whatsapp_share_btn")
+                        ) {
+                            Text(
+                                text = "💬 WhatsApp",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF15803D),
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                                modifier = Modifier.padding(vertical = 8.dp)
+                            )
+                        }
+                        Surface(
+                            onClick = {
+                                ShareHelper.shareTourismHotspotToPlatform(
+                                    context = context,
+                                    spotId = detailSpot.id,
+                                    name = detailSpot.name,
+                                    odiaName = detailSpot.odiaName,
+                                    category = detailSpot.category,
+                                    location = detailSpot.location,
+                                    rating = detailSpot.rating,
+                                    description = detailSpot.effectiveDetailedDescription,
+                                    operatingHours = detailSpot.effectiveOperatingHours,
+                                    platform = com.example.util.SocialPlatform.FACEBOOK
+                                )
+                            },
+                            shape = RoundedCornerShape(8.dp),
+                            color = Color(0xFFDBEAFE),
+                            border = BorderStroke(1.dp, Color(0xFF1877F2)),
+                            modifier = Modifier
+                                .weight(1f)
+                                .testTag("hotspot_detail_facebook_share_btn")
+                        ) {
+                            Text(
+                                text = "📘 Facebook",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF1877F2),
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                                modifier = Modifier.padding(vertical = 8.dp)
+                            )
+                        }
+                        Surface(
+                            onClick = {
+                                ShareHelper.shareTourismHotspotToPlatform(
+                                    context = context,
+                                    spotId = detailSpot.id,
+                                    name = detailSpot.name,
+                                    odiaName = detailSpot.odiaName,
+                                    category = detailSpot.category,
+                                    location = detailSpot.location,
+                                    rating = detailSpot.rating,
+                                    description = detailSpot.effectiveDetailedDescription,
+                                    operatingHours = detailSpot.effectiveOperatingHours,
+                                    platform = com.example.util.SocialPlatform.TWITTER
+                                )
+                            },
+                            shape = RoundedCornerShape(8.dp),
+                            color = Color(0xFFF1F5F9),
+                            border = BorderStroke(1.dp, Color(0xFF334155)),
+                            modifier = Modifier
+                                .weight(1f)
+                                .testTag("hotspot_detail_twitter_share_btn")
+                        ) {
+                            Text(
+                                text = "𝕏 Twitter",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF0F172A),
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                                modifier = Modifier.padding(vertical = 8.dp)
+                            )
+                        }
+                    }
                     HotspotOfflineHighResGalleryCarousel(
                         spotName = detailSpot.name,
                         spotCategory = detailSpot.category,
@@ -1738,6 +1860,138 @@ fun TourismScreen(
                 OutlinedButton(
                     onClick = { selectedDetailHotspot = null },
                     modifier = Modifier.testTag("close_hotspot_details_dialog_btn")
+                ) {
+                    Text(if (isOdia) "ବନ୍ଦ କରନ୍ତୁ" else "Close")
+                }
+            }
+        )
+    }
+
+    if (socialShareHotspot != null) {
+        val shareSpot = socialShareHotspot!!
+        AlertDialog(
+            onDismissRequest = { socialShareHotspot = null },
+            modifier = Modifier.testTag("tourism_hotspot_social_share_dialog"),
+            title = {
+                Text(
+                    text = if (isOdia) "${shareSpot.odiaName} ସେୟାର୍ କରନ୍ତୁ" else "Share ${shareSpot.name}",
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        text = if (isOdia) {
+                            "ବାଲେଶ୍ୱରର ଏହି ପର୍ଯ୍ୟଟନ ସ୍ଥଳକୁ ସୋସିଆଲ୍ ମିଡିଆରେ ସେୟାର୍ କରନ୍ତୁ:"
+                        } else {
+                            "Share this Balasore tourism hotspot on social media:"
+                        },
+                        fontSize = 12.5.sp,
+                        color = BentoSlate700
+                    )
+                    Button(
+                        onClick = {
+                            socialShareHotspot = null
+                            ShareHelper.shareTourismHotspotToPlatform(
+                                context = context,
+                                spotId = shareSpot.id,
+                                name = shareSpot.name,
+                                odiaName = shareSpot.odiaName,
+                                category = shareSpot.category,
+                                location = shareSpot.location,
+                                rating = shareSpot.rating,
+                                description = shareSpot.effectiveDetailedDescription,
+                                operatingHours = shareSpot.effectiveOperatingHours,
+                                platform = com.example.util.SocialPlatform.WHATSAPP
+                            )
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF16A34A)),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 48.dp)
+                            .testTag("hotspot_dialog_share_whatsapp_btn")
+                    ) {
+                        Text("💬 Share on WhatsApp", fontWeight = FontWeight.Bold)
+                    }
+                    Button(
+                        onClick = {
+                            socialShareHotspot = null
+                            ShareHelper.shareTourismHotspotToPlatform(
+                                context = context,
+                                spotId = shareSpot.id,
+                                name = shareSpot.name,
+                                odiaName = shareSpot.odiaName,
+                                category = shareSpot.category,
+                                location = shareSpot.location,
+                                rating = shareSpot.rating,
+                                description = shareSpot.effectiveDetailedDescription,
+                                operatingHours = shareSpot.effectiveOperatingHours,
+                                platform = com.example.util.SocialPlatform.FACEBOOK
+                            )
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1877F2)),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 48.dp)
+                            .testTag("hotspot_dialog_share_facebook_btn")
+                    ) {
+                        Text("📘 Share on Facebook", fontWeight = FontWeight.Bold)
+                    }
+                    Button(
+                        onClick = {
+                            socialShareHotspot = null
+                            ShareHelper.shareTourismHotspotToPlatform(
+                                context = context,
+                                spotId = shareSpot.id,
+                                name = shareSpot.name,
+                                odiaName = shareSpot.odiaName,
+                                category = shareSpot.category,
+                                location = shareSpot.location,
+                                rating = shareSpot.rating,
+                                description = shareSpot.effectiveDetailedDescription,
+                                operatingHours = shareSpot.effectiveOperatingHours,
+                                platform = com.example.util.SocialPlatform.TWITTER
+                            )
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0F172A)),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 48.dp)
+                            .testTag("hotspot_dialog_share_twitter_btn")
+                    ) {
+                        Text("𝕏 Share on X (Twitter)", fontWeight = FontWeight.Bold)
+                    }
+                    OutlinedButton(
+                        onClick = {
+                            socialShareHotspot = null
+                            ShareHelper.shareTourismHotspotToPlatform(
+                                context = context,
+                                spotId = shareSpot.id,
+                                name = shareSpot.name,
+                                odiaName = shareSpot.odiaName,
+                                category = shareSpot.category,
+                                location = shareSpot.location,
+                                rating = shareSpot.rating,
+                                description = shareSpot.effectiveDetailedDescription,
+                                operatingHours = shareSpot.effectiveOperatingHours,
+                                platform = com.example.util.SocialPlatform.SYSTEM_SHARE
+                            )
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 48.dp)
+                            .testTag("hotspot_dialog_share_more_btn")
+                    ) {
+                        Icon(Icons.Default.Share, contentDescription = "More share options", modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(if (isOdia) "ଅନ୍ୟାନ୍ୟ ଆପ୍" else "More Apps")
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = { socialShareHotspot = null },
+                    modifier = Modifier.heightIn(min = 48.dp)
                 ) {
                     Text(if (isOdia) "ବନ୍ଦ କରନ୍ତୁ" else "Close")
                 }
@@ -2156,6 +2410,20 @@ fun WeatherScreen(
                 onOpenOfflineManager = {
                     onOpenFeatureSheet(UniqueFeatureSheetType.OFFLINE_MODE_MANAGER)
                 }
+            )
+        }
+
+        // 0A. Balasore District Weather Forecast & Severe Alerts Dashboard Widget (OpenWeatherMap API)
+        item {
+            com.example.ui.components.BalasoreOpenWeatherSummaryWidget(
+                currentWeather = openWeatherCurrent,
+                isLoading = isOpenWeatherLoading,
+                language = language,
+                isFahrenheit = isFahrenheit,
+                onToggleTempUnit = { onToggleUnit() },
+                onRefresh = { onRefreshOpenWeather() },
+                onOpenDetails = { onOpenFeatureSheet(UniqueFeatureSheetType.OPEN_WEATHER_MAP) },
+                modifier = Modifier.padding(horizontal = 0.dp)
             )
         }
 

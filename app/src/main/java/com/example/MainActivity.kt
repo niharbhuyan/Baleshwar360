@@ -3481,6 +3481,32 @@ fun BalasoreApp(
                         onClose = { viewModel.closeFeatureSheet() }
                     )
                 }
+                UniqueFeatureSheetType.SMART_COMMUTE_MANDI_BOARD -> {
+                    ModalBottomSheet(
+                        onDismissRequest = { viewModel.closeFeatureSheet() },
+                        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+                        modifier = Modifier.fillMaxSize()
+                    ) {
+                        com.example.ui.features.daily.BalasoreCommuteMandiBoardSheet(
+                            language = uiState.language,
+                            dailyPulse = uiState.dailyPulse,
+                            onClose = { viewModel.closeFeatureSheet() }
+                        )
+                    }
+                }
+                UniqueFeatureSheetType.BALASORE_AUDIO_BRIEFING -> {
+                    ModalBottomSheet(
+                        onDismissRequest = { viewModel.closeFeatureSheet() },
+                        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+                    ) {
+                        com.example.ui.features.news.BalasoreAudioBriefingSheet(
+                            articles = uiState.newsArticles,
+                            dailyPulse = uiState.dailyPulse,
+                            initialLanguage = uiState.language,
+                            onClose = { viewModel.closeFeatureSheet() }
+                        )
+                    }
+                }
                 null -> {}
             }
         }

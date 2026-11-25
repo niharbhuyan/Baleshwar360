@@ -58,32 +58,47 @@ class BalasoreWeatherWidgetProvider : AppWidgetProvider() {
     private fun fetchAndRefreshWidgets(context: Context) {
         widgetScope.launch {
             try {
-                // Fetch from existing OpenWeatherRepository
-                val repo = OpenWeatherRepository()
+                // Fetch current conditions & 5-day forecast from OpenWeatherRepository for Balasore district
+                val repo = OpenWeatherRepository(context)
                 val weatherResult = repo.fetchCurrentWeather("")
-                
-                // Fetch severe weather alerts from existing BalasoreOpenWeatherAlertService
+                val forecastResult = repo.fetchFiveDayForecast(
+                    lat = OpenWeatherRepository.BALASORE_LAT,
+                    lon = OpenWeatherRepository.BALASORE_LON
+                )
+
+                // Fetch severe weather alerts for Balasore district from BalasoreOpenWeatherAlertService
                 val alerts = runCatching {
                     BalasoreOpenWeatherAlertService.fetchLocationWeatherAlerts(context, forceRefresh = true)
                 }.getOrDefault(emptyList())
 
-                var tempC = 32
-                var conditionDesc = "Partly Cloudy • Coastal Breeze"
-                var windInfo = "💨 Wind: 16 km/h SW • 74% Hum"
+                var tempC = 31
+                var feelsLikeC = 34
+                var humidity = 74
+                var conditionDesc = "Partly Cloudy • Balasore District"
+                var windInfo = "💨 Wind: 16 km/h SW • 1008 hPa"
 
                 weatherResult.getOrNull()?.let { current ->
                     current.main?.temp?.let { tempC = it.roundToInt() }
+                    current.main?.feelsLike?.let { feelsLikeC = it.roundToInt() }
+                    current.main?.humidity?.let { humidity = it }
                     val desc = current.weather.firstOrNull()?.description
                         ?.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
                         ?: "Partly Cloudy"
-                    conditionDesc = "$desc • Balasore"
+                    val pressure = current.main?.pressure ?: 1008
+                    conditionDesc = "$desc • Balasore District"
 
                     val windSpeedKmh = (current.wind?.speed ?: 4.5) * 3.6
-                    val humidity = current.main?.humidity ?: 74
-                    windInfo = "💨 Wind: ${windSpeedKmh.roundToInt()} km/h • ${humidity}% Hum"
+                    windInfo = "💨 Wind: ${windSpeedKmh.roundToInt()} km/h • $pressure hPa"
                 }
 
-                // Identify highest severity active alert
+                val forecastSummary = forecastResult.getOrNull()?.take(3)?.joinToString(" | ") { day ->
+                    "${day.dayName}: ${day.tempMax.roundToInt()}°/${day.tempMin.roundToInt()}°C"
+                }.orEmpty()
+                if (forecastSummary.isNotBlank()) {
+                    conditionDesc = "$conditionDesc • $forecastSummary"
+                }
+
+                // Identify highest severity active alert for Balasore district
                 val highestAlert = alerts.filter { it.isActive() }
                     .maxByOrNull { it.severity.ordinal }
 
@@ -96,17 +111,17 @@ class BalasoreWeatherWidgetProvider : AppWidgetProvider() {
                         AlertSeverity.WARNING -> "⚠️"
                         else -> "⚡"
                     }
-                    alertText = "$severityEmoji ${highestAlert.severity.levelName}: ${highestAlert.title} - ${highestAlert.summary.take(75)}..."
+                    alertText = "$severityEmoji ${highestAlert.severity.levelName}: ${highestAlert.title} — ${highestAlert.summary.take(85)}"
                     hasAlert = true
                 } else if (highestAlert != null && highestAlert.severity != AlertSeverity.SAFE) {
-                    alertText = "⚠️ ${highestAlert.title}: ${highestAlert.summary.take(80)}..."
+                    alertText = "⚠️ ${highestAlert.title}: ${highestAlert.summary.take(85)}"
                     hasAlert = true
                 } else if (alerts.isNotEmpty()) {
                     val first = alerts.first()
-                    alertText = "⚠️ ${first.title}: ${first.summary.take(80)}..."
+                    alertText = "⚠️ ${first.title}: ${first.summary.take(85)}"
                     hasAlert = true
                 } else {
-                    alertText = "✅ Normal Coastal Weather: Sea calm at Chandipur. All clear in Balasore."
+                    alertText = "✅ Normal Coastal Weather: Sea calm at Chandipur & Talasari. No active severe alerts in Balasore."
                     hasAlert = false
                 }
 
@@ -133,7 +148,9 @@ class BalasoreWeatherWidgetProvider : AppWidgetProvider() {
                     windInfo = windInfo,
                     alertText = alertText,
                     hasAlert = hasAlert,
-                    civicStatusText = civicStatusSummary
+                    civicStatusText = civicStatusSummary,
+                    feelsLikeC = feelsLikeC,
+                    humidity = humidity
                 )
 
                 // Push RemoteViews update to all active widgets
@@ -152,6 +169,8 @@ class BalasoreWeatherWidgetProvider : AppWidgetProvider() {
 
         private const val PREFS_NAME = "balasore_weather_widget_prefs"
         private const val KEY_TEMP = "key_temp"
+        private const val KEY_FEELS_LIKE = "key_feels_like"
+        private const val KEY_HUMIDITY = "key_humidity"
         private const val KEY_DESC = "key_desc"
         private const val KEY_WIND = "key_wind"
         private const val KEY_ALERT = "key_alert"
@@ -165,8 +184,10 @@ class BalasoreWeatherWidgetProvider : AppWidgetProvider() {
             val windInfo: String,
             val alertText: String,
             val hasAlert: Boolean,
-            val civicStatusText: String,
-            val lastUpdatedMillis: Long
+            val civicStatusText: String = "📸 Civic Eye: 1 Pending • 2 In-Progress • 1 Resolved",
+            val lastUpdatedMillis: Long = 0L,
+            val feelsLikeC: Int = tempC + 2,
+            val humidity: Int = 74
         )
 
         fun saveWidgetData(
@@ -176,11 +197,15 @@ class BalasoreWeatherWidgetProvider : AppWidgetProvider() {
             windInfo: String,
             alertText: String,
             hasAlert: Boolean,
-            civicStatusText: String = "📸 Civic Eye: 1 Pending • 2 In-Progress • 1 Resolved"
+            civicStatusText: String = "📸 Civic Eye: 1 Pending • 2 In-Progress • 1 Resolved",
+            feelsLikeC: Int = tempC + 2,
+            humidity: Int = 74
         ) {
             val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             prefs.edit()
                 .putInt(KEY_TEMP, tempC)
+                .putInt(KEY_FEELS_LIKE, feelsLikeC)
+                .putInt(KEY_HUMIDITY, humidity)
                 .putString(KEY_DESC, conditionDesc)
                 .putString(KEY_WIND, windInfo)
                 .putString(KEY_ALERT, alertText)
@@ -192,10 +217,13 @@ class BalasoreWeatherWidgetProvider : AppWidgetProvider() {
 
         fun getCachedWidgetData(context: Context): WidgetData {
             val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            val temp = prefs.getInt(KEY_TEMP, 31)
             return WidgetData(
-                tempC = prefs.getInt(KEY_TEMP, 32),
-                conditionDesc = prefs.getString(KEY_DESC, "Partly Cloudy • Balasore Coast") ?: "Partly Cloudy • Balasore Coast",
-                windInfo = prefs.getString(KEY_WIND, "💨 Wind: 16 km/h SW • 74% Hum") ?: "💨 Wind: 16 km/h SW • 74% Hum",
+                tempC = temp,
+                feelsLikeC = prefs.getInt(KEY_FEELS_LIKE, temp + 3),
+                humidity = prefs.getInt(KEY_HUMIDITY, 74),
+                conditionDesc = prefs.getString(KEY_DESC, "Partly Cloudy • Balasore District") ?: "Partly Cloudy • Balasore District",
+                windInfo = prefs.getString(KEY_WIND, "💨 Wind: 16 km/h SW • 1008 hPa") ?: "💨 Wind: 16 km/h SW • 1008 hPa",
                 alertText = prefs.getString(KEY_ALERT, "✅ Normal Coastal Weather: Sea calm at Chandipur. All clear in Balasore.")
                     ?: "✅ Normal Coastal Weather: Sea calm at Chandipur. All clear in Balasore.",
                 hasAlert = prefs.getBoolean(KEY_HAS_ALERT, false),
@@ -243,10 +271,20 @@ class BalasoreWeatherWidgetProvider : AppWidgetProvider() {
 
             views.setTextViewText(R.id.widget_weather_temp, "${data.tempC}°C")
             views.setTextViewText(R.id.widget_weather_desc, data.conditionDesc)
+            views.setTextViewText(R.id.widget_humidity_text, "Humidity: ${data.humidity}% • Balasore District")
             views.setTextViewText(R.id.widget_weather_wind, data.windInfo)
+            views.setTextViewText(R.id.widget_feels_like_text, "Feels like ${data.feelsLikeC}°C")
             views.setTextViewText(R.id.widget_weather_alert_text, data.alertText)
             views.setViewVisibility(R.id.widget_weather_alert_box, View.VISIBLE)
             views.setTextViewText(R.id.widget_civic_status_text, data.civicStatusText)
+
+            val updatedLabel = if (data.lastUpdatedMillis > 0L) {
+                val timeFmt = java.text.SimpleDateFormat("hh:mm a", java.util.Locale.getDefault())
+                "OpenWeatherMap Sync • ${timeFmt.format(java.util.Date(data.lastUpdatedMillis))}"
+            } else {
+                "OpenWeatherMap Sync • Just Now"
+            }
+            views.setTextViewText(R.id.widget_updated_text, updatedLabel)
 
             // Click root layout -> Open full Weather screen in app
             val openAppIntent = Intent(context, MainActivity::class.java).apply {

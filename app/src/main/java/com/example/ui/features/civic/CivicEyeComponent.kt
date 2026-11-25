@@ -43,6 +43,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
+import androidx.core.content.FileProvider
 import coil.compose.AsyncImage
 import com.example.data.local.CivicReportEntity
 import com.example.data.model.AppLanguage
@@ -180,34 +181,80 @@ fun CivicEyeComponent(
         )
     }
 
-    // Camera / Photo Launchers
+    // Camera / Single-Photo Evidence Launchers (Full-resolution FileProvider TakePicture + Photo Picker)
+    var pendingCameraPhotoUri by remember { mutableStateOf<Uri?>(null) }
+    var pendingCameraPhotoFile by remember { mutableStateOf<File?>(null) }
+    var cameraPermissionDeniedMessage by remember { mutableStateOf<String?>(null) }
+
+    val createCivicPhotoOutput: () -> Pair<File, Uri>? = {
+        runCatching {
+            val photoDir = File(context.cacheDir, "civic_eye_photos").apply { mkdirs() }
+            val photoFile = File(photoDir, "civic_issue_${System.currentTimeMillis()}.jpg")
+            val contentUri = FileProvider.getUriForFile(
+                context,
+                "${context.packageName}.fileprovider",
+                photoFile
+            )
+            photoFile to contentUri
+        }.getOrNull()
+    }
+
     val photoPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickVisualMedia()
     ) { uri ->
         if (uri != null) {
+            cameraPermissionDeniedMessage = null
             attachedPhotoUri = uri.toString()
             try {
                 context.contentResolver.openInputStream(uri)?.use { stream ->
                     attachedPhotoBitmap = BitmapFactory.decodeStream(stream)
                 }
-            } catch (_: Exception) {}
+            } catch (_: Exception) {
+                attachedPhotoBitmap = null
+            }
         }
     }
 
-    val cameraLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.TakePicturePreview()
-    ) { bitmap ->
-        if (bitmap != null) {
-            attachedPhotoBitmap = bitmap
-            try {
-                val file = File(context.cacheDir, "civic_eye_${System.currentTimeMillis()}.jpg")
-                FileOutputStream(file).use { out ->
-                    bitmap.compress(Bitmap.CompressFormat.JPEG, 90, out)
+    val cameraCaptureLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.TakePicture()
+    ) { saved ->
+        val capturedUri = pendingCameraPhotoUri
+        val capturedFile = pendingCameraPhotoFile
+        if (saved && capturedUri != null) {
+            cameraPermissionDeniedMessage = null
+            // Enforce single-photo attachment by replacing any previously attached photo
+            attachedPhotoUri = capturedUri.toString()
+            attachedPhotoBitmap = runCatching {
+                if (capturedFile != null && capturedFile.exists()) {
+                    BitmapFactory.decodeFile(capturedFile.absolutePath)
+                } else {
+                    context.contentResolver.openInputStream(capturedUri)?.use { BitmapFactory.decodeStream(it) }
                 }
-                attachedPhotoUri = Uri.fromFile(file).toString()
-            } catch (_: Exception) {
-                attachedPhotoUri = "preset://camera_captured_photo"
-            }
+            }.getOrNull()
+            Toast.makeText(
+                context,
+                if (isOdia) "ଫଟୋ ସଂଲଗ୍ନ ହୋଇଛି!" else "Photo captured and attached to report!",
+                Toast.LENGTH_SHORT
+            ).show()
+        } else {
+            runCatching { capturedFile?.delete() }
+        }
+        pendingCameraPhotoUri = null
+        pendingCameraPhotoFile = null
+    }
+
+    val launchCameraCapture: () -> Unit = {
+        val output = createCivicPhotoOutput()
+        if (output != null) {
+            pendingCameraPhotoFile = output.first
+            pendingCameraPhotoUri = output.second
+            cameraCaptureLauncher.launch(output.second)
+        } else {
+            Toast.makeText(
+                context,
+                if (isOdia) "କ୍ୟାମେରା ଫାଇଲ୍ ପ୍ରସ୍ତୁତ ହୋଇପାରିଲା ନାହିଁ" else "Could not prepare camera capture file.",
+                Toast.LENGTH_SHORT
+            ).show()
         }
     }
 
@@ -215,9 +262,28 @@ fun CivicEyeComponent(
         contract = ActivityResultContracts.RequestPermission()
     ) { granted ->
         if (granted) {
-            cameraLauncher.launch(null)
+            cameraPermissionDeniedMessage = null
+            launchCameraCapture()
         } else {
-            Toast.makeText(context, if (isOdia) "କ୍ୟାମେରା ଅନୁମତି ଆବଶ୍ୟକ" else "Camera permission required to capture evidence", Toast.LENGTH_SHORT).show()
+            cameraPermissionDeniedMessage = if (isOdia) {
+                "କ୍ୟାମେରା ଅନୁମତି ନାକଚ ହୋଇଛି। ଆପଣ ଗ୍ୟାଲେରୀରୁ ଫଟୋ ବାଛିପାରିବେ କିମ୍ବା ସେଟିଂସରେ କ୍ୟାମେରା ଅନ୍ କରନ୍ତୁ।"
+            } else {
+                "Camera permission denied. Enable camera access in Settings or choose a photo from gallery."
+            }
+            Toast.makeText(
+                context,
+                if (isOdia) "କ୍ୟାମେରା ଅନୁମତି ଆବଶ୍ୟକ" else "Camera permission is required to take a photo",
+                Toast.LENGTH_SHORT
+            ).show()
+        }
+    }
+
+    val requestCameraAndCapture: () -> Unit = {
+        BalasoreHapticHelper.vibrateButtonClick(context)
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
+            launchCameraCapture()
+        } else {
+            cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
         }
     }
 
@@ -769,88 +835,169 @@ fun CivicEyeComponent(
                     }
                 }
 
-                // 8. PHOTO EVIDENCE CAPTURE
+                // 8. SINGLE-PHOTO CAMERA EVIDENCE CAPTURE (Pothole / Drainage Issue)
                 item {
-                    Text(
-                        text = if (isOdia) "ଫଟୋ ପ୍ରମାଣ (Photo Evidence)" else "Photo Evidence (Optional)",
-                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold)
-                    )
-                    Spacer(modifier = Modifier.height(6.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = if (isOdia) "ଫଟୋ ପ୍ରମାଣ (୧ଟି ଫଟୋ ସଂଲଗ୍ନ କରନ୍ତୁ)" else "Photo Evidence (Attach 1 Photo)",
+                                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold)
+                            )
+                            Text(
+                                text = if (isOdia) "ଖାଲଖମା କିମ୍ବା ନାଳ ସମସ୍ୟାର ଫଟୋ କ୍ୟାମେରାରେ ଉଠାନ୍ତୁ" else "Capture a clear photo of the pothole or drainage issue before submitting",
+                                fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        if (attachedPhotoUri != null) {
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = Color(0xFFDCFCE7)
+                            ) {
+                                Text(
+                                    text = "1 / 1 Photo",
+                                    color = Color(0xFF15803D),
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                                )
+                            }
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    if (!cameraPermissionDeniedMessage.isNullOrBlank()) {
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color = MaterialTheme.colorScheme.errorContainer,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(bottom = 8.dp)
+                                .testTag("civic_eye_camera_permission_banner")
+                        ) {
+                            Text(
+                                text = cameraPermissionDeniedMessage ?: "",
+                                fontSize = 11.5.sp,
+                                color = MaterialTheme.colorScheme.onErrorContainer,
+                                modifier = Modifier.padding(10.dp)
+                            )
+                        }
+                    }
 
                     if (attachedPhotoBitmap != null || attachedPhotoUri != null) {
                         Card(
                             shape = RoundedCornerShape(12.dp),
-                            modifier = Modifier.fillMaxWidth()
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("civic_eye_attached_photo_card")
                         ) {
-                            Box(modifier = Modifier.fillMaxWidth().height(160.dp)) {
-                                if (attachedPhotoBitmap != null) {
-                                    androidx.compose.foundation.Image(
-                                        bitmap = attachedPhotoBitmap!!.asImageBitmap(),
-                                        contentDescription = "Evidence Preview",
-                                        modifier = Modifier.fillMaxSize(),
-                                        contentScale = ContentScale.Crop
-                                    )
-                                } else {
-                                    AsyncImage(
-                                        model = attachedPhotoUri,
-                                        contentDescription = "Evidence Preview",
-                                        modifier = Modifier.fillMaxSize(),
-                                        contentScale = ContentScale.Crop
-                                    )
-                                }
+                            Column {
+                                Box(modifier = Modifier.fillMaxWidth().height(180.dp)) {
+                                    if (attachedPhotoBitmap != null) {
+                                        androidx.compose.foundation.Image(
+                                            bitmap = attachedPhotoBitmap!!.asImageBitmap(),
+                                            contentDescription = "Attached civic issue photo",
+                                            modifier = Modifier.fillMaxSize(),
+                                            contentScale = ContentScale.Crop
+                                        )
+                                    } else {
+                                        AsyncImage(
+                                            model = attachedPhotoUri,
+                                            contentDescription = "Attached civic issue photo",
+                                            modifier = Modifier.fillMaxSize(),
+                                            contentScale = ContentScale.Crop
+                                        )
+                                    }
 
-                                Surface(
-                                    color = Color.Black.copy(alpha = 0.65f),
-                                    shape = RoundedCornerShape(bottomStart = 8.dp),
-                                    modifier = Modifier.align(Alignment.TopEnd)
-                                ) {
-                                    IconButton(
-                                        onClick = {
-                                            attachedPhotoBitmap = null
-                                            attachedPhotoUri = null
-                                        },
-                                        modifier = Modifier.size(36.dp)
+                                    Surface(
+                                        color = Color.Black.copy(alpha = 0.65f),
+                                        shape = RoundedCornerShape(bottomStart = 8.dp),
+                                        modifier = Modifier.align(Alignment.TopEnd)
                                     ) {
-                                        Icon(Icons.Default.Delete, contentDescription = "Remove Photo", tint = Color.White, modifier = Modifier.size(18.dp))
+                                        IconButton(
+                                            onClick = {
+                                                attachedPhotoBitmap = null
+                                                attachedPhotoUri = null
+                                            },
+                                            modifier = Modifier
+                                                .size(48.dp)
+                                                .testTag("civic_eye_remove_photo_btn")
+                                        ) {
+                                            Icon(Icons.Default.Delete, contentDescription = "Remove Photo", tint = Color.White, modifier = Modifier.size(20.dp))
+                                        }
+                                    }
+
+                                    Surface(
+                                        color = Color.Black.copy(alpha = 0.6f),
+                                        shape = RoundedCornerShape(topEnd = 8.dp),
+                                        modifier = Modifier.align(Alignment.BottomStart)
+                                    ) {
+                                        Text(
+                                            text = "📍 $selectedWard",
+                                            color = Color.White,
+                                            fontSize = 11.sp,
+                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                        )
                                     }
                                 }
 
-                                Surface(
-                                    color = Color.Black.copy(alpha = 0.6f),
-                                    shape = RoundedCornerShape(topEnd = 8.dp),
-                                    modifier = Modifier.align(Alignment.BottomStart)
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 10.dp, vertical = 8.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
-                                    Text(
-                                        text = "📍 $selectedWard",
-                                        color = Color.White,
-                                        fontSize = 11.sp,
-                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                                    )
+                                    OutlinedButton(
+                                        onClick = requestCameraAndCapture,
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .heightIn(min = 48.dp)
+                                            .testTag("civic_eye_retake_photo_btn"),
+                                        shape = RoundedCornerShape(10.dp)
+                                    ) {
+                                        Icon(Icons.Default.CameraAlt, contentDescription = "Retake photo", modifier = Modifier.size(16.dp))
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text(if (isOdia) "ପୁନଃ ଫଟୋ ଉଠାନ୍ତୁ" else "Retake Photo", fontSize = 12.sp)
+                                    }
+                                    OutlinedButton(
+                                        onClick = {
+                                            BalasoreHapticHelper.vibrateButtonClick(context)
+                                            attachedPhotoBitmap = null
+                                            attachedPhotoUri = null
+                                        },
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .heightIn(min = 48.dp)
+                                            .testTag("civic_eye_clear_photo_btn"),
+                                        shape = RoundedCornerShape(10.dp)
+                                    ) {
+                                        Icon(Icons.Default.Delete, contentDescription = "Remove attached photo", modifier = Modifier.size(16.dp))
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text(if (isOdia) "ଫଟୋ ହଟାନ୍ତୁ" else "Remove", fontSize = 12.sp)
+                                    }
                                 }
                             }
                         }
                     } else {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
-                            OutlinedButton(
-                                onClick = {
-                                    BalasoreHapticHelper.vibrateButtonClick(context)
-                                    if (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
-                                        cameraLauncher.launch(null)
-                                    } else {
-                                        cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
-                                    }
-                                },
+                            Button(
+                                onClick = requestCameraAndCapture,
                                 modifier = Modifier
                                     .weight(1f)
+                                    .heightIn(min = 48.dp)
                                     .testTag("civic_eye_camera_btn"),
                                 shape = RoundedCornerShape(10.dp)
                             ) {
-                                Icon(Icons.Default.CameraAlt, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Icon(Icons.Default.CameraAlt, contentDescription = "Take Photo with Camera", modifier = Modifier.size(18.dp))
                                 Spacer(modifier = Modifier.width(6.dp))
-                                Text(if (isOdia) "କ୍ୟାମେରା" else "Take Photo", fontSize = 12.sp)
+                                Text(if (isOdia) "କ୍ୟାମେରା ଫଟୋ" else "Take Photo", fontSize = 12.5.sp, fontWeight = FontWeight.Bold)
                             }
 
                             OutlinedButton(
@@ -862,28 +1009,13 @@ fun CivicEyeComponent(
                                 },
                                 modifier = Modifier
                                     .weight(1f)
+                                    .heightIn(min = 48.dp)
                                     .testTag("civic_eye_gallery_btn"),
                                 shape = RoundedCornerShape(10.dp)
                             ) {
-                                Icon(Icons.Default.Image, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Icon(Icons.Default.Image, contentDescription = "Choose Photo from Gallery", modifier = Modifier.size(18.dp))
                                 Spacer(modifier = Modifier.width(6.dp))
-                                Text(if (isOdia) "ଗ୍ୟାଲେରୀ" else "Pick Photo", fontSize = 12.sp)
-                            }
-
-                            OutlinedButton(
-                                onClick = {
-                                    BalasoreHapticHelper.vibrateButtonClick(context)
-                                    attachedPhotoUri = "preset://civic_evidence_${System.currentTimeMillis()}"
-                                    Toast.makeText(context, "Field inspection photo attached to Room record", Toast.LENGTH_SHORT).show()
-                                },
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .testTag("civic_eye_sample_photo_btn"),
-                                shape = RoundedCornerShape(10.dp)
-                            ) {
-                                Icon(Icons.Default.AddAPhoto, contentDescription = null, modifier = Modifier.size(16.dp))
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text(if (isOdia) "ନମୁନା ଫଟୋ" else "Quick Snap", fontSize = 11.5.sp)
+                                Text(if (isOdia) "ଗ୍ୟାଲେରୀରୁ ବାଛନ୍ତୁ" else "Choose Photo", fontSize = 12.5.sp)
                             }
                         }
                     }

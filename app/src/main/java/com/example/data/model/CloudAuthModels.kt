@@ -19,7 +19,10 @@ data class UserWeatherPreferences(
     val highTideAlertHoursBefore: Int = 2,
     val minTempThreshold: Int = 12,
     val maxTempThreshold: Int = 38,
-    val preferredNewsCategories: List<String> = listOf("Civic", "Weather", "Defense", "Tourism", "Culture"),
+    val preferredNewsCategories: List<String> = listOf("Civic", "Events", "Traffic", "Weather", "Defense", "Tourism", "Culture"),
+    val minWeatherAlertSeverity: String = "MODERATE", // "ADVISORY", "MODERATE", "SEVERE", "CRITICAL"
+    val notificationFrequency: String = "REAL_TIME", // "REAL_TIME", "HOURLY_DIGEST", "DAILY_SUMMARY"
+    val preferredNotificationWindow: String = "ANYTIME", // "ANYTIME", "MORNING_8AM", "EVENING_7PM", "QUIET_NIGHT_10PM_7AM"
     val updatedAt: Long = System.currentTimeMillis()
 ) {
     fun toFirestoreMap(): Map<String, Any> {
@@ -43,6 +46,9 @@ data class UserWeatherPreferences(
             "minTempThreshold" to minTempThreshold,
             "maxTempThreshold" to maxTempThreshold,
             "preferredNewsCategories" to preferredNewsCategories,
+            "minWeatherAlertSeverity" to minWeatherAlertSeverity,
+            "notificationFrequency" to notificationFrequency,
+            "preferredNotificationWindow" to preferredNotificationWindow,
             "updatedAt" to updatedAt
         )
         return map.filterValues { it != null }
@@ -54,7 +60,7 @@ data class UserWeatherPreferences(
             val newsCats = (data["preferredNewsCategories"] as? List<*>)
                 ?.mapNotNull { it?.toString() }
                 ?.takeIf { it.isNotEmpty() }
-                ?: listOf("Civic", "Weather", "Defense", "Tourism", "Culture")
+                ?: listOf("Civic", "Events", "Traffic", "Weather", "Defense", "Tourism", "Culture")
 
             return UserWeatherPreferences(
                 userId = data["userId"] as? String ?: "",
@@ -76,6 +82,9 @@ data class UserWeatherPreferences(
                 minTempThreshold = (data["minTempThreshold"] as? Number)?.toInt() ?: 12,
                 maxTempThreshold = (data["maxTempThreshold"] as? Number)?.toInt() ?: 38,
                 preferredNewsCategories = newsCats,
+                minWeatherAlertSeverity = data["minWeatherAlertSeverity"] as? String ?: "MODERATE",
+                notificationFrequency = data["notificationFrequency"] as? String ?: "REAL_TIME",
+                preferredNotificationWindow = data["preferredNotificationWindow"] as? String ?: "ANYTIME",
                 updatedAt = (data["updatedAt"] as? Number)?.toLong() ?: System.currentTimeMillis()
             )
         }

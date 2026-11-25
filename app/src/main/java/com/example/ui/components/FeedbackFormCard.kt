@@ -163,11 +163,13 @@ fun FeedbackFormCard(
 
     val categories = remember {
         listOf(
+            "News",
+            "Weather",
+            "Tourism",
+            "General",
             "Civic & Roads",
             "Tourism & Beaches",
-            "Sanitation & Waste",
             "Heritage & Culture",
-            "Healthcare & Hospitals",
             "App Features & Feedback",
             "Disaster & Coastal Safety"
         )

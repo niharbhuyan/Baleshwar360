@@ -3,6 +3,8 @@ import socketserver
 import os
 import urllib.parse
 import re
+import tempfile
+import zipfile
 
 PORT = 3000
 DIRECTORY = "/app/applet"
@@ -273,6 +275,37 @@ def get_bundle_path():
             return c
     return None
 
+def build_all_assets_zip():
+    """Creates/updates a combined ZIP containing the signed .AAB bundle and all graphic assets."""
+    zip_path = os.path.join(tempfile.gettempdir(), "Balasore360_All_Release_Assets.zip")
+    bundle_path = get_bundle_path()
+    graphic_files = [
+        ("marketing_assets/app_icon_512.png", "graphics/app_icon_512.png"),
+        ("marketing_assets/feature_graphic.jpg", "graphics/feature_graphic.jpg"),
+        ("marketing_assets/app_logo_transparent.png", "graphics/app_logo_transparent.png"),
+        ("marketing_assets/screenshot_1_tourism.png", "graphics/screenshot_1_tourism.png"),
+        ("marketing_assets/screenshot_2_weather.png", "graphics/screenshot_2_weather.png"),
+        ("marketing_assets/screenshot_3_news.png", "graphics/screenshot_3_news.png"),
+        ("app_icon_512.png", "graphics/app_icon_512.png"),
+        ("feature_graphic.png", "graphics/feature_graphic.png"),
+    ]
+    added = set()
+    with zipfile.ZipFile(zip_path, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+        if bundle_path and os.path.exists(bundle_path):
+            arcname = os.path.basename(bundle_path)
+            zf.write(bundle_path, arcname=arcname)
+            added.add(arcname)
+        for rel_src, arcname in graphic_files:
+            if arcname in added:
+                continue
+            full_src = os.path.join(DIRECTORY, rel_src)
+            if not os.path.exists(full_src):
+                full_src = rel_src
+            if os.path.exists(full_src):
+                zf.write(full_src, arcname=arcname)
+                added.add(arcname)
+    return zip_path if added else None
+
 class DownloadHandler(http.server.SimpleHTTPRequestHandler):
     def send_range_file(self, filepath, filename, content_type="application/octet-stream", is_head=False):
         if not os.path.exists(filepath):
@@ -371,6 +404,15 @@ class DownloadHandler(http.server.SimpleHTTPRequestHandler):
                 self.send_error(404, "AAB not found")
                 return
 
+        if url_path in ["/download/all-assets", "/Balasore360_All_Release_Assets.zip"]:
+            zip_path = build_all_assets_zip()
+            if zip_path and os.path.exists(zip_path):
+                self.send_range_file(zip_path, "Balasore360_All_Release_Assets.zip", "application/zip", is_head=False)
+                return
+            else:
+                self.send_error(404, "Release assets bundle not available")
+                return
+
         super().do_GET()
 
     def do_HEAD(self):
@@ -408,6 +450,12 @@ class DownloadHandler(http.server.SimpleHTTPRequestHandler):
             download_name = os.path.basename(url_path)
             self.send_range_file(bundle_path, download_name, "application/octet-stream", is_head=True)
             return
+
+        if url_path in ["/download/all-assets", "/Balasore360_All_Release_Assets.zip"]:
+            zip_path = build_all_assets_zip()
+            if zip_path and os.path.exists(zip_path):
+                self.send_range_file(zip_path, "Balasore360_All_Release_Assets.zip", "application/zip", is_head=True)
+                return
 
         super().do_HEAD()
 

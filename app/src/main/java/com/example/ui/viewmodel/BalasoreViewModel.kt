@@ -665,7 +665,11 @@ enum class UniqueFeatureSheetType {
     // Balasore Real-Time Local Bus Tracker (Static Route JSON + Mock API Live Arrivals)
     LOCAL_BUS_TRACKER,
     // Chandipur Vanishing Sea 30-Min Tide Reminder & Custom Alert Sound Settings Screen
-    CHANDIPUR_TIDE_REMINDER_SETTINGS
+    CHANDIPUR_TIDE_REMINDER_SETTINGS,
+    // Smart Commute (BLS-BBS/HWH Trains & Local Buses) + Balaramgadi Harbor & Motiganj Mandi Price Board
+    SMART_COMMUTE_MANDI_BOARD,
+    // Odia & English Voice News Reader & Audio Briefings ("Listen to Balasore Today")
+    BALASORE_AUDIO_BRIEFING
 }
 
 data class GroundingState(

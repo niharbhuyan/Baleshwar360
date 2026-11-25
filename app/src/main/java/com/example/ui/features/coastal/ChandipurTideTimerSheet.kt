@@ -745,6 +745,95 @@ fun ChandipurTideTimerSheet(
 
         Spacer(modifier = Modifier.height(16.dp))
 
+        // Quick 30-Min Recession/Return Alert Preset & Horseshoe Crab Spotting Tips
+        var showCrabTips by remember { mutableStateOf(true) }
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .testTag("chandipur_horseshoe_crab_tips_card"),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFFECFDF5)),
+            border = BorderStroke(1.2.dp, Color(0xFF34D399))
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                        Text("🦀", fontSize = 20.sp)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Column {
+                            Text(
+                                text = if (language == AppLanguage.ODIA) "ଅଶ୍ୱଖୁର କଙ୍କଡ଼ା (Horseshoe Crab) ଦର୍ଶନ ଟିପ୍ସ" else "Horseshoe Crab Spotting Guide",
+                                style = MaterialTheme.typography.titleSmall.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF065F46)
+                                )
+                            )
+                            Text(
+                                text = if (language == AppLanguage.ODIA) "୪୫ କୋଟି ବର୍ଷ ପୁରୁଣା ଜୀବନ୍ତ ଜୀବାଶ୍ମ • ଚାନ୍ଦିପୁର-ବଳରାମଗଡ଼ି" else "450-Million-Year Living Fossils • Best Low-Tide Zones",
+                                fontSize = 10.5.sp,
+                                color = Color(0xFF047857)
+                            )
+                        }
+                    }
+
+                    OutlinedButton(
+                        onClick = {
+                            alertThresholdMinutes = 30f
+                            isAlarmEnabled = true
+                            TideAndWeatherNotificationManager.setWalkWindowAlertsEnabled(context, true)
+                            TideAndWeatherNotificationManager.setWalkWindowAdvanceMinutes(context, 30)
+                            com.example.data.service.ChandipurSafeWalkService.scheduleNextWalkWindowAlert(context)
+                            Toast.makeText(
+                                context,
+                                "🔔 30-Min Tide Recession & Return Alert Armed!",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        },
+                        shape = RoundedCornerShape(8.dp),
+                        border = BorderStroke(1.dp, Color(0xFF059669)),
+                        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                        modifier = Modifier.testTag("chandipur_30min_quick_preset_btn")
+                    ) {
+                        Text(
+                            text = if (isAlarmEnabled && alertThresholdMinutes.toInt() == 30) "✓ 30m Armed" else "Arm 30m Alert",
+                            fontSize = 10.5.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF047857)
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                AnimatedVisibility(visible = showCrabTips) {
+                    Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                        listOf(
+                            "Best Spotting Window: 45–90 mins after sea starts receding near Balaramgadi estuary & Panthanivas mudflats.",
+                            "Where to Look: Shallow rippled wet-sand pools 400m–1.2 km out; look for paired horseshoe tracks.",
+                            "Conservation Rule: Observe from 2 meters away—never pick them up by the tail (telson) or flip their shell.",
+                            "Red Ghost Crabs: Best seen along upper dry-to-wet sand transition near Kasafal & Chandipur embankment."
+                        ).forEach { tip ->
+                            Row(verticalAlignment = Alignment.Top) {
+                                Text("• ", color = Color(0xFF059669), fontWeight = FontWeight.Bold)
+                                Text(
+                                    text = tip,
+                                    fontSize = 11.5.sp,
+                                    lineHeight = 16.sp,
+                                    color = Color(0xFF064E3B)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
         // Important Coastal Safety Guidelines
         Card(
             modifier = Modifier.fillMaxWidth(),

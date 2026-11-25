@@ -7,6 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Noto+Sans+Oriya:wght@500;700&display=swap" rel="stylesheet">
+  <script src="./qrcode.min.js" defer></script>
   <style>
     :root {
       --primary: #0284c7;
@@ -239,6 +240,316 @@
       background: linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%);
       transform: translateY(-2px);
       box-shadow: 0 6px 20px rgba(2, 132, 199, 0.45);
+    }
+    .download-btn-all-assets {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      background: linear-gradient(135deg, #7c3aed 0%, #4f46e5 100%);
+      color: white;
+      text-decoration: none;
+      font-weight: 700;
+      font-size: 15px;
+      padding: 13px 24px;
+      border-radius: 12px;
+      border: 1px solid rgba(167, 139, 250, 0.55);
+      box-shadow: 0 4px 14px rgba(124, 58, 237, 0.35);
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    .download-btn-all-assets:hover:not(:disabled) {
+      background: linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%);
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(124, 58, 237, 0.45);
+    }
+    .download-btn-all-assets:disabled {
+      opacity: 0.78;
+      cursor: wait;
+    }
+    .download-btn-qr {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 9px;
+      background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+      color: #f8fafc;
+      text-decoration: none;
+      font-weight: 700;
+      font-size: 14.5px;
+      padding: 13px 22px;
+      border-radius: 12px;
+      border: 1.5px solid #38bdf8;
+      box-shadow: 0 4px 14px rgba(56, 189, 248, 0.25);
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    .download-btn-qr:hover {
+      background: linear-gradient(135deg, #1e293b 0%, #0369a1 100%);
+      color: #ffffff;
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(56, 189, 248, 0.4);
+    }
+    .qr-modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(2, 6, 23, 0.78);
+      backdrop-filter: blur(6px);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      z-index: 9999;
+    }
+    .qr-modal-backdrop.open {
+      display: flex;
+    }
+    .qr-modal-dialog {
+      width: 100%;
+      max-width: 420px;
+      background: #0f172a;
+      border: 1px solid #334155;
+      border-radius: 22px;
+      padding: 24px;
+      color: #f8fafc;
+      box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55);
+      position: relative;
+      text-align: center;
+    }
+    .qr-modal-close {
+      position: absolute;
+      top: 14px;
+      right: 14px;
+      width: 34px;
+      height: 34px;
+      border-radius: 50%;
+      border: 1px solid #334155;
+      background: #1e293b;
+      color: #cbd5e1;
+      font-size: 18px;
+      line-height: 1;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .qr-modal-close:hover {
+      background: #334155;
+      color: #ffffff;
+    }
+    .qr-mode-tabs {
+      display: flex;
+      gap: 6px;
+      background: #1e293b;
+      padding: 4px;
+      border-radius: 10px;
+      margin: 14px 0 16px;
+    }
+    .qr-mode-tab {
+      flex: 1;
+      background: transparent;
+      border: none;
+      color: #94a3b8;
+      font-size: 12px;
+      font-weight: 700;
+      padding: 7px 8px;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    .qr-mode-tab.active {
+      background: #0284c7;
+      color: #ffffff;
+    }
+    .qr-canvas-frame {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      background: #ffffff;
+      padding: 14px;
+      border-radius: 16px;
+      border: 4px solid #38bdf8;
+      margin: 4px auto 14px;
+      min-width: 248px;
+      min-height: 248px;
+    }
+    .qr-canvas-frame img,
+    .qr-canvas-frame canvas {
+      display: block;
+      width: 220px !important;
+      height: 220px !important;
+    }
+    .qr-url-preview {
+      font-family: monospace;
+      font-size: 11px;
+      color: #7dd3fc;
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 10px;
+      padding: 8px 10px;
+      word-break: break-all;
+      margin-bottom: 12px;
+    }
+    .qr-modal-actions {
+      display: flex;
+      gap: 8px;
+      justify-content: center;
+      margin-bottom: 12px;
+    }
+    .qr-modal-action-btn {
+      flex: 1;
+      background: #1e293b;
+      color: #e2e8f0;
+      border: 1px solid #475569;
+      border-radius: 10px;
+      padding: 9px 12px;
+      font-size: 12.5px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .qr-modal-action-btn:hover {
+      background: #334155;
+      border-color: #38bdf8;
+    }
+    .download-btn-history {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      background: #1e293b;
+      color: #e2e8f0;
+      font-weight: 700;
+      font-size: 14.5px;
+      padding: 13px 20px;
+      border-radius: 12px;
+      border: 1.5px solid #475569;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    .download-btn-history:hover {
+      background: #334155;
+      border-color: #38bdf8;
+      color: #ffffff;
+      transform: translateY(-2px);
+    }
+    .qr-history-count {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 22px;
+      height: 22px;
+      padding: 0 6px;
+      border-radius: 999px;
+      background: rgba(56, 189, 248, 0.2);
+      color: #7dd3fc;
+      font-size: 11.5px;
+      font-weight: 800;
+    }
+    .qr-history-dialog {
+      max-width: 480px;
+      text-align: left;
+    }
+    .qr-history-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      max-height: 330px;
+      overflow-y: auto;
+      margin: 16px 0 14px;
+      padding-right: 2px;
+    }
+    .qr-history-item {
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 14px;
+      padding: 12px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .qr-history-item-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+    }
+    .qr-history-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11.5px;
+      font-weight: 800;
+      color: #38bdf8;
+      background: rgba(56, 189, 248, 0.14);
+      padding: 3px 9px;
+      border-radius: 999px;
+    }
+    .qr-history-time {
+      font-size: 11px;
+      color: #94a3b8;
+    }
+    .qr-history-url {
+      font-family: monospace;
+      font-size: 11px;
+      color: #cbd5e1;
+      word-break: break-all;
+      line-height: 1.4;
+    }
+    .qr-history-item-actions {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+    .qr-history-redownload {
+      flex: 1;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      background: linear-gradient(135deg, #16a34a 0%, #15803d 100%);
+      color: #ffffff;
+      text-decoration: none;
+      border: none;
+      border-radius: 9px;
+      padding: 8px 12px;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .qr-history-redownload:hover {
+      background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+    }
+    .qr-history-secondary-btn {
+      background: #0f172a;
+      color: #e2e8f0;
+      border: 1px solid #475569;
+      border-radius: 9px;
+      padding: 8px 11px;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .qr-history-secondary-btn:hover {
+      border-color: #38bdf8;
+      color: #ffffff;
+    }
+    .qr-history-empty {
+      text-align: center;
+      background: #1e293b;
+      border: 1px dashed #475569;
+      border-radius: 14px;
+      padding: 24px 16px;
+      color: #94a3b8;
+      font-size: 13px;
+      line-height: 1.55;
+    }
+    .qr-history-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      padding-top: 8px;
+      border-top: 1px solid #1e293b;
     }
     .privacy-cta-btn {
       display: inline-flex;
@@ -698,6 +1009,19 @@
       <a href="/Balasore360_PlayStore_Assets.zip" class="download-btn-secondary" download="Balasore360_PlayStore_Assets.zip">
         <span>🎨 Graphic Assets ZIP</span>
       </a>
+      <button type="button" class="download-btn-all-assets" onclick="downloadAllReleaseAssets()" id="downloadAllAssetsBtn" title="Download a single ZIP containing both the .AAB bundle and all Play Store graphic assets">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8v13H3V8"/><path d="M1 3h22v5H1z"/><path d="M10 12h4"/></svg>
+        <span id="downloadAllAssetsBtnText">Download All Assets (.AAB + Graphics ZIP)</span>
+      </button>
+      <button type="button" class="download-btn-qr" onclick="openAabQrModal('aab')" id="scanQrAabBtn" title="Display a scannable QR code on desktop to initiate the .AAB download on your mobile device">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3h-3z"/><path d="M20 14v3h-3"/><path d="M14 20h7"/><path d="M20 17v3"/></svg>
+        <span>Scan QR for Mobile (.AAB)</span>
+      </button>
+      <button type="button" class="download-btn-history" onclick="openQrHistoryModal()" id="qrScanHistoryBtn" title="View previously scanned QR codes for quick re-downloading">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l3 2"/></svg>
+        <span>Scan History</span>
+        <span class="qr-history-count" id="qrHistoryCountBadge">0</span>
+      </button>
       <button type="button" class="download-btn-share" onclick="shareAppDownloadUrl()" id="shareReleaseCardBtn" title="Share app download link with friends & family">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
         <span id="shareReleaseCardBtnText">Share App with Friends & Family</span>
@@ -1068,6 +1392,557 @@
         prompt('Copy app download URL to share:', `${text} ${url}`);
       });
     }
+
+    function computeCrc32(bytes) {
+      let crc = 0xFFFFFFFF;
+      for (let i = 0; i < bytes.length; i++) {
+        crc ^= bytes[i];
+        for (let bit = 0; bit < 8; bit++) {
+          crc = (crc >>> 1) ^ (0xEDB88320 & -(crc & 1));
+        }
+      }
+      return (crc ^ 0xFFFFFFFF) >>> 0;
+    }
+
+    function createZipBlob(entries) {
+      const encoder = new TextEncoder();
+      const localParts = [];
+      const centralParts = [];
+      let offset = 0;
+
+      for (const entry of entries) {
+        const nameBytes = encoder.encode(entry.name);
+        const dataBytes = entry.data instanceof Uint8Array ? entry.data : new Uint8Array(entry.data);
+        const crc = computeCrc32(dataBytes);
+        const size = dataBytes.length;
+
+        const localHeader = new ArrayBuffer(30 + nameBytes.length);
+        const lv = new DataView(localHeader);
+        lv.setUint32(0, 0x04034b50, true);
+        lv.setUint16(4, 20, true);
+        lv.setUint16(6, 0, true);
+        lv.setUint16(8, 0, true);
+        lv.setUint16(10, 0, true);
+        lv.setUint16(12, 0, true);
+        lv.setUint32(14, crc, true);
+        lv.setUint32(18, size, true);
+        lv.setUint32(22, size, true);
+        lv.setUint16(26, nameBytes.length, true);
+        lv.setUint16(28, 0, true);
+        new Uint8Array(localHeader, 30).set(nameBytes);
+
+        localParts.push(new Uint8Array(localHeader), dataBytes);
+
+        const centralHeader = new ArrayBuffer(46 + nameBytes.length);
+        const cv = new DataView(centralHeader);
+        cv.setUint32(0, 0x02014b50, true);
+        cv.setUint16(4, 20, true);
+        cv.setUint16(6, 20, true);
+        cv.setUint16(8, 0, true);
+        cv.setUint16(10, 0, true);
+        cv.setUint16(12, 0, true);
+        cv.setUint16(14, 0, true);
+        cv.setUint32(16, crc, true);
+        cv.setUint32(20, size, true);
+        cv.setUint32(24, size, true);
+        cv.setUint16(28, nameBytes.length, true);
+        cv.setUint16(30, 0, true);
+        cv.setUint16(32, 0, true);
+        cv.setUint16(34, 0, true);
+        cv.setUint16(36, 0, true);
+        cv.setUint32(38, 0, true);
+        cv.setUint32(42, offset, true);
+        new Uint8Array(centralHeader, 46).set(nameBytes);
+
+        centralParts.push(new Uint8Array(centralHeader));
+        offset += localHeader.byteLength + size;
+      }
+
+      const centralSize = centralParts.reduce((sum, part) => sum + part.byteLength, 0);
+      const endRecord = new ArrayBuffer(22);
+      const ev = new DataView(endRecord);
+      ev.setUint32(0, 0x06054b50, true);
+      ev.setUint16(4, 0, true);
+      ev.setUint16(6, 0, true);
+      ev.setUint16(8, entries.length, true);
+      ev.setUint16(10, entries.length, true);
+      ev.setUint32(12, centralSize, true);
+      ev.setUint32(16, offset, true);
+      ev.setUint16(20, 0, true);
+
+      return new Blob([...localParts, ...centralParts, new Uint8Array(endRecord)], { type: 'application/zip' });
+    }
+
+    async function downloadAllReleaseAssets() {
+      const btn = document.getElementById('downloadAllAssetsBtn');
+      const btnText = document.getElementById('downloadAllAssetsBtnText');
+      const defaultLabel = 'Download All Assets (.AAB + Graphics ZIP)';
+      if (btn) btn.disabled = true;
+      if (btnText) btnText.innerText = 'Preparing .AAB + Graphics ZIP...';
+
+      try {
+        for (const bundleUrl of ['/download/all-assets', '/Balasore360_All_Release_Assets.zip']) {
+          try {
+            const headResp = await fetch(bundleUrl, { method: 'HEAD' });
+            const ct = (headResp.headers.get('content-type') || '').toLowerCase();
+            if (headResp.ok && (ct.includes('zip') || ct.includes('octet-stream'))) {
+              const link = document.createElement('a');
+              link.href = bundleUrl;
+              link.download = 'Balasore360_All_Release_Assets.zip';
+              document.body.appendChild(link);
+              link.click();
+              document.body.removeChild(link);
+              if (btnText) btnText.innerText = '✓ All Assets ZIP Download Started!';
+              setTimeout(() => {
+                if (btnText) btnText.innerText = defaultLabel;
+                if (btn) btn.disabled = false;
+              }, 3000);
+              return;
+            }
+          } catch (_) {}
+        }
+
+        const aabLink = document.querySelector('.release-card .release-buttons .download-btn-aab');
+        const primaryAabHref = aabLink ? aabLink.getAttribute('href') : '/Balasore360-v1.0.5-release.aab';
+        const primaryAabName = (aabLink && aabLink.getAttribute('download')) || 'Balasore360-v1.0.5-release.aab';
+
+        const entries = [];
+        let aabAdded = false;
+        for (const aabUrl of [primaryAabHref, '/download/aab']) {
+          if (!aabUrl || aabAdded) continue;
+          try {
+            const res = await fetch(aabUrl);
+            const ct = (res.headers.get('content-type') || '').toLowerCase();
+            if (res.ok && !ct.includes('text/html')) {
+              entries.push({ name: primaryAabName, data: new Uint8Array(await res.arrayBuffer()) });
+              aabAdded = true;
+            }
+          } catch (_) {}
+        }
+
+        const graphicCandidates = [
+          { url: '/Balasore360_PlayStore_Assets.zip', name: 'graphics/Balasore360_PlayStore_Assets.zip' },
+          { url: '/marketing_assets/app_icon_512.png', name: 'graphics/app_icon_512.png' },
+          { url: '/app_icon_512.png', name: 'graphics/app_icon_512.png' },
+          { url: '/assets/app_icon_512.png', name: 'graphics/app_icon_512.png' },
+          { url: '/marketing_assets/feature_graphic.jpg', name: 'graphics/feature_graphic.jpg' },
+          { url: '/feature_graphic.png', name: 'graphics/feature_graphic.png' },
+          { url: '/marketing_assets/app_logo_transparent.png', name: 'graphics/app_logo_transparent.png' },
+          { url: '/marketing_assets/screenshot_1_tourism.png', name: 'graphics/screenshot_1_tourism.png' },
+          { url: '/marketing_assets/screenshot_2_weather.png', name: 'graphics/screenshot_2_weather.png' },
+          { url: '/marketing_assets/screenshot_3_news.png', name: 'graphics/screenshot_3_news.png' }
+        ];
+
+        const seenNames = new Set(entries.map(e => e.name));
+        for (const asset of graphicCandidates) {
+          if (seenNames.has(asset.name)) continue;
+          try {
+            const res = await fetch(asset.url);
+            const ct = (res.headers.get('content-type') || '').toLowerCase();
+            if (res.ok && !ct.includes('text/html')) {
+              entries.push({ name: asset.name, data: new Uint8Array(await res.arrayBuffer()) });
+              seenNames.add(asset.name);
+            }
+          } catch (_) {}
+        }
+
+        if (entries.length === 0) {
+          const fallbackLink = document.createElement('a');
+          fallbackLink.href = '/download/all-assets';
+          fallbackLink.download = 'Balasore360_All_Release_Assets.zip';
+          document.body.appendChild(fallbackLink);
+          fallbackLink.click();
+          document.body.removeChild(fallbackLink);
+        } else {
+          const zipBlob = createZipBlob(entries);
+          const blobUrl = URL.createObjectURL(zipBlob);
+          const link = document.createElement('a');
+          link.href = blobUrl;
+          link.download = 'Balasore360_All_Release_Assets.zip';
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
+        }
+
+        if (btnText) btnText.innerText = '✓ Downloaded All Assets ZIP!';
+      } catch (err) {
+        console.error('Failed to download all assets ZIP:', err);
+        if (btnText) btnText.innerText = 'Retry Download All Assets';
+      } finally {
+        setTimeout(() => {
+          if (btnText) btnText.innerText = defaultLabel;
+          if (btn) btn.disabled = false;
+        }, 3000);
+      }
+    }
+
+    const QR_HISTORY_STORAGE_KEY = 'balasore360_qr_scan_history_v1';
+    let currentQrTargetUrl = '';
+
+    function getQrModeLabel(mode) {
+      if (mode === 'alt') return 'Alternate /download/aab';
+      if (mode === 'all') return 'All Assets ZIP';
+      return 'Direct .AAB Bundle';
+    }
+
+    function isSafeDownloadUrl(url) {
+      return typeof url === 'string' && (/^https?:\/\//i.test(url) || url.startsWith('/'));
+    }
+
+    function loadQrScanHistory() {
+      try {
+        const raw = localStorage.getItem(QR_HISTORY_STORAGE_KEY);
+        if (!raw) return [];
+        const parsed = JSON.parse(raw);
+        if (!Array.isArray(parsed)) return [];
+        return parsed.filter(item => item && isSafeDownloadUrl(item.url));
+      } catch (_) {
+        return [];
+      }
+    }
+
+    function saveQrScanHistory(items) {
+      try {
+        localStorage.setItem(QR_HISTORY_STORAGE_KEY, JSON.stringify(items.slice(0, 20)));
+      } catch (_) {}
+      updateQrHistoryBadge();
+    }
+
+    function recordQrScanHistory(mode, url) {
+      if (!isSafeDownloadUrl(url)) return;
+      const items = loadQrScanHistory();
+      const nowIso = new Date().toISOString();
+      const existingIdx = items.findIndex(item => item.url === url);
+      const filename = url.split('/').pop() || 'Balasore360-release.aab';
+      if (existingIdx >= 0) {
+        const existing = items.splice(existingIdx, 1)[0];
+        items.unshift({
+          mode: mode || existing.mode || 'aab',
+          label: getQrModeLabel(mode || existing.mode),
+          url: url,
+          filename: filename,
+          scannedAt: nowIso,
+          count: (existing.count || 1) + 1
+        });
+      } else {
+        items.unshift({
+          mode: mode || 'aab',
+          label: getQrModeLabel(mode),
+          url: url,
+          filename: filename,
+          scannedAt: nowIso,
+          count: 1
+        });
+      }
+      saveQrScanHistory(items);
+    }
+
+    function updateQrHistoryBadge() {
+      const badge = document.getElementById('qrHistoryCountBadge');
+      if (badge) {
+        badge.textContent = String(loadQrScanHistory().length);
+      }
+    }
+
+    function formatQrScanTime(isoString) {
+      try {
+        const d = new Date(isoString);
+        if (isNaN(d.getTime())) return 'Recently';
+        return d.toLocaleString(undefined, {
+          month: 'short',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit'
+        });
+      } catch (_) {
+        return 'Recently';
+      }
+    }
+
+    function renderQrHistoryList() {
+      const listEl = document.getElementById('qrHistoryList');
+      const clearBtn = document.getElementById('clearQrHistoryBtn');
+      const countText = document.getElementById('qrHistorySummaryText');
+      if (!listEl) return;
+
+      const items = loadQrScanHistory();
+      listEl.textContent = '';
+
+      if (countText) {
+        countText.textContent = items.length === 1
+          ? '1 saved QR code'
+          : items.length + ' saved QR codes';
+      }
+      if (clearBtn) {
+        clearBtn.style.display = items.length > 0 ? 'inline-flex' : 'none';
+      }
+
+      if (items.length === 0) {
+        const emptyBox = document.createElement('div');
+        emptyBox.className = 'qr-history-empty';
+        const msg = document.createElement('p');
+        msg.textContent = 'No QR codes scanned yet. Open "Scan QR for Mobile (.AAB)" to generate a scannable download code—it will automatically appear here for quick re-downloading.';
+        emptyBox.appendChild(msg);
+        const openBtn = document.createElement('button');
+        openBtn.type = 'button';
+        openBtn.className = 'qr-history-secondary-btn';
+        openBtn.style.marginTop = '12px';
+        openBtn.textContent = 'Open QR Code Now';
+        openBtn.addEventListener('click', function() {
+          closeQrHistoryModal();
+          openAabQrModal('aab');
+        });
+        emptyBox.appendChild(openBtn);
+        listEl.appendChild(emptyBox);
+        return;
+      }
+
+      items.forEach(function(item) {
+        const card = document.createElement('div');
+        card.className = 'qr-history-item';
+
+        const top = document.createElement('div');
+        top.className = 'qr-history-item-top';
+
+        const tag = document.createElement('span');
+        tag.className = 'qr-history-tag';
+        tag.textContent = item.label || getQrModeLabel(item.mode);
+
+        const time = document.createElement('span');
+        time.className = 'qr-history-time';
+        time.textContent = formatQrScanTime(item.scannedAt) + (item.count > 1 ? ' • ' + item.count + 'x' : '');
+
+        top.appendChild(tag);
+        top.appendChild(time);
+
+        const urlEl = document.createElement('div');
+        urlEl.className = 'qr-history-url';
+        urlEl.textContent = item.url;
+
+        const actions = document.createElement('div');
+        actions.className = 'qr-history-item-actions';
+
+        const redownloadLink = document.createElement('a');
+        redownloadLink.className = 'qr-history-redownload';
+        redownloadLink.href = item.url;
+        redownloadLink.setAttribute('download', item.filename || 'Balasore360-release.aab');
+        redownloadLink.textContent = '⬇ Re-download';
+
+        const showQrBtn = document.createElement('button');
+        showQrBtn.type = 'button';
+        showQrBtn.className = 'qr-history-secondary-btn';
+        showQrBtn.textContent = 'Show QR';
+        showQrBtn.addEventListener('click', function() {
+          closeQrHistoryModal();
+          openAabQrModal(item.mode || 'aab');
+        });
+
+        const removeBtn = document.createElement('button');
+        removeBtn.type = 'button';
+        removeBtn.className = 'qr-history-secondary-btn';
+        removeBtn.setAttribute('aria-label', 'Remove from scan history');
+        removeBtn.textContent = '×';
+        removeBtn.addEventListener('click', function() {
+          removeQrHistoryItem(item.url);
+        });
+
+        actions.appendChild(redownloadLink);
+        actions.appendChild(showQrBtn);
+        actions.appendChild(removeBtn);
+
+        card.appendChild(top);
+        card.appendChild(urlEl);
+        card.appendChild(actions);
+        listEl.appendChild(card);
+      });
+    }
+
+    function openQrHistoryModal() {
+      const modal = document.getElementById('qrHistoryModal');
+      if (!modal) return;
+      renderQrHistoryList();
+      modal.classList.add('open');
+      modal.setAttribute('aria-hidden', 'false');
+    }
+
+    function closeQrHistoryModal() {
+      const modal = document.getElementById('qrHistoryModal');
+      if (!modal) return;
+      modal.classList.remove('open');
+      modal.setAttribute('aria-hidden', 'true');
+    }
+
+    function removeQrHistoryItem(url) {
+      const updated = loadQrScanHistory().filter(item => item.url !== url);
+      saveQrScanHistory(updated);
+      renderQrHistoryList();
+    }
+
+    function clearQrScanHistory() {
+      saveQrScanHistory([]);
+      renderQrHistoryList();
+    }
+
+    function resolveQrDownloadUrl(mode) {
+      const aabLink = document.querySelector('.release-card .release-buttons .download-btn-aab');
+      const directPath = (aabLink && aabLink.getAttribute('href')) || '/Balasore360-v1.0.5-release.aab';
+      const fallbackOrigin = 'https://ais-dev-honzkaxc7yscu2h42zeagl-613265325843.asia-east1.run.app';
+      const origin = (window.location && window.location.origin && window.location.origin !== 'null')
+        ? window.location.origin
+        : fallbackOrigin;
+
+      if (mode === 'alt') return origin + '/download/aab';
+      if (mode === 'all') return origin + '/download/all-assets';
+      return directPath.startsWith('http') ? directPath : origin + directPath;
+    }
+
+    function renderAabQrCode(mode) {
+      const container = document.getElementById('aabQrCodeCanvas');
+      const urlPreview = document.getElementById('aabQrUrlPreview');
+      const tabs = document.querySelectorAll('.qr-mode-tab');
+      tabs.forEach(t => t.classList.toggle('active', t.getAttribute('data-qr-mode') === mode));
+
+      currentQrTargetUrl = resolveQrDownloadUrl(mode);
+      recordQrScanHistory(mode, currentQrTargetUrl);
+      if (urlPreview) urlPreview.innerText = currentQrTargetUrl;
+      if (!container) return;
+
+      container.innerHTML = '';
+      if (typeof QRCode !== 'undefined') {
+        new QRCode(container, {
+          text: currentQrTargetUrl,
+          width: 220,
+          height: 220,
+          colorDark: '#0f172a',
+          colorLight: '#ffffff',
+          correctLevel: QRCode.CorrectLevel.M
+        });
+      } else {
+        const fallbackImg = document.createElement('img');
+        fallbackImg.alt = 'QR code for mobile .AAB download';
+        fallbackImg.src = 'https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=' + encodeURIComponent(currentQrTargetUrl);
+        container.appendChild(fallbackImg);
+      }
+    }
+
+    function openAabQrModal(mode) {
+      const modal = document.getElementById('aabQrModal');
+      if (!modal) return;
+      modal.classList.add('open');
+      modal.setAttribute('aria-hidden', 'false');
+      renderAabQrCode(mode || 'aab');
+    }
+
+    function closeAabQrModal() {
+      const modal = document.getElementById('aabQrModal');
+      if (!modal) return;
+      modal.classList.remove('open');
+      modal.setAttribute('aria-hidden', 'true');
+    }
+
+    function copyQrTargetUrl() {
+      if (!currentQrTargetUrl) return;
+      navigator.clipboard.writeText(currentQrTargetUrl).then(() => {
+        const el = document.getElementById('qrCopyBtnText');
+        if (el) {
+          el.innerText = '✓ Link Copied!';
+          setTimeout(() => { el.innerText = 'Copy Link'; }, 2500);
+        }
+      }).catch(() => {
+        prompt('Copy mobile .AAB download link:', currentQrTargetUrl);
+      });
+    }
+
+    function saveQrCodeImage() {
+      const container = document.getElementById('aabQrCodeCanvas');
+      if (!container) return;
+      const canvas = container.querySelector('canvas');
+      const img = container.querySelector('img');
+      const dataUrl = canvas ? canvas.toDataURL('image/png') : (img ? img.src : '');
+      if (!dataUrl) return;
+      const link = document.createElement('a');
+      link.href = dataUrl;
+      link.download = 'Balasore360-AAB-Mobile-QR.png';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') {
+        closeAabQrModal();
+        closeQrHistoryModal();
+      }
+    });
+
+    updateQrHistoryBadge();
   </script>
+
+  <!-- Desktop-to-Mobile QR Code Scan Modal for .AAB Download -->
+  <div id="aabQrModal" class="qr-modal-backdrop" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="aabQrModalTitle" onclick="if (event.target === this) closeAabQrModal();">
+    <div class="qr-modal-dialog">
+      <button type="button" class="qr-modal-close" onclick="closeAabQrModal()" aria-label="Close QR dialog">&times;</button>
+      <div style="font-size: 12px; font-weight: 800; color: #38bdf8; text-transform: uppercase; letter-spacing: 0.7px; margin-bottom: 4px;">
+        Desktop to Mobile Transfer
+      </div>
+      <h3 id="aabQrModalTitle" style="font-size: 19px; font-weight: 800; color: #f8fafc; margin-bottom: 6px;">
+        Scan QR to Download .AAB
+      </h3>
+      <p style="font-size: 12.5px; color: #94a3b8; line-height: 1.5;">
+        Point your mobile phone camera at the QR code below to start downloading the release bundle directly on your device.
+      </p>
+
+      <div class="qr-mode-tabs" role="tablist">
+        <button type="button" class="qr-mode-tab active" data-qr-mode="aab" onclick="renderAabQrCode('aab')">Direct .AAB</button>
+        <button type="button" class="qr-mode-tab" data-qr-mode="alt" onclick="renderAabQrCode('alt')">/download/aab</button>
+        <button type="button" class="qr-mode-tab" data-qr-mode="all" onclick="renderAabQrCode('all')">All Assets ZIP</button>
+      </div>
+
+      <div class="qr-canvas-frame">
+        <div id="aabQrCodeCanvas" aria-label="Scannable QR code for mobile .AAB download"></div>
+      </div>
+
+      <div class="qr-url-preview" id="aabQrUrlPreview"></div>
+
+      <div class="qr-modal-actions">
+        <button type="button" class="qr-modal-action-btn" onclick="copyQrTargetUrl()">
+          <span id="qrCopyBtnText">Copy Link</span>
+        </button>
+        <button type="button" class="qr-modal-action-btn" onclick="saveQrCodeImage()">
+          Save QR PNG
+        </button>
+      </div>
+
+      <div style="font-size: 11.5px; color: #64748b; line-height: 1.45;">
+        Works with Android Camera, Google Lens, and iOS Camera.
+      </div>
+    </div>
+  </div>
+
+  <!-- QR Scan History Modal -->
+  <div id="qrHistoryModal" class="qr-modal-backdrop" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="qrHistoryModalTitle" onclick="if (event.target === this) closeQrHistoryModal();">
+    <div class="qr-modal-dialog qr-history-dialog">
+      <button type="button" class="qr-modal-close" onclick="closeQrHistoryModal()" aria-label="Close Scan History dialog">&times;</button>
+      <div style="font-size: 12px; font-weight: 800; color: #38bdf8; text-transform: uppercase; letter-spacing: 0.7px; margin-bottom: 4px;">
+        Quick Re-Download
+      </div>
+      <h3 id="qrHistoryModalTitle" style="font-size: 19px; font-weight: 800; color: #f8fafc; margin-bottom: 6px;">
+        QR Scan History
+      </h3>
+      <p style="font-size: 12.5px; color: #94a3b8; line-height: 1.5;">
+        Previously scanned release QR codes saved on this browser for one-click re-downloading.
+      </p>
+
+      <div id="qrHistoryList" class="qr-history-list" aria-live="polite"></div>
+
+      <div class="qr-history-footer">
+        <span id="qrHistorySummaryText" style="font-size: 12px; color: #94a3b8;">0 saved QR codes</span>
+        <button type="button" id="clearQrHistoryBtn" class="qr-history-secondary-btn" onclick="clearQrScanHistory()" style="display: none;">
+          Clear History
+        </button>
+      </div>
+    </div>
+  </div>
 </body>
 </html>

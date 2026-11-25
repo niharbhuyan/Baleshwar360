@@ -30,6 +30,7 @@
         "notifyLocalEvents": { "type": "boolean", "description": "Receive local civic and cultural event alerts" },
         "notifyTempleFestivals": { "type": "boolean", "description": "Receive temple festival notifications" },
         "notifyBreakingNews": { "type": "boolean", "description": "Receive breaking district news alerts" },
+        "notifyCommunityAnnouncements": { "type": "boolean", "description": "Receive community announcement alerts" },
         "notifyTourismHotspots": { "type": "boolean", "description": "Receive tourism hotspot advisories" },
         "notifyDefenseAdvisories": { "type": "boolean", "description": "Receive ITR Chandipur defense range advisories" },
         "notifyFloodAlerts": { "type": "boolean", "description": "Receive Subarnarekha & Budhabalanga flood alerts" },
@@ -40,6 +41,9 @@
         "minTempThreshold": { "type": "integer", "description": "Minimum temperature threshold" },
         "maxTempThreshold": { "type": "integer", "description": "Maximum temperature threshold" },
         "preferredNewsCategories": { "type": "array", "description": "List of preferred news categories" },
+        "minWeatherAlertSeverity": { "type": "string", "description": "Minimum weather alert severity level" },
+        "notificationFrequency": { "type": "string", "description": "Notification delivery frequency" },
+        "preferredNotificationWindow": { "type": "string", "description": "Preferred notification delivery time window" },
         "updatedAt": { "type": "integer", "description": "Last updated epoch timestamp" }
       },
       "required": ["userId", "notifyCyclone", "notifyHighTide", "notifySevereHeat", "notifyRainfall", "updatedAt"]

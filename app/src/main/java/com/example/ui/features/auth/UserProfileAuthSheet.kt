@@ -483,6 +483,27 @@ fun UserProfileAuthSheet(
                                 authManager.signOut(context)
                                 Toast.makeText(context, if (isOdia) "ଆପଣ ସାଇନ୍ ଆଉଟ୍ ହୋଇଛନ୍ତି" else "Signed out successfully", Toast.LENGTH_SHORT).show()
                             }
+                        },
+                        onDeleteAccount = {
+                            coroutineScope.launch {
+                                val res = authManager.deleteAccount(context)
+                                res.onSuccess {
+                                    userProfile = null
+                                    savedNewsList = emptyList()
+                                    savedBookmarksList = emptyList()
+                                    Toast.makeText(
+                                        context,
+                                        if (isOdia) "ଆପଣଙ୍କ ଆକାଉଣ୍ଟ ସ୍ଥାୟୀ ଭାବରେ ବିଲୋପ ହୋଇଛି" else "Account permanently deleted.",
+                                        Toast.LENGTH_LONG
+                                    ).show()
+                                }.onFailure { err ->
+                                    Toast.makeText(
+                                        context,
+                                        err.message ?: "Unable to delete account. Please sign in again and retry.",
+                                        Toast.LENGTH_LONG
+                                    ).show()
+                                }
+                            }
                         }
                     )
 
@@ -1333,7 +1354,8 @@ private fun ProfileEditTab(
     onSendPasswordReset: (String?) -> Unit,
     isSaving: Boolean,
     onSaveProfile: () -> Unit,
-    onSignOut: () -> Unit
+    onSignOut: () -> Unit,
+    onDeleteAccount: () -> Unit = {}
 ) {
     val localities = listOf(
         "Balasore Town", "Chandipur", "Remuna", "Soro",
@@ -1341,6 +1363,7 @@ private fun ProfileEditTab(
     )
     var showInlineResetInput by remember { mutableStateOf(false) }
     var inlineNewPassword by remember { mutableStateOf("") }
+    var showDeleteConfirmDialog by remember { mutableStateOf(false) }
 
     LazyColumn(
         modifier = Modifier.fillMaxWidth(),
@@ -1920,6 +1943,82 @@ private fun ProfileEditTab(
                 Text(text = if (isOdia) "ସାଇନ୍ ଆଉଟ୍" else "Log Out of Account")
             }
         }
+
+        item {
+            Spacer(modifier = Modifier.height(4.dp))
+            Button(
+                onClick = { showDeleteConfirmDialog = true },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(48.dp)
+                    .testTag("delete_account_btn"),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.errorContainer,
+                    contentColor = MaterialTheme.colorScheme.onErrorContainer
+                ),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Icon(Icons.Default.DeleteForever, contentDescription = "Delete Account", modifier = Modifier.size(18.dp))
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = if (isOdia) "ଆକାଉଣ୍ଟ ସ୍ଥାୟୀ ବିଲୋପ କରନ୍ତୁ" else "Delete Account Permanently",
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+        }
+    }
+
+    if (showDeleteConfirmDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirmDialog = false },
+            modifier = Modifier.testTag("delete_account_confirm_dialog"),
+            icon = {
+                Icon(
+                    imageVector = Icons.Default.Warning,
+                    contentDescription = "Permanent Account Deletion Warning",
+                    tint = MaterialTheme.colorScheme.error
+                )
+            },
+            title = {
+                Text(
+                    text = if (isOdia) "ଆକାଉଣ୍ଟ ବିଲୋପ କରିବାକୁ ନିଶ୍ଚିତ କି?" else "Delete Your Account?",
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Text(
+                    text = if (isOdia) {
+                        "ଏହା ଆପଣଙ୍କ ପ୍ରୋଫାଇଲ୍, ସ୍ଥାନୀୟ ସେସନ୍ ଏବଂ କ୍ଲାଉଡ୍ ଡାଟାକୁ ସ୍ଥାୟୀ ଭାବରେ ବିଲୋପ କରିବ। ଏହି କାର୍ଯ୍ୟ ଫେରାଇ ହେବ ନାହିଁ।"
+                    } else {
+                        "This permanently removes your Baleshwar 360 profile, encrypted local session, and synced cloud account data. This action cannot be undone."
+                    }
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showDeleteConfirmDialog = false
+                        onDeleteAccount()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
+                    modifier = Modifier
+                        .heightIn(min = 48.dp)
+                        .testTag("confirm_delete_account_btn")
+                ) {
+                    Text(if (isOdia) "ହଁ, ବିଲୋପ କରନ୍ତୁ" else "Delete Account")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { showDeleteConfirmDialog = false },
+                    modifier = Modifier
+                        .heightIn(min = 48.dp)
+                        .testTag("cancel_delete_account_btn")
+                ) {
+                    Text(if (isOdia) "ବାତିଲ୍" else "Cancel")
+                }
+            }
+        )
     }
 }
 
@@ -2132,7 +2231,7 @@ private fun NotificationPreferencesTab(
                         fontSize = 11.5.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    val allTopics = listOf("Civic", "Weather", "Defense", "Tourism", "Culture", "Development")
+                    val allTopics = listOf("Events", "Traffic", "Civic", "Weather", "Defense", "Tourism", "Culture", "Development")
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         items(allTopics) { topic ->
                             val isSelected = prefs.preferredNewsCategories.any { it.equals(topic, ignoreCase = true) }
@@ -2351,6 +2450,103 @@ private fun NotificationPreferencesTab(
                                     modifier = Modifier.testTag("tide_lead_hours_chip_$hrs")
                                 )
                             }
+                        }
+                    }
+
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+
+                    Text(
+                        text = if (isOdia) "⚠️ ସର୍ବନିମ୍ନ ପାଣିପାଗ ସତର୍କତା ସ୍ତର" else "⚠️ Minimum Weather Alert Severity",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    val severityLevels = listOf(
+                        "ADVISORY" to (if (isOdia) "ସାଧାରଣ" else "Advisory"),
+                        "MODERATE" to (if (isOdia) "ମଧ୍ୟମ" else "Moderate"),
+                        "SEVERE" to (if (isOdia) "ଗମ୍ଭୀର" else "Severe"),
+                        "CRITICAL" to (if (isOdia) "ଜରୁରୀ" else "Critical")
+                    )
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        items(severityLevels) { (code, label) ->
+                            val selected = prefs.minWeatherAlertSeverity.equals(code, ignoreCase = true)
+                            FilterChip(
+                                selected = selected,
+                                onClick = { onPrefsChange(prefs.copy(minWeatherAlertSeverity = code)) },
+                                label = { Text(if (selected) "✓ $label" else label, fontSize = 11.sp) },
+                                modifier = Modifier.testTag("weather_severity_chip_${code.lowercase()}")
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        // Preferred Notification Times & Frequency Card
+        item {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("notification_schedule_frequency_card"),
+                shape = RoundedCornerShape(14.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f))
+            ) {
+                Column(
+                    modifier = Modifier.padding(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        text = if (isOdia) "🕒 ନୋଟିଫିକେସନ୍ ସମୟ ଓ ଫ୍ରିକ୍ୱେନ୍ସି" else "🕒 Preferred Notification Times & Frequency",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 13.5.sp
+                    )
+                    Text(
+                        text = if (isOdia) "କେତେଥର ଓ କେଉଁ ସମୟରେ ଅପଡେଟ୍ ପାଇବାକୁ ଚାହୁଁଛନ୍ତି ବାଛନ୍ତୁ" else "Choose how often you receive news updates and your preferred delivery window",
+                        fontSize = 11.5.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    Text(
+                        text = if (isOdia) "ଅପଡେଟ୍ ଫ୍ରିକ୍ୱେନ୍ସି" else "Delivery Frequency",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    val frequencies = listOf(
+                        "REAL_TIME" to (if (isOdia) "ତୁରନ୍ତ (Instant)" else "Instant"),
+                        "HOURLY_DIGEST" to (if (isOdia) "ପ୍ରତି ଘଣ୍ଟା" else "Hourly Digest"),
+                        "DAILY_SUMMARY" to (if (isOdia) "ଦୈନିକ ସାରାଂଶ" else "Daily Summary")
+                    )
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        items(frequencies) { (code, label) ->
+                            val selected = prefs.notificationFrequency.equals(code, ignoreCase = true)
+                            FilterChip(
+                                selected = selected,
+                                onClick = { onPrefsChange(prefs.copy(notificationFrequency = code)) },
+                                label = { Text(if (selected) "✓ $label" else label, fontSize = 11.sp) },
+                                modifier = Modifier.testTag("notification_freq_chip_${code.lowercase()}")
+                            )
+                        }
+                    }
+
+                    Text(
+                        text = if (isOdia) "ପସନ୍ଦର ସମୟ" else "Preferred Time Window",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    val windows = listOf(
+                        "ANYTIME" to (if (isOdia) "ଯେକୌଣସି ସମୟ" else "Anytime (24/7)"),
+                        "MORNING_8AM" to (if (isOdia) "ସକାଳ 8:00 AM" else "Morning (8 AM)"),
+                        "EVENING_7PM" to (if (isOdia) "ସନ୍ଧ୍ୟା 7:00 PM" else "Evening (7 PM)"),
+                        "QUIET_NIGHT_10PM_7AM" to (if (isOdia) "ରାତି ଶାନ୍ତି (10PM–7AM)" else "Quiet Night (10PM–7AM)")
+                    )
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        items(windows) { (code, label) ->
+                            val selected = prefs.preferredNotificationWindow.equals(code, ignoreCase = true)
+                            FilterChip(
+                                selected = selected,
+                                onClick = { onPrefsChange(prefs.copy(preferredNotificationWindow = code)) },
+                                label = { Text(if (selected) "✓ $label" else label, fontSize = 11.sp) },
+                                modifier = Modifier.testTag("notification_window_chip_${code.lowercase()}")
+                            )
                         }
                     }
                 }

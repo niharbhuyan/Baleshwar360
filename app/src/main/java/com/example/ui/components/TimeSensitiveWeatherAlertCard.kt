@@ -38,6 +38,8 @@ import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.ui.platform.LocalContext
 import com.example.util.ShareHelper
+import com.example.util.SocialPlatform
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -49,6 +51,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -106,6 +110,7 @@ fun TimeSensitiveWeatherAlertCard(
 ) {
     val context = LocalContext.current
     var isExpanded by remember { mutableStateOf(initialExpanded) }
+    var showSocialShareDialog by remember { mutableStateOf(false) }
     var currentTimeMillis by remember { mutableLongStateOf(System.currentTimeMillis()) }
 
     // Update countdown ticker periodically every 30 seconds
@@ -222,9 +227,7 @@ fun TimeSensitiveWeatherAlertCard(
 
                     // Share Alert Action Pill
                     Surface(
-                        onClick = {
-                            ShareHelper.shareWeatherAlert(context, alert, timeRemainingText)
-                        },
+                        onClick = { showSocialShareDialog = true },
                         shape = RoundedCornerShape(20.dp),
                         color = BentoBlueLight,
                         border = BorderStroke(1.dp, BentoPrimaryBlue.copy(alpha = 0.3f)),
@@ -554,9 +557,7 @@ fun TimeSensitiveWeatherAlertCard(
                                             color = BentoPrimaryBlue.copy(alpha = 0.12f),
                                             border = BorderStroke(1.dp, BentoPrimaryBlue.copy(alpha = 0.35f)),
                                             modifier = Modifier
-                                                .clickable {
-                                                    ShareHelper.shareWeatherAlert(context, alert, timeRemainingText)
-                                                }
+                                                .clickable { showSocialShareDialog = true }
                                                 .testTag("share_guidelines_weather_alert_button_${alert.id}")
                                                 .padding(horizontal = 8.dp, vertical = 4.dp)
                                         ) {
@@ -605,5 +606,88 @@ fun TimeSensitiveWeatherAlertCard(
                 }
             }
         }
+    }
+
+    if (showSocialShareDialog) {
+        AlertDialog(
+            onDismissRequest = { showSocialShareDialog = false },
+            modifier = Modifier.testTag("weather_alert_social_share_dialog"),
+            title = {
+                Text(
+                    text = "Share Weather Alert",
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        text = "Alert your community on social media about ${alert.title}:",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = BentoSlate700
+                    )
+                    Button(
+                        onClick = {
+                            showSocialShareDialog = false
+                            ShareHelper.shareWeatherAlertToPlatform(context, alert, SocialPlatform.WHATSAPP, timeRemainingText)
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF16A34A)),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 48.dp)
+                            .testTag("weather_alert_share_whatsapp_btn")
+                    ) {
+                        Text("💬 Share on WhatsApp", fontWeight = FontWeight.Bold)
+                    }
+                    Button(
+                        onClick = {
+                            showSocialShareDialog = false
+                            ShareHelper.shareWeatherAlertToPlatform(context, alert, SocialPlatform.FACEBOOK, timeRemainingText)
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1877F2)),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 48.dp)
+                            .testTag("weather_alert_share_facebook_btn")
+                    ) {
+                        Text("📘 Share on Facebook", fontWeight = FontWeight.Bold)
+                    }
+                    Button(
+                        onClick = {
+                            showSocialShareDialog = false
+                            ShareHelper.shareWeatherAlertToPlatform(context, alert, SocialPlatform.TWITTER, timeRemainingText)
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0F172A)),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 48.dp)
+                            .testTag("weather_alert_share_twitter_btn")
+                    ) {
+                        Text("𝕏 Share on X (Twitter)", fontWeight = FontWeight.Bold)
+                    }
+                    OutlinedButton(
+                        onClick = {
+                            showSocialShareDialog = false
+                            ShareHelper.shareWeatherAlertToPlatform(context, alert, SocialPlatform.SYSTEM_SHARE, timeRemainingText)
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 48.dp)
+                            .testTag("weather_alert_share_more_btn")
+                    ) {
+                        Icon(Icons.Default.Share, contentDescription = "More share options", modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("More Apps")
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = { showSocialShareDialog = false },
+                    modifier = Modifier.heightIn(min = 48.dp)
+                ) {
+                    Text("Close")
+                }
+            }
+        )
     }
 }

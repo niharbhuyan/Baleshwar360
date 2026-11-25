@@ -2,13 +2,22 @@ package com.example.util
 
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import com.example.data.model.BalasoreWeatherAlert
 import com.example.data.model.NewsArticle
 import com.example.data.remote.EmergencyAlertDto
+import java.net.URLEncoder
+
+enum class SocialPlatform(val displayName: String, val packageName: String?) {
+    WHATSAPP("WhatsApp", "com.whatsapp"),
+    FACEBOOK("Facebook", "com.facebook.katana"),
+    TWITTER("X (Twitter)", "com.twitter.android"),
+    SYSTEM_SHARE("More Apps", null)
+}
 
 /**
- * Utility helper to invoke Android's native system ShareSheet (ACTION_SEND + Intent.createChooser).
- * Formats rich messages for sharing local news and emergency weather/civic alerts with others.
+ * Utility helper to invoke Android's native system ShareSheet (ACTION_SEND + Intent.createChooser)
+ * and direct social media sharing to WhatsApp, Facebook, and X (Twitter).
  */
 object ShareHelper {
 
@@ -490,6 +499,198 @@ object ShareHelper {
         }
         runCatching { context.startActivity(chooser) }
     }
+
+    private fun encodeUrlParam(value: String): String {
+        return URLEncoder.encode(value, "UTF-8").replace("+", "%20")
+    }
+
+    /**
+     * Builds an HTTPS Twitter/X intent URL for sharing text and an optional link.
+     */
+    fun buildTwitterShareUrl(message: String, shareUrl: String = "https://baleshwar360.app"): String {
+        val trimmed = message.trim().take(240)
+        val encodedText = encodeUrlParam(trimmed)
+        val encodedUrl = encodeUrlParam(shareUrl)
+        return "https://twitter.com/intent/tweet?text=$encodedText&url=$encodedUrl"
+    }
+
+    /**
+     * Builds an HTTPS Facebook sharer URL with pre-filled quote and link.
+     */
+    fun buildFacebookShareUrl(message: String, shareUrl: String = "https://baleshwar360.app"): String {
+        val encodedQuote = encodeUrlParam(message.trim().take(400))
+        val encodedUrl = encodeUrlParam(shareUrl)
+        return "https://www.facebook.com/sharer/sharer.php?u=$encodedUrl&quote=$encodedQuote"
+    }
+
+    /**
+     * Builds an HTTPS WhatsApp share URL with pre-filled message text.
+     */
+    fun buildWhatsAppShareUrl(message: String): String {
+        val encodedText = encodeUrlParam(message.trim())
+        return "https://api.whatsapp.com/send?text=$encodedText"
+    }
+
+    /**
+     * Builds formatted share subject, body text, and deep link for a Balasore tourism hotspot.
+     */
+    fun buildTourismHotspotShareText(
+        spotId: String,
+        name: String,
+        odiaName: String = "",
+        category: String,
+        location: String,
+        rating: Double,
+        description: String,
+        operatingHours: String = ""
+    ): Triple<String, String, String> {
+        val safeId = spotId.trim().ifBlank { "chandipur" }
+        val deepLinkUrl = "https://baleshwar360.app/tourism/$safeId"
+        val subject = "Explore $name in Balasore - Baleshwar 360"
+        val text = buildString {
+            append("📍 ").append(name)
+            if (odiaName.isNotBlank() && odiaName != name) {
+                append(" (").append(odiaName).append(")")
+            }
+            append("\n")
+            append("🏷️ ").append(category).append(" • ⭐ ").append(String.format(java.util.Locale.US, "%.1f", rating)).append("\n")
+            if (location.isNotBlank()) {
+                append("🗺️ ").append(location).append("\n")
+            }
+            if (operatingHours.isNotBlank()) {
+                append("🕒 Timings: ").append(operatingHours).append("\n")
+            }
+            if (description.isNotBlank()) {
+                append("\n").append(description.trim().take(280)).append("\n")
+            }
+            append("\n🔗 Explore on Baleshwar 360: ").append(deepLinkUrl)
+        }.trim()
+        return Triple(subject, text, deepLinkUrl)
+    }
+
+    /**
+     * Shares formatted text to a specific social platform (WhatsApp, Facebook, X/Twitter, or System Share),
+     * trying the native Android app first, then an HTTPS web share intent, and finally Android ShareSheet.
+     */
+    fun shareToSocialPlatform(
+        context: Context,
+        platform: SocialPlatform,
+        subject: String,
+        message: String,
+        shareUrl: String = "https://baleshwar360.app"
+    ) {
+        if (platform == SocialPlatform.SYSTEM_SHARE) {
+            shareCustomText(context, subject, message)
+            return
+        }
+
+        // 1. Try native app ACTION_SEND with explicit package name
+        val targetPackage = platform.packageName
+        if (!targetPackage.isNullOrBlank()) {
+            val nativeIntent = Intent(Intent.ACTION_SEND).apply {
+                type = "text/plain"
+                `package` = targetPackage
+                putExtra(Intent.EXTRA_SUBJECT, subject)
+                putExtra(Intent.EXTRA_TEXT, message)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            try {
+                context.startActivity(nativeIntent)
+                return
+            } catch (_: Exception) {
+                // App not installed; fall back to HTTPS web share intent below
+            }
+        }
+
+        // 2. Fallback to HTTPS platform web share intent
+        val webUrl = when (platform) {
+            SocialPlatform.TWITTER -> buildTwitterShareUrl(message, shareUrl)
+            SocialPlatform.FACEBOOK -> buildFacebookShareUrl(message, shareUrl)
+            SocialPlatform.WHATSAPP -> buildWhatsAppShareUrl(message)
+            SocialPlatform.SYSTEM_SHARE -> shareUrl
+        }
+        val browserIntent = Intent(Intent.ACTION_VIEW, Uri.parse(webUrl)).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        try {
+            context.startActivity(browserIntent)
+            return
+        } catch (_: Exception) {
+            // Final fallback to system share sheet
+        }
+
+        // 3. Guaranteed fallback to Android System ShareSheet
+        shareCustomText(context, "Share via ${platform.displayName}", message)
+    }
+
+    fun shareNewsToPlatform(
+        context: Context,
+        article: NewsArticle,
+        platform: SocialPlatform,
+        isOdia: Boolean = false
+    ) {
+        val safeId = article.id.ifBlank { "latest" }
+        val deepLinkUrl = "https://baleshwar360.app/news/$safeId"
+        if (platform == SocialPlatform.WHATSAPP) {
+            val waMessage = buildNewsWhatsAppMessage(article, isOdia)
+            shareToSocialPlatform(
+                context = context,
+                platform = SocialPlatform.WHATSAPP,
+                subject = "Balasore News: ${article.title}",
+                message = waMessage,
+                shareUrl = deepLinkUrl
+            )
+            return
+        }
+        val title = if (isOdia && article.odiaTitle.isNotBlank()) article.odiaTitle else article.title
+        val snippet = if (isOdia && article.odiaSnippet.isNotBlank()) article.odiaSnippet else article.snippet
+        val (subject, text) = buildNewsShareText(
+            title = title,
+            snippet = snippet,
+            source = article.source,
+            category = article.category,
+            odiaTitle = if (!isOdia) article.odiaTitle else "",
+            articleId = article.id
+        )
+        shareToSocialPlatform(context, platform, subject, text, deepLinkUrl)
+    }
+
+    fun shareWeatherAlertToPlatform(
+        context: Context,
+        alert: BalasoreWeatherAlert,
+        platform: SocialPlatform,
+        validityRemainingText: String = ""
+    ) {
+        val (subject, text) = buildWeatherAlertText(alert, validityRemainingText)
+        val deepLinkUrl = "https://baleshwar360.app/weather/alert/${alert.id.ifBlank { "live" }}"
+        shareToSocialPlatform(context, platform, subject, text, deepLinkUrl)
+    }
+
+    fun shareTourismHotspotToPlatform(
+        context: Context,
+        spotId: String,
+        name: String,
+        odiaName: String = "",
+        category: String,
+        location: String,
+        rating: Double,
+        description: String,
+        operatingHours: String = "",
+        platform: SocialPlatform
+    ) {
+        val (subject, text, url) = buildTourismHotspotShareText(
+            spotId = spotId,
+            name = name,
+            odiaName = odiaName,
+            category = category,
+            location = location,
+            rating = rating,
+            description = description,
+            operatingHours = operatingHours
+        )
+        shareToSocialPlatform(context, platform, subject, text, url)
+    }
 }
+
 
 

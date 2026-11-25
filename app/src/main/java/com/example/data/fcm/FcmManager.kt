@@ -835,7 +835,32 @@ object FcmManager {
     private const val KEY_ADAPTIVE_SYNC_ENABLED = "adaptive_sync_low_battery_enabled"
     private const val KEY_SUBSCRIBED_NEWS_CATEGORIES = "subscribed_news_categories_set"
 
-    val AVAILABLE_NEWS_CATEGORIES = listOf("Politics", "Sports", "Defense", "Tourism", "Civic")
+    val AVAILABLE_NEWS_CATEGORIES = listOf("Events", "Traffic", "Politics", "Sports", "Defense", "Tourism", "Civic", "Weather")
+
+    fun shouldDeliverWeatherAlert(alertSeverity: String, minThreshold: String): Boolean {
+        val rank = mapOf(
+            "ADVISORY" to 1,
+            "MODERATE" to 2,
+            "WARNING" to 3,
+            "SEVERE" to 3,
+            "HIGH_TIDE" to 3,
+            "URGENT" to 4,
+            "CRITICAL" to 4,
+            "CYCLONE_ALERT" to 4
+        )
+        val alertRank = rank[alertSeverity.uppercase(Locale.US)] ?: 2
+        val minRank = rank[minThreshold.uppercase(Locale.US)] ?: 2
+        return alertRank >= minRank
+    }
+
+    fun isWithinPreferredDeliveryWindow(preferredWindow: String, currentHourOfDay: Int): Boolean {
+        return when (preferredWindow.uppercase(Locale.US)) {
+            "MORNING_8AM" -> currentHourOfDay in 6..11
+            "EVENING_7PM" -> currentHourOfDay in 17..21
+            "QUIET_NIGHT_10PM_7AM" -> currentHourOfDay in 7..21
+            else -> true // ANYTIME
+        }
+    }
 
     fun isAdaptiveSyncEnabled(context: Context): Boolean {
         return getPrefs(context).getBoolean(KEY_ADAPTIVE_SYNC_ENABLED, true)
@@ -866,6 +891,10 @@ object FcmManager {
 
     fun dispatchCategoryBreakingAlert(context: Context, category: String) {
         val (title, summary) = when (category.lowercase(Locale.US)) {
+            "events" -> "Chandipur Beach Festival & Cultural Mela Schedule Announced" to
+                "Firestore live document update [Events]: Three-day coastal heritage, Odissi dance, and handicrafts festival opens this Friday at Chandipur."
+            "traffic" -> "NH-16 Remuna Golei & Fakir Mohan Golai Traffic Diversion Update" to
+                "Firestore live document update [Traffic]: Flyover expansion lane control active from 9 AM to 1 PM; commuters advised to use Station Square ring road."
             "politics" -> "Balasore Municipal Council Approves Ward 1–31 Smart Road Budget" to
                 "Firestore live document update [Politics]: ₹48 Cr sanctioned for storm-water drains and solar LED corridors across Balasore Municipality."
             "sports" -> "Balasore District Athletics Meet Opens at Police Line Stadium" to

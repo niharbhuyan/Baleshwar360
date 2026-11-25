@@ -97,26 +97,25 @@ object BalasoreMapsApiKeyManager {
     }
 
     /**
-     * Automatically resolves and pre-populates the Weather Map API key for UI input components.
+     * Automatically resolves the OpenWeatherMap API key from BuildConfig.OPENWEATHERMAP_API_KEY
+     * without falling back to Google Maps or Firebase API keys.
      */
     fun autoPopulateWeatherMapApiKey(context: Context? = null): String {
         val prefs = context?.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val saved = prefs?.getString(KEY_AUTO_WEATHER_API, null)?.trim().orEmpty()
-        if (isValidKey(saved)) {
+        if (isValidWeatherKey(saved)) {
             return saved
+        } else if (saved.isNotBlank()) {
+            // Clear any stale non-OpenWeatherMap key (such as an AIza... Google key)
+            prefs?.edit()?.remove(KEY_AUTO_WEATHER_API)?.apply()
         }
 
         val envWeatherKey = runCatching { BuildConfig.OPENWEATHERMAP_API_KEY.trim() }.getOrDefault("")
-        if (isValidKey(envWeatherKey)) {
+        if (isValidWeatherKey(envWeatherKey)) {
             prefs?.edit()?.putString(KEY_AUTO_WEATHER_API, envWeatherKey)?.apply()
             return envWeatherKey
         }
 
-        val projectKey = autoPopulateMapsApiKey(context)
-        if (projectKey.isNotBlank()) {
-            prefs?.edit()?.putString(KEY_AUTO_WEATHER_API, projectKey)?.apply()
-            return projectKey
-        }
         return ""
     }
 
@@ -130,7 +129,8 @@ object BalasoreMapsApiKeyManager {
     }
 
     fun saveWeatherMapApiKey(context: Context?, newKey: String): String {
-        val resolved = newKey.trim().ifBlank { autoPopulateWeatherMapApiKey(context) }
+        val candidate = newKey.trim()
+        val resolved = if (isValidWeatherKey(candidate)) candidate else autoPopulateWeatherMapApiKey(context)
         context?.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             ?.edit()
             ?.putString(KEY_AUTO_WEATHER_API, resolved)
@@ -153,6 +153,10 @@ object BalasoreMapsApiKeyManager {
             !candidate.contains("YOUR_KEY", ignoreCase = true) &&
             !candidate.contains("YOUR_OPENWEATHERMAP_API_KEY", ignoreCase = true) &&
             !candidate.contains("PLACEHOLDER", ignoreCase = true)
+    }
+
+    private fun isValidWeatherKey(candidate: String): Boolean {
+        return isValidKey(candidate) && !candidate.startsWith("AIza")
     }
 }
 

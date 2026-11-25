@@ -581,6 +581,11 @@ fun CivicIssuesMapScreen(
             "DRAFT" -> categoryFiltered.filter { getCivicSyncStatus(it) == CivicSyncStatus.DRAFT }
             "PENDING" -> categoryFiltered.filter { getCivicSyncStatus(it) == CivicSyncStatus.PENDING }
             "UPLOADED" -> categoryFiltered.filter { getCivicSyncStatus(it) == CivicSyncStatus.UPLOADED }
+            "REPORTED" -> categoryFiltered.filter {
+                !it.status.equals("IN_PROGRESS", ignoreCase = true) && !it.status.equals("RESOLVED", ignoreCase = true)
+            }
+            "IN_PROGRESS" -> categoryFiltered.filter { it.status.equals("IN_PROGRESS", ignoreCase = true) }
+            "RESOLVED" -> categoryFiltered.filter { it.status.equals("RESOLVED", ignoreCase = true) }
             else -> categoryFiltered
         }
 
@@ -1006,6 +1011,9 @@ fun CivicIssuesMapScreen(
                     ) {
                         val statusChips = listOf(
                             "ALL" to ("All (${resolvedReports.size})"),
+                            "REPORTED" to ("🔴 Reported (${resolvedReports.count { !it.status.equals("IN_PROGRESS", true) && !it.status.equals("RESOLVED", true) }})"),
+                            "IN_PROGRESS" to ("🟡 In Progress (${resolvedReports.count { it.status.equals("IN_PROGRESS", true) }})"),
+                            "RESOLVED" to ("🟢 Resolved (${resolvedReports.count { it.status.equals("RESOLVED", true) }})"),
                             "DRAFT" to ("📝 Draft (${resolvedReports.count { getCivicSyncStatus(it) == CivicSyncStatus.DRAFT }})"),
                             "PENDING" to ("⏳ Pending (${resolvedReports.count { getCivicSyncStatus(it) == CivicSyncStatus.PENDING }})"),
                             "UPLOADED" to ("☁️ Uploaded (${resolvedReports.count { getCivicSyncStatus(it) == CivicSyncStatus.UPLOADED }})")
@@ -1126,6 +1134,9 @@ fun CivicIssuesMapScreen(
                                     label = { Text(text = label, fontSize = 11.sp, fontWeight = if (isSel) FontWeight.Bold else FontWeight.Normal) },
                                     colors = FilterChipDefaults.filterChipColors(
                                         selectedContainerColor = when (key) {
+                                            "REPORTED" -> Color(0xFFDC2626)
+                                            "IN_PROGRESS" -> Color(0xFFD97706)
+                                            "RESOLVED" -> Color(0xFF15803D)
                                             "DRAFT" -> Color(0xFFD97706)
                                             "PENDING" -> Color(0xFF2563EB)
                                             "UPLOADED" -> Color(0xFF15803D)
@@ -1533,6 +1544,13 @@ fun CivicIssuesMapScreen(
                         },
                         onEditDraft = {
                             onEditDraft?.invoke(selectedReport!!)
+                        },
+                        onUpvote = {
+                            val current = selectedReport!!
+                            onUpvoteReport?.invoke(current)
+                            selectedReport = current.copy(upvotesCount = current.upvotesCount + 1)
+                            BalasoreHapticHelper.vibrateSuccess(context)
+                            Toast.makeText(context, "👍 Upvoted! Priority boosted for ${current.wardLocation}", Toast.LENGTH_SHORT).show()
                         },
                         onDismiss = { selectedReport = null }
                     )
@@ -2554,6 +2572,7 @@ fun CivicPinDetailCard(
     onShare: () -> Unit = {},
     onSubmitDraft: () -> Unit,
     onEditDraft: () -> Unit,
+    onUpvote: (() -> Unit)? = null,
     onDismiss: () -> Unit
 ) {
     val rLat = report.latitude ?: userLat
@@ -2659,6 +2678,80 @@ fun CivicPinDetailCard(
                     fontWeight = FontWeight.Medium
                 )
             }
+
+            // Issue Resolution Status Tracker: Reported -> In Progress -> Resolved + Direct Community Upvote
+            val currentStageIdx = when {
+                report.status.equals("RESOLVED", ignoreCase = true) -> 2
+                report.status.equals("IN_PROGRESS", ignoreCase = true) -> 1
+                else -> 0
+            }
+            Spacer(Modifier.height(6.dp))
+            Surface(
+                shape = RoundedCornerShape(10.dp),
+                color = Color(0xFFF8FAFC),
+                border = BorderStroke(1.dp, BentoSlate200),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("civic_status_tracker_${report.id}")
+            ) {
+                Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        val stages = listOf(
+                            if (language == AppLanguage.ODIA) "ରିପୋର୍ଟ" else "Reported",
+                            if (language == AppLanguage.ODIA) "କାର୍ଯ୍ୟ ଚାଲିଛି" else "In Progress",
+                            if (language == AppLanguage.ODIA) "ସମାଧାନ" else "Resolved"
+                        )
+                        stages.forEachIndexed { idx, label ->
+                            val reached = idx <= currentStageIdx
+                            val stageColor = when {
+                                !reached -> Color(0xFF94A3B8)
+                                idx == 2 -> Color(0xFF15803D)
+                                idx == 1 -> Color(0xFFD97706)
+                                else -> Color(0xFFDC2626)
+                            }
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(8.dp)
+                                        .clip(CircleShape)
+                                        .background(stageColor)
+                                )
+                                Spacer(Modifier.width(4.dp))
+                                Text(
+                                    text = label,
+                                    fontSize = 10.5.sp,
+                                    fontWeight = if (reached) FontWeight.ExtraBold else FontWeight.Medium,
+                                    color = stageColor
+                                )
+                            }
+                        }
+                    }
+                    if (onUpvote != null) {
+                        Spacer(Modifier.height(6.dp))
+                        OutlinedButton(
+                            onClick = onUpvote,
+                            shape = RoundedCornerShape(8.dp),
+                            border = BorderStroke(1.dp, BentoPrimaryBlue),
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("pin_card_upvote_btn_${report.id}")
+                        ) {
+                            Text(
+                                text = if (language == AppLanguage.ODIA) "👍 ପ୍ରାଥମିକତା ପାଇଁ ଅପଭୋଟ୍ କରନ୍ତୁ (${report.upvotesCount})" else "👍 Upvote to Prioritize Issue (${report.upvotesCount})",
+                                fontSize = 11.5.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = BentoPrimaryBlue
+                            )
+                        }
+                    }
+                }
+            }
+            Spacer(Modifier.height(6.dp))
 
             // Proximity & Ward Address
             Row(

@@ -254,14 +254,35 @@ fun NewsScreen(
     val effectiveSubmissions = communityNewsSubmissions ?: repoSubmissions
     val syndicatedArticles by com.example.data.sync.HourlyMultiSourceNewsSyndicator.pulledArticlesFlow.collectAsStateWithLifecycle()
     val multiSourcePullSummary by com.example.data.sync.HourlyMultiSourceNewsSyndicator.pullSummaryFlow.collectAsStateWithLifecycle()
+    val roomOfflineNewsEntities by remember(context) {
+        com.example.data.local.AppDatabase.getInstance(context).newsDao().getAllNews()
+    }.collectAsStateWithLifecycle(initialValue = emptyList())
+    val offlineCachedArticles = remember(roomOfflineNewsEntities, bookmarkedIds) {
+        roomOfflineNewsEntities.map { entity ->
+            val strId = "room_${entity.id}"
+            NewsArticle(
+                id = strId,
+                title = entity.title,
+                odiaTitle = entity.title,
+                snippet = entity.summary,
+                odiaSnippet = entity.summary,
+                category = entity.category,
+                timeAgo = entity.publishedAt.ifBlank { "Saved Offline" },
+                source = entity.source.ifBlank { "Baleshwar 360 Offline Cache" },
+                isBookmarked = entity.isBookmarked || bookmarkedIds.contains(strId),
+                content = entity.content,
+                odiaContent = entity.content
+            )
+        }
+    }
     var firestoreTrendingArticles by remember { mutableStateOf<List<NewsArticle>>(emptyList()) }
     val lastTrendingSyncTs by com.example.data.firebase.FirestoreService.lastTrendingSyncTimestampFlow.collectAsStateWithLifecycle()
-    val mergedArticles = remember(articles, syndicatedArticles, firestoreTrendingArticles, bookmarkedIds) {
+    val mergedArticles = remember(articles, syndicatedArticles, firestoreTrendingArticles, offlineCachedArticles, bookmarkedIds) {
         (firestoreTrendingArticles.map { art ->
             art.copy(isBookmarked = art.isBookmarked || bookmarkedIds.contains(art.id))
         } + syndicatedArticles.map { art ->
             art.copy(isBookmarked = art.isBookmarked || bookmarkedIds.contains(art.id))
-        } + articles).distinctBy { "${it.id}_${it.title.trim().lowercase()}" }
+        } + articles + offlineCachedArticles).distinctBy { it.title.trim().lowercase() }
     }
     val coroutineScope = androidx.compose.runtime.rememberCoroutineScope()
 
@@ -928,6 +949,20 @@ fun NewsScreen(
                     }
                 }
             }
+        }
+
+        // Hands-free "Listen to Balasore Today" Odia/English Voice News Reader Banner
+        item(key = "listen_to_balasore_today_banner_item") {
+            val dailyPulse = remember { com.example.data.daily.DailyUpdateEngine.getDailyPulse() }
+            com.example.ui.features.news.ListenToBalasoreTodayBanner(
+                articles = articles,
+                dailyPulse = dailyPulse,
+                language = language,
+                onOpenFullBriefing = {
+                    onOpenFeatureSheet(UniqueFeatureSheetType.BALASORE_AUDIO_BRIEFING)
+                },
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+            )
         }
 
         // Section Header
@@ -4052,9 +4087,10 @@ fun NewsCard(
                     // Specialized 'Share via WhatsApp' Button with Pre-Formatted Deep-Link Message
                     Surface(
                         onClick = {
-                            com.example.util.ShareHelper.shareNewsViaWhatsApp(
+                            com.example.util.ShareHelper.shareNewsToPlatform(
                                 context = context,
                                 article = article,
+                                platform = com.example.util.SocialPlatform.WHATSAPP,
                                 isOdia = language == AppLanguage.ODIA
                             )
                         },
@@ -4073,11 +4109,73 @@ fun NewsCard(
                             )
                             Spacer(modifier = Modifier.width(4.dp))
                             Text(
-                                text = if (language == AppLanguage.ODIA) "WhatsApp" else "WhatsApp",
+                                text = "WhatsApp",
                                 style = MaterialTheme.typography.labelSmall.copy(
                                     fontWeight = FontWeight.ExtraBold,
                                     color = Color(0xFF15803D)
                                 )
+                            )
+                        }
+                    }
+
+                    // Direct Share to Facebook Button
+                    Surface(
+                        onClick = {
+                            com.example.util.ShareHelper.shareNewsToPlatform(
+                                context = context,
+                                article = article,
+                                platform = com.example.util.SocialPlatform.FACEBOOK,
+                                isOdia = language == AppLanguage.ODIA
+                            )
+                        },
+                        shape = RoundedCornerShape(8.dp),
+                        color = Color(0xFFDBEAFE),
+                        border = BorderStroke(1.dp, Color(0xFF1877F2).copy(alpha = 0.45f)),
+                        modifier = Modifier.testTag("facebook_share_news_button_${article.id}")
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp)
+                        ) {
+                            Text(
+                                text = "📘",
+                                fontSize = 11.sp
+                            )
+                            Spacer(modifier = Modifier.width(3.dp))
+                            Text(
+                                text = "FB",
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = Color(0xFF1877F2)
+                                )
+                            )
+                        }
+                    }
+
+                    // Direct Share to X (Twitter) Button
+                    Surface(
+                        onClick = {
+                            com.example.util.ShareHelper.shareNewsToPlatform(
+                                context = context,
+                                article = article,
+                                platform = com.example.util.SocialPlatform.TWITTER,
+                                isOdia = language == AppLanguage.ODIA
+                            )
+                        },
+                        shape = RoundedCornerShape(8.dp),
+                        color = Color(0xFFF1F5F9),
+                        border = BorderStroke(1.dp, Color(0xFF334155).copy(alpha = 0.35f)),
+                        modifier = Modifier.testTag("twitter_share_news_button_${article.id}")
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp)
+                        ) {
+                            Text(
+                                text = "𝕏",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Black,
+                                color = Color(0xFF0F172A)
                             )
                         }
                     }

@@ -361,8 +361,10 @@ object EmergencySosManager {
      * Evaluates if a spoken transcript matches the emergency trigger command.
      */
     fun isEmergencyVoiceCommand(spokenText: String): Boolean {
+        if (ForegroundVoiceHelpTrigger.isHelpMeTriggerPhrase(spokenText)) return true
         val lower = spokenText.lowercase().trim()
         val keywords = listOf(
+            "help me",
             "call balasore emergency",
             "call emergency",
             "balasore emergency",
@@ -372,10 +374,10 @@ object EmergencySosManager {
             "112",
             "police",
             "sos",
-            "help",
             "ambulance",
             "ପୋଲିସ",
             "ଜରୁରୀକାଳୀନ",
+            "ମୋତେ ସାହାଯ୍ୟ କର",
             "ସାହାଯ୍ୟ କରନ୍ତୁ",
             "ଏମରଜେନ୍ସି"
         )
