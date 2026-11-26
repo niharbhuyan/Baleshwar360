@@ -201,3 +201,102 @@ test("Authenticated user: can create and read their own profile and bookmarks", 
       })
   );
 });
+
+test("Weather alerts and snapshots: public read allowed, non-admin writes denied", async () => {
+  const now = Date.now();
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    await context.firestore().collection("weather_alerts").doc("alert_chandipur_cyclone").set({
+      alertId: "alert_chandipur_cyclone",
+      regionCode: "CHANDIPUR",
+      eventType: "CYCLONE",
+      severity: "WARNING",
+      headline: "Coastal Wind Alert across Balasore",
+      description: "High wind warning for Chandipur and Balaramgadi coast.",
+      affectedBlocks: ["Chandipur", "Balaramgadi"],
+      source: "OpenWeatherMap",
+      startsAtMs: now,
+      expiresAtMs: now + 43200000,
+      isActive: true,
+      updatedAtMs: now,
+    });
+  });
+
+  const aliceDb = testEnv.authenticatedContext(ALICE_UID).firestore();
+  await assertSucceeds(aliceDb.collection("weather_alerts").doc("alert_chandipur_cyclone").get());
+  await assertFails(
+    aliceDb.collection("weather_alerts").doc("alert_forged").set({
+      alertId: "alert_forged",
+      regionCode: "BLS_SADAR",
+      eventType: "FLOOD",
+      severity: "EMERGENCY",
+      headline: "Forged Alert",
+      description: "Unauthorized write attempt",
+      affectedBlocks: ["Balasore Sadar"],
+      source: "Spoofed",
+      startsAtMs: now,
+      expiresAtMs: now + 3600000,
+      isActive: true,
+      updatedAtMs: now,
+    })
+  );
+  await assertFails(
+    aliceDb.collection("weather_snapshots").doc("BLS_SADAR").set({
+      regionCode: "BLS_SADAR",
+      provider: "OpenWeatherMap",
+      temperatureC: 32.0,
+      feelsLikeC: 35.0,
+      humidityPct: 75,
+      windSpeedKmh: 14.0,
+      rainMm3h: 0.0,
+      weatherCode: "Clear",
+      conditionSummary: "Clear Sky",
+      floodRiskLevel: "NORMAL",
+      observedAtMs: now,
+    })
+  );
+});
+
+test("Tourism hotspots: public read allowed, non-admin writes denied", async () => {
+  const now = Date.now();
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    await context.firestore().collection("tourism_hotspots").doc("spot_chandipur_beach").set({
+      spotId: "spot_chandipur_beach",
+      regionCode: "CHANDIPUR",
+      nameEn: "Chandipur Beach (Vanishing Sea)",
+      nameOr: "ଚାନ୍ଦିପୁର ବେଳାଭୂମି",
+      shortDescription: "Sea recedes up to 5 km twice daily during low tide.",
+      description: "Iconic Bay of Bengal vanishing beach in Balasore.",
+      category: "BEACH",
+      heroImageUrl: "drawable://hero_chandipur_beach",
+      latitude: 21.4416,
+      longitude: 87.0149,
+      address: "Chandipur Sea Beach, Balasore, Odisha 756025",
+      rating: 4.8,
+      isFeatured: true,
+      updatedAtMs: now,
+    });
+  });
+
+  const aliceDb = testEnv.authenticatedContext(ALICE_UID).firestore();
+  await assertSucceeds(aliceDb.collection("tourism_hotspots").doc("spot_chandipur_beach").get());
+  await assertFails(
+    aliceDb.collection("tourism_hotspots").doc("spot_forged").set({
+      spotId: "spot_forged",
+      regionCode: "REMUNA",
+      nameEn: "Forged Spot",
+      nameOr: "ନକଲି",
+      shortDescription: "Unauthorized write",
+      description: "Should be denied",
+      category: "TEMPLE",
+      heroImageUrl: "https://example.com/img.jpg",
+      latitude: 21.529,
+      longitude: 86.8712,
+      address: "Remuna",
+      rating: 4.5,
+      isFeatured: false,
+      updatedAtMs: now,
+    })
+  );
+});
+
+

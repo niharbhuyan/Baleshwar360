@@ -39,4 +39,15 @@
     <string name="widget_chandipur_safe_walk_desc">ଲାଇଭ୍ ଚାନ୍ଦିପୁର ସମୁଦ୍ର ଜୁଆର-ଭଟ୍ଟା ସମୟ</string>
     <string name="widget_weather_name">ବାଲେଶ୍ୱର ଓ ଚାନ୍ଦିପୁର ପାଣିପାଗ</string>
     <string name="widget_weather_desc">ବାଲେଶ୍ୱର ତାପମାତ୍ରା, ବାତ୍ୟା ସତର୍କତା ଓ ପବନର ଗତି</string>
+    <string name="osm_tourism_map_title">ବାଲେଶ୍ୱର ପର୍ଯ୍ୟଟନ ମାନଚିତ୍ର</string>
+    <string name="osm_tourism_map_subtitle_db">ପର୍ଯ୍ୟଟନ ଡାଟାବେସ୍ • OSMDroid ଇଣ୍ଟରାକ୍ଟିଭ୍</string>
+    <string name="osm_tourism_search_placeholder">ଚାନ୍ଦିପୁର, ରେମୁଣା, ମନ୍ଦିର ଖୋଜନ୍ତୁ…</string>
+    <string name="osm_tourism_fit_all">ସମସ୍ତ ସ୍ଥାନ ଦେଖନ୍ତୁ</string>
+    <string name="osm_tourism_recenter">ବାଲେଶ୍ୱର କେନ୍ଦ୍ର</string>
+    <string name="osm_tourism_directions">ଦିଗ ନିର୍ଦ୍ଦେଶ</string>
+    <string name="osm_tourism_reviews">ରିଭ୍ୟୁ ଓ ରେଟିଂ</string>
+    <string name="osm_tourism_focus_pin">କଲଆଉଟ୍ ଖୋଲନ୍ତୁ</string>
+    <string name="osm_tourism_empty_filter">କୌଣସି ଦର୍ଶନୀୟ ସ୍ଥାନ ମିଳିଲା ନାହିଁ। ଅନ୍ୟ ବର୍ଗ ବାଛନ୍ତୁ।</string>
+    <string name="hourly_weather_card_title">ବାଲେଶ୍ୱର ଘଣ୍ଟାୱାରୀ ପାଣିପାଗ</string>
+    <string name="hourly_weather_open_full">ସମ୍ପୂର୍ଣ୍ଣ ପାଣିପାଗ ଓ ରାଡାର୍</string>
 </resources>

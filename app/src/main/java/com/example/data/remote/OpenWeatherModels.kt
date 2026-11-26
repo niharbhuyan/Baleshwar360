@@ -141,3 +141,28 @@ data class OpenWeatherDailyForecast(
 
 typealias OpenWeatherSevenDayForecast = OpenWeatherDailyForecast
 
+/**
+ * Single hourly/3-hourly OpenWeatherMap forecast slot for the Balasore dashboard carousel.
+ */
+data class BalasoreHourlyForecastSlot(
+    val epochSeconds: Long,
+    val timeLabel: String,
+    val tempC: Double,
+    val feelsLikeC: Double,
+    val humidityPercent: Int,
+    val windSpeedKmh: Double,
+    val rainChancePercent: Int,
+    val pressureHpa: Int,
+    val conditionMain: String,
+    val conditionDescription: String,
+    val iconCode: String,
+    val advisoryEn: String,
+    val advisoryOr: String
+)
+
+data class BalasoreHourlyForecastBundle(
+    val cityName: String = "Balasore",
+    val slots: List<BalasoreHourlyForecastSlot> = emptyList(),
+    val isLiveOpenWeather: Boolean = false,
+    val updatedAtMillis: Long = System.currentTimeMillis()
+)

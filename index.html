@@ -8,6 +8,10 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Noto+Sans+Oriya:wght@500;700&display=swap" rel="stylesheet">
   <script src="./qrcode.min.js" defer></script>
+  <script src="https://unpkg.com/react@18.2.0/umd/react.production.min.js" defer></script>
+  <script src="https://unpkg.com/react-dom@18.2.0/umd/react-dom.production.min.js" defer></script>
+  <script src="https://unpkg.com/prop-types@15.8.1/prop-types.min.js" defer></script>
+  <script src="https://unpkg.com/recharts@2.12.7/umd/Recharts.js" defer></script>
   <style>
     :root {
       --primary: #0284c7;
@@ -550,6 +554,281 @@
       gap: 10px;
       padding-top: 8px;
       border-top: 1px solid #1e293b;
+    }
+    .history-modal-tabs {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin: 14px 0 12px;
+      background: #020617;
+      padding: 4px;
+      border-radius: 12px;
+      border: 1px solid #1e293b;
+    }
+    .history-modal-tab {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      background: transparent;
+      color: #94a3b8;
+      border: none;
+      border-radius: 9px;
+      padding: 8px 10px;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    .history-modal-tab.active {
+      background: #1e293b;
+      color: #f8fafc;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+    }
+    .history-tab-pill {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 20px;
+      height: 18px;
+      padding: 0 6px;
+      border-radius: 999px;
+      background: rgba(56, 189, 248, 0.18);
+      color: #7dd3fc;
+      font-size: 11px;
+      font-weight: 800;
+    }
+    .topic-search-form {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+    .topic-search-input {
+      flex: 1;
+      background: #020617;
+      color: #f8fafc;
+      border: 1px solid #334155;
+      border-radius: 10px;
+      padding: 9px 12px;
+      font-size: 12.5px;
+      outline: none;
+    }
+    .topic-search-input:focus {
+      border-color: #38bdf8;
+    }
+    .topic-search-submit {
+      background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%);
+      color: #ffffff;
+      border: none;
+      border-radius: 10px;
+      padding: 9px 14px;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .topic-search-submit:hover {
+      background: linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%);
+    }
+    .topic-quick-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-bottom: 10px;
+    }
+    .topic-quick-chip {
+      background: #1e293b;
+      color: #cbd5e1;
+      border: 1px solid #334155;
+      border-radius: 999px;
+      padding: 4px 10px;
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    .topic-quick-chip:hover {
+      border-color: #38bdf8;
+      color: #ffffff;
+      background: rgba(56, 189, 248, 0.15);
+    }
+    .topic-trend-card {
+      background: linear-gradient(180deg, rgba(15, 23, 42, 0.96) 0%, rgba(2, 6, 23, 0.96) 100%);
+      border: 1px solid rgba(56, 189, 248, 0.28);
+      border-radius: 14px;
+      padding: 12px 13px 10px;
+      margin-bottom: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      box-shadow: 0 6px 18px rgba(2, 6, 23, 0.35);
+    }
+    .topic-trend-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .topic-trend-title-wrap {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      min-width: 0;
+    }
+    .topic-trend-eyebrow {
+      font-size: 10px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.7px;
+      color: #38bdf8;
+    }
+    .topic-trend-topic-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      min-width: 0;
+    }
+    .topic-trend-selected-title {
+      font-size: 13.5px;
+      font-weight: 800;
+      color: #f8fafc;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .topic-trend-stats-pill {
+      font-size: 11px;
+      font-weight: 800;
+      color: #7dd3fc;
+      background: rgba(56, 189, 248, 0.14);
+      border: 1px solid rgba(56, 189, 248, 0.28);
+      border-radius: 999px;
+      padding: 3px 9px;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .topic-trend-chart-wrap {
+      width: 100%;
+      height: 170px;
+      background: #020617;
+      border: 1px solid #1e293b;
+      border-radius: 10px;
+      padding: 6px 4px 2px 0;
+      overflow: hidden;
+    }
+    .topic-trend-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      font-size: 11px;
+      color: #94a3b8;
+    }
+    .topic-rank-card {
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 13px;
+      padding: 10px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 7px;
+      cursor: pointer;
+      transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+    }
+    .topic-rank-card:hover {
+      border-color: rgba(56, 189, 248, 0.55);
+    }
+    .topic-rank-card.selected-topic {
+      border-color: #38bdf8;
+      background: rgba(14, 165, 233, 0.14);
+      box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.25);
+    }
+    .topic-rank-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .topic-rank-left {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
+    }
+    .topic-rank-num {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 26px;
+      height: 22px;
+      border-radius: 7px;
+      background: #0f172a;
+      color: #94a3b8;
+      font-size: 11px;
+      font-weight: 800;
+      flex-shrink: 0;
+    }
+    .topic-rank-num.rank-top {
+      background: rgba(250, 204, 21, 0.18);
+      color: #fde047;
+      border: 1px solid rgba(250, 204, 21, 0.35);
+    }
+    .topic-rank-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: #f8fafc;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .topic-cat-badge {
+      font-size: 10.5px;
+      font-weight: 700;
+      color: #38bdf8;
+      background: rgba(56, 189, 248, 0.14);
+      padding: 2px 8px;
+      border-radius: 999px;
+      flex-shrink: 0;
+    }
+    .topic-bar-track {
+      width: 100%;
+      height: 6px;
+      border-radius: 999px;
+      background: #0f172a;
+      overflow: hidden;
+    }
+    .topic-bar-fill {
+      height: 100%;
+      border-radius: 999px;
+      background: linear-gradient(90deg, #0ea5e9 0%, #22c55e 100%);
+      transition: width 0.25s ease;
+    }
+    .topic-rank-meta {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      font-size: 11px;
+      color: #94a3b8;
+    }
+    .topic-rank-actions {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+    }
+    .topic-mini-btn {
+      background: #0f172a;
+      color: #cbd5e1;
+      border: 1px solid #475569;
+      border-radius: 7px;
+      padding: 3px 8px;
+      font-size: 11px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .topic-mini-btn:hover {
+      border-color: #38bdf8;
+      color: #ffffff;
     }
     .privacy-cta-btn {
       display: inline-flex;
@@ -1972,12 +2251,713 @@
       });
     }
 
-    function openQrHistoryModal() {
+    const BALASORE_TOPICS_DB_NAME = 'balasore360_local_db';
+    const BALASORE_TOPICS_STORE = 'news_topic_searches';
+    const BALASORE_TOPICS_LS_KEY = 'balasore360_news_topics_fallback_v1';
+    let currentHistoryTab = 'qr';
+    let lastTopicsStorageSource = 'IndexedDB';
+    let selectedBalasoreTopicKey = null;
+    let cachedRankedBalasoreTopics = [];
+    let topicTrendReactRoot = null;
+
+    function formatIsoDateKey(dateObj) {
+      const d = dateObj instanceof Date ? dateObj : new Date();
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return y + '-' + m + '-' + day;
+    }
+
+    function formatShortChartDay(dateObj) {
+      try {
+        return dateObj.toLocaleDateString('en-IN', { month: 'short', day: 'numeric' });
+      } catch (_) {
+        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        return months[dateObj.getMonth()] + ' ' + dateObj.getDate();
+      }
+    }
+
+    function buildLocal7DayTopicTrend(topicItem) {
+      const countsMap = (topicItem && topicItem.daily_counts && typeof topicItem.daily_counts === 'object')
+        ? Object.assign({}, topicItem.daily_counts)
+        : {};
+      const hasDailyData = Object.keys(countsMap).length > 0;
+      if (!hasDailyData && topicItem && (topicItem.search_count || 0) > 0) {
+        const fallbackDay = formatIsoDateKey(new Date(topicItem.last_searched_at_ms || Date.now()));
+        countsMap[fallbackDay] = Number(topicItem.search_count) || 1;
+      }
+
+      const series = [];
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      for (let offset = 6; offset >= 0; offset--) {
+        const dayDate = new Date(today.getTime());
+        dayDate.setDate(today.getDate() - offset);
+        const isoKey = formatIsoDateKey(dayDate);
+        series.push({
+          date: isoKey,
+          label: formatShortChartDay(dayDate),
+          searches: Number(countsMap[isoKey]) || 0
+        });
+      }
+      return series;
+    }
+
+    function pruneDailyCountsMap(dailyCounts) {
+      const out = {};
+      const keys = Object.keys(dailyCounts || {}).sort().slice(-30);
+      keys.forEach(function(k) {
+        const val = Number(dailyCounts[k]);
+        if (val > 0) out[k] = val;
+      });
+      return out;
+    }
+
+    function inferBalasoreTopicCategory(topic) {
+      const lowered = String(topic || '').toLowerCase();
+      if (/(cyclone|flood|rain|weather|tide|heat|subarnarekha|budhabalanga|imd)/.test(lowered)) return 'Weather';
+      if (/(drdo|missile|itr|defense|defence)/.test(lowered)) return 'Defense';
+      if (/(temple|khirachora|panchalingeswar|chandaneswar|festival|darshan)/.test(lowered)) return 'Heritage';
+      if (/(beach|chandipur|talasari|kuldiha|tourism|safari)/.test(lowered)) return 'Tourism';
+      if (/(fish|balaramgadi|mandi|paddy|farmer|market|motiganj)/.test(lowered)) return 'Agriculture';
+      if (/(train|bus|road|hospital|municipality|water|power|civic)/.test(lowered)) return 'Civic';
+      return 'Local';
+    }
+
+    function openBalasoreTopicsDb() {
+      return new Promise(function(resolve, reject) {
+        if (typeof indexedDB === 'undefined') {
+          reject(new Error('IndexedDB unavailable'));
+          return;
+        }
+        const request = indexedDB.open(BALASORE_TOPICS_DB_NAME, 1);
+        request.onupgradeneeded = function(event) {
+          const db = event.target.result;
+          if (!db.objectStoreNames.contains(BALASORE_TOPICS_STORE)) {
+            const store = db.createObjectStore(BALASORE_TOPICS_STORE, { keyPath: 'topic_key' });
+            store.createIndex('by_search_count', 'search_count', { unique: false });
+          }
+        };
+        request.onsuccess = function() { resolve(request.result); };
+        request.onerror = function() { reject(request.error || new Error('IndexedDB open failed')); };
+      });
+    }
+
+    function loadFallbackTopics() {
+      try {
+        const raw = localStorage.getItem(BALASORE_TOPICS_LS_KEY);
+        const parsed = raw ? JSON.parse(raw) : [];
+        return Array.isArray(parsed) ? parsed : [];
+      } catch (_) {
+        return [];
+      }
+    }
+
+    function saveFallbackTopics(items) {
+      try {
+        localStorage.setItem(BALASORE_TOPICS_LS_KEY, JSON.stringify(items.slice(0, 50)));
+      } catch (_) {}
+    }
+
+    function sortAndRankTopics(items) {
+      return items
+        .slice()
+        .sort(function(a, b) {
+          const diff = (b.search_count || 0) - (a.search_count || 0);
+          if (diff !== 0) return diff;
+          return (b.last_searched_at_ms || 0) - (a.last_searched_at_ms || 0);
+        })
+        .slice(0, 15)
+        .map(function(item, idx) {
+          return Object.assign({}, item, { rank: idx + 1 });
+        });
+    }
+
+    async function readLocalIndexedDbTopics() {
+      try {
+        const db = await openBalasoreTopicsDb();
+        return await new Promise(function(resolve, reject) {
+          const tx = db.transaction(BALASORE_TOPICS_STORE, 'readonly');
+          const req = tx.objectStore(BALASORE_TOPICS_STORE).getAll();
+          req.onsuccess = function() {
+            db.close();
+            resolve(sortAndRankTopics(req.result || []));
+          };
+          req.onerror = function() {
+            db.close();
+            reject(req.error);
+          };
+        });
+      } catch (_) {
+        return sortAndRankTopics(loadFallbackTopics());
+      }
+    }
+
+    async function upsertLocalIndexedDbTopic(topicLabel, category) {
+      const cleaned = String(topicLabel || '').trim().replace(/\s+/g, ' ').slice(0, 80);
+      if (!cleaned) return null;
+      const topicKey = cleaned.toLowerCase();
+      const resolvedCategory = category || inferBalasoreTopicCategory(cleaned);
+      const nowMs = Date.now();
+      const todayKey = formatIsoDateKey(new Date(nowMs));
+
+      try {
+        const db = await openBalasoreTopicsDb();
+        await new Promise(function(resolve, reject) {
+          const tx = db.transaction(BALASORE_TOPICS_STORE, 'readwrite');
+          const store = tx.objectStore(BALASORE_TOPICS_STORE);
+          const getReq = store.get(topicKey);
+          getReq.onsuccess = function() {
+            const existing = getReq.result;
+            const prevDaily = (existing && existing.daily_counts && typeof existing.daily_counts === 'object')
+              ? Object.assign({}, existing.daily_counts)
+              : {};
+            if (existing && Object.keys(prevDaily).length === 0 && (existing.search_count || 0) > 0) {
+              const prevDay = formatIsoDateKey(new Date(existing.last_searched_at_ms || nowMs));
+              prevDaily[prevDay] = Number(existing.search_count) || 1;
+            }
+            prevDaily[todayKey] = (Number(prevDaily[todayKey]) || 0) + 1;
+            const nextRecord = {
+              topic_key: topicKey,
+              topic_label: cleaned,
+              category: resolvedCategory,
+              search_count: existing ? (existing.search_count || 1) + 1 : 1,
+              last_searched_at_ms: nowMs,
+              daily_counts: pruneDailyCountsMap(prevDaily),
+              matching_articles: existing && typeof existing.matching_articles === 'number' ? existing.matching_articles : null
+            };
+            store.put(nextRecord);
+          };
+          tx.oncomplete = function() { db.close(); resolve(); };
+          tx.onerror = function() { db.close(); reject(tx.error); };
+        });
+      } catch (_) {
+        const items = loadFallbackTopics();
+        const idx = items.findIndex(function(x) { return x.topic_key === topicKey; });
+        if (idx >= 0) {
+          const prevDaily = (items[idx].daily_counts && typeof items[idx].daily_counts === 'object')
+            ? Object.assign({}, items[idx].daily_counts)
+            : {};
+          if (Object.keys(prevDaily).length === 0 && (items[idx].search_count || 0) > 0) {
+            const prevDay = formatIsoDateKey(new Date(items[idx].last_searched_at_ms || nowMs));
+            prevDaily[prevDay] = Number(items[idx].search_count) || 1;
+          }
+          prevDaily[todayKey] = (Number(prevDaily[todayKey]) || 0) + 1;
+          items[idx].topic_label = cleaned;
+          items[idx].category = resolvedCategory;
+          items[idx].search_count = (items[idx].search_count || 1) + 1;
+          items[idx].last_searched_at_ms = nowMs;
+          items[idx].daily_counts = pruneDailyCountsMap(prevDaily);
+        } else {
+          const initialDaily = {};
+          initialDaily[todayKey] = 1;
+          items.push({
+            topic_key: topicKey,
+            topic_label: cleaned,
+            category: resolvedCategory,
+            search_count: 1,
+            last_searched_at_ms: nowMs,
+            daily_counts: initialDaily
+          });
+        }
+        saveFallbackTopics(items);
+      }
+      return readLocalIndexedDbTopics();
+    }
+
+    async function deleteLocalIndexedDbTopic(topicKey) {
+      const cleanedKey = String(topicKey || '').trim().toLowerCase();
+      if (!cleanedKey) return;
+      try {
+        const db = await openBalasoreTopicsDb();
+        await new Promise(function(resolve, reject) {
+          const tx = db.transaction(BALASORE_TOPICS_STORE, 'readwrite');
+          tx.objectStore(BALASORE_TOPICS_STORE).delete(cleanedKey);
+          tx.oncomplete = function() { db.close(); resolve(); };
+          tx.onerror = function() { db.close(); reject(tx.error); };
+        });
+      } catch (_) {
+        saveFallbackTopics(loadFallbackTopics().filter(function(x) { return x.topic_key !== cleanedKey; }));
+      }
+    }
+
+    async function clearLocalIndexedDbTopics() {
+      try {
+        const db = await openBalasoreTopicsDb();
+        await new Promise(function(resolve, reject) {
+          const tx = db.transaction(BALASORE_TOPICS_STORE, 'readwrite');
+          tx.objectStore(BALASORE_TOPICS_STORE).clear();
+          tx.oncomplete = function() { db.close(); resolve(); };
+          tx.onerror = function() { db.close(); reject(tx.error); };
+        });
+      } catch (_) {
+        saveFallbackTopics([]);
+      }
+    }
+
+    async function fetchRankedBalasoreTopics() {
+      try {
+        const res = await fetch('/api/balasore/topics/ranked?limit=15', { method: 'GET' });
+        const ct = (res.headers.get('content-type') || '').toLowerCase();
+        if (res.ok && ct.includes('application/json')) {
+          const payload = await res.json();
+          if (payload && Array.isArray(payload.topics)) {
+            lastTopicsStorageSource = 'Local SQLite + IndexedDB';
+            return sortAndRankTopics(payload.topics);
+          }
+        }
+      } catch (_) {}
+      lastTopicsStorageSource = 'Local IndexedDB';
+      return readLocalIndexedDbTopics();
+    }
+
+    async function fetchTopic7DayTrend(topicItem) {
+      if (!topicItem || !topicItem.topic_key) return [];
+      try {
+        const res = await fetch(
+          '/api/balasore/topics/trends?topic_key=' + encodeURIComponent(topicItem.topic_key) + '&days=7',
+          { method: 'GET' }
+        );
+        const ct = (res.headers.get('content-type') || '').toLowerCase();
+        if (res.ok && ct.includes('application/json')) {
+          const payload = await res.json();
+          if (payload && Array.isArray(payload.trend) && payload.trend.length > 0) {
+            return payload.trend;
+          }
+        }
+      } catch (_) {}
+      return buildLocal7DayTopicTrend(topicItem);
+    }
+
+    function unmountTopicTrendReactRoot() {
+      if (topicTrendReactRoot && typeof topicTrendReactRoot.unmount === 'function') {
+        try {
+          topicTrendReactRoot.unmount();
+        } catch (_) {}
+        topicTrendReactRoot = null;
+      }
+    }
+
+    function renderTopicTrendSvgFallback(mountEl, trendData) {
+      unmountTopicTrendReactRoot();
+      mountEl.textContent = '';
+      const ns = 'http://www.w3.org/2000/svg';
+      const width = Math.max(260, mountEl.clientWidth || 320);
+      const height = 160;
+      const padLeft = 28;
+      const padRight = 14;
+      const padTop = 16;
+      const padBottom = 26;
+      const plotW = width - padLeft - padRight;
+      const plotH = height - padTop - padBottom;
+      const maxVal = Math.max(1, trendData.reduce(function(m, d) { return Math.max(m, d.searches || 0); }, 0));
+
+      const svg = document.createElementNS(ns, 'svg');
+      svg.setAttribute('viewBox', '0 0 ' + width + ' ' + height);
+      svg.setAttribute('width', '100%');
+      svg.setAttribute('height', String(height));
+      svg.setAttribute('role', 'img');
+
+      for (let g = 0; g <= 2; g++) {
+        const y = padTop + (plotH * g) / 2;
+        const gridLine = document.createElementNS(ns, 'line');
+        gridLine.setAttribute('x1', String(padLeft));
+        gridLine.setAttribute('x2', String(width - padRight));
+        gridLine.setAttribute('y1', String(y));
+        gridLine.setAttribute('y2', String(y));
+        gridLine.setAttribute('stroke', '#1e293b');
+        gridLine.setAttribute('stroke-dasharray', '3 3');
+        svg.appendChild(gridLine);
+      }
+
+      const points = trendData.map(function(pt, idx) {
+        const x = padLeft + (trendData.length > 1 ? (plotW * idx) / (trendData.length - 1) : plotW / 2);
+        const y = padTop + plotH - ((pt.searches || 0) / maxVal) * plotH;
+        return { x: x, y: y, label: pt.label, searches: pt.searches || 0 };
+      });
+
+      const polyline = document.createElementNS(ns, 'polyline');
+      polyline.setAttribute('fill', 'none');
+      polyline.setAttribute('stroke', '#38bdf8');
+      polyline.setAttribute('stroke-width', '2.5');
+      polyline.setAttribute('stroke-linecap', 'round');
+      polyline.setAttribute('stroke-linejoin', 'round');
+      polyline.setAttribute('points', points.map(function(p) { return p.x.toFixed(1) + ',' + p.y.toFixed(1); }).join(' '));
+      svg.appendChild(polyline);
+
+      points.forEach(function(p) {
+        const dot = document.createElementNS(ns, 'circle');
+        dot.setAttribute('cx', p.x.toFixed(1));
+        dot.setAttribute('cy', p.y.toFixed(1));
+        dot.setAttribute('r', '4');
+        dot.setAttribute('fill', '#38bdf8');
+        dot.setAttribute('stroke', '#020617');
+        dot.setAttribute('stroke-width', '2');
+        const titleNode = document.createElementNS(ns, 'title');
+        titleNode.textContent = p.label + ': ' + p.searches + (p.searches === 1 ? ' search' : ' searches');
+        dot.appendChild(titleNode);
+        svg.appendChild(dot);
+
+        const lbl = document.createElementNS(ns, 'text');
+        lbl.setAttribute('x', p.x.toFixed(1));
+        lbl.setAttribute('y', String(height - 7));
+        lbl.setAttribute('text-anchor', 'middle');
+        lbl.setAttribute('fill', '#94a3b8');
+        lbl.setAttribute('font-size', '10');
+        lbl.textContent = p.label;
+        svg.appendChild(lbl);
+      });
+
+      mountEl.appendChild(svg);
+    }
+
+    async function renderTopicTrendLineChart(topicItem) {
+      const sectionEl = document.getElementById('topicTrendChartSection');
+      const mountEl = document.getElementById('topicTrendChartMount');
+      const titleEl = document.getElementById('topicTrendSelectedTitle');
+      const catEl = document.getElementById('topicTrendSelectedCategory');
+      const statsPillEl = document.getElementById('topicTrendStatsPill');
+      const peakEl = document.getElementById('topicTrendPeakText');
+      const engineEl = document.getElementById('topicTrendEngineBadge');
+      if (!sectionEl || !mountEl) return;
+
+      if (!topicItem) {
+        sectionEl.style.display = 'none';
+        unmountTopicTrendReactRoot();
+        mountEl.textContent = '';
+        return;
+      }
+
+      sectionEl.style.display = 'flex';
+      if (titleEl) titleEl.textContent = topicItem.topic_label || topicItem.topic_key;
+      if (catEl) catEl.textContent = topicItem.category || 'Local';
+
+      const trendData = await fetchTopic7DayTrend(topicItem);
+      const total7d = trendData.reduce(function(sum, pt) { return sum + (Number(pt.searches) || 0); }, 0);
+      const peakPoint = trendData.reduce(function(best, pt) {
+        return (Number(pt.searches) || 0) > (Number(best.searches) || 0) ? pt : best;
+      }, trendData[0] || { label: '—', searches: 0 });
+
+      if (statsPillEl) {
+        statsPillEl.textContent = total7d + (total7d === 1 ? ' search (7d)' : ' searches (7d)');
+      }
+      if (peakEl) {
+        peakEl.textContent = (peakPoint && peakPoint.searches > 0)
+          ? 'Peak: ' + peakPoint.label + ' (' + peakPoint.searches + ')'
+          : 'Peak: No searches in last 7 days';
+      }
+
+      const R = window.React;
+      const RDOM = window.ReactDOM;
+      const RC = window.Recharts;
+      if (R && RDOM && RC && RC.ResponsiveContainer && RC.LineChart && RC.Line) {
+        if (engineEl) engineEl.textContent = 'Powered by Recharts';
+        const h = R.createElement;
+        const chartElement = h(
+          RC.ResponsiveContainer,
+          { width: '100%', height: 160 },
+          h(
+            RC.LineChart,
+            { data: trendData, margin: { top: 10, right: 16, left: -16, bottom: 2 } },
+            h(RC.CartesianGrid, { stroke: '#1e293b', strokeDasharray: '3 3', vertical: false }),
+            h(RC.XAxis, {
+              dataKey: 'label',
+              stroke: '#64748b',
+              tick: { fill: '#94a3b8', fontSize: 10 },
+              axisLine: { stroke: '#334155' },
+              tickLine: false
+            }),
+            h(RC.YAxis, {
+              allowDecimals: false,
+              stroke: '#64748b',
+              tick: { fill: '#94a3b8', fontSize: 10 },
+              axisLine: false,
+              tickLine: false,
+              domain: [0, 'auto']
+            }),
+            h(RC.Tooltip, {
+              contentStyle: {
+                backgroundColor: '#0f172a',
+                border: '1px solid #38bdf8',
+                borderRadius: '10px',
+                fontSize: '11.5px',
+                color: '#f8fafc',
+                padding: '6px 10px'
+              },
+              labelStyle: { color: '#7dd3fc', fontWeight: 700, marginBottom: '2px' },
+              itemStyle: { color: '#f8fafc', padding: 0 },
+              formatter: function(value) {
+                return [value + (Number(value) === 1 ? ' search' : ' searches'), 'Frequency'];
+              }
+            }),
+            h(RC.Line, {
+              type: 'monotone',
+              dataKey: 'searches',
+              name: topicItem.topic_label || 'Searches',
+              stroke: '#38bdf8',
+              strokeWidth: 2.5,
+              dot: { r: 3.5, fill: '#38bdf8', stroke: '#020617', strokeWidth: 2 },
+              activeDot: { r: 5.5, fill: '#22c55e', stroke: '#f8fafc', strokeWidth: 2 },
+              isAnimationActive: true,
+              animationDuration: 350
+            })
+          )
+        );
+
+        if (typeof RDOM.createRoot === 'function') {
+          if (!topicTrendReactRoot) {
+            mountEl.textContent = '';
+            topicTrendReactRoot = RDOM.createRoot(mountEl);
+          }
+          topicTrendReactRoot.render(chartElement);
+        } else if (typeof RDOM.render === 'function') {
+          RDOM.render(chartElement, mountEl);
+        }
+      } else {
+        if (engineEl) engineEl.textContent = 'Offline SVG Trend';
+        renderTopicTrendSvgFallback(mountEl, trendData);
+      }
+    }
+
+    function selectBalasoreNewsTopic(topicKey) {
+      if (!topicKey) return;
+      selectedBalasoreTopicKey = topicKey;
+      const listEl = document.getElementById('rankedNewsTopicsList');
+      if (listEl) {
+        const cards = listEl.querySelectorAll('.topic-rank-card');
+        cards.forEach(function(cardEl) {
+          const isSelected = cardEl.getAttribute('data-topic-key') === selectedBalasoreTopicKey;
+          cardEl.classList.toggle('selected-topic', isSelected);
+          cardEl.setAttribute('aria-current', isSelected ? 'true' : 'false');
+        });
+      }
+      const matched = cachedRankedBalasoreTopics.find(function(t) { return t.topic_key === selectedBalasoreTopicKey; });
+      if (matched) {
+        renderTopicTrendLineChart(matched);
+      }
+    }
+
+    async function trackBalasoreNewsTopic(topicLabel, category) {
+      const cleaned = String(topicLabel || '').trim().replace(/\s+/g, ' ').slice(0, 80);
+      if (!cleaned) return;
+      selectedBalasoreTopicKey = cleaned.toLowerCase();
+      await upsertLocalIndexedDbTopic(cleaned, category);
+      try {
+        const res = await fetch('/api/balasore/topics/search', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ topic: cleaned, category: category || null })
+        });
+        const ct = (res.headers.get('content-type') || '').toLowerCase();
+        if (res.ok && ct.includes('application/json')) {
+          lastTopicsStorageSource = 'Local SQLite + IndexedDB';
+        }
+      } catch (_) {}
+      await renderRankedNewsTopics();
+    }
+
+    async function removeBalasoreNewsTopic(topicKey) {
+      if (selectedBalasoreTopicKey === topicKey) {
+        selectedBalasoreTopicKey = null;
+      }
+      await deleteLocalIndexedDbTopic(topicKey);
+      try {
+        await fetch('/api/balasore/topics/search?topic_key=' + encodeURIComponent(topicKey), { method: 'DELETE' });
+      } catch (_) {}
+      await renderRankedNewsTopics();
+    }
+
+    async function clearBalasoreNewsTopics() {
+      selectedBalasoreTopicKey = null;
+      await clearLocalIndexedDbTopics();
+      try {
+        await fetch('/api/balasore/topics/search?all=true', { method: 'DELETE' });
+      } catch (_) {}
+      await renderRankedNewsTopics();
+    }
+
+    async function renderRankedNewsTopics() {
+      const listEl = document.getElementById('rankedNewsTopicsList');
+      const countBadge = document.getElementById('newsTopicsTabCount');
+      const summaryEl = document.getElementById('newsTopicsSummaryText');
+      const clearBtn = document.getElementById('clearNewsTopicsBtn');
+      if (!listEl) return;
+
+      const topics = await fetchRankedBalasoreTopics();
+      cachedRankedBalasoreTopics = topics;
+      listEl.textContent = '';
+
+      if (countBadge) countBadge.textContent = String(topics.length);
+      if (clearBtn) clearBtn.style.display = topics.length > 0 ? 'inline-flex' : 'none';
+      if (summaryEl) {
+        const totalSearches = topics.reduce(function(sum, t) { return sum + (t.search_count || 0); }, 0);
+        summaryEl.textContent = topics.length + ' topics • ' + totalSearches + ' searches (' + lastTopicsStorageSource + ')';
+      }
+
+      if (topics.length === 0) {
+        selectedBalasoreTopicKey = null;
+        await renderTopicTrendLineChart(null);
+        const emptyBox = document.createElement('div');
+        emptyBox.className = 'qr-history-empty';
+        const msg = document.createElement('p');
+        msg.textContent = 'No Balasore news topic searches tracked yet. Type a topic above or tap a quick Balasore chip to rank your most-searched local topics and view their 7-day trend chart.';
+        emptyBox.appendChild(msg);
+        listEl.appendChild(emptyBox);
+        return;
+      }
+
+      const selectedExists = topics.some(function(t) { return t.topic_key === selectedBalasoreTopicKey; });
+      if (!selectedExists) {
+        selectedBalasoreTopicKey = topics[0].topic_key;
+      }
+
+      const maxCount = Math.max(1, topics[0].search_count || 1);
+      topics.forEach(function(item) {
+        const isSelected = item.topic_key === selectedBalasoreTopicKey;
+        const card = document.createElement('div');
+        card.className = 'topic-rank-card' + (isSelected ? ' selected-topic' : '');
+        card.setAttribute('data-topic-key', item.topic_key);
+        card.setAttribute('role', 'button');
+        card.setAttribute('tabindex', '0');
+        card.setAttribute('aria-current', isSelected ? 'true' : 'false');
+        card.title = 'Click to view 7-day search trend for ' + item.topic_label;
+        card.addEventListener('click', function() {
+          selectBalasoreNewsTopic(item.topic_key);
+        });
+        card.addEventListener('keydown', function(evt) {
+          if (evt.key === 'Enter' || evt.key === ' ') {
+            evt.preventDefault();
+            selectBalasoreNewsTopic(item.topic_key);
+          }
+        });
+
+        const top = document.createElement('div');
+        top.className = 'topic-rank-top';
+
+        const left = document.createElement('div');
+        left.className = 'topic-rank-left';
+
+        const rankBadge = document.createElement('span');
+        rankBadge.className = 'topic-rank-num' + (item.rank <= 3 ? ' rank-top' : '');
+        rankBadge.textContent = '#' + item.rank;
+
+        const titleEl = document.createElement('span');
+        titleEl.className = 'topic-rank-title';
+        titleEl.textContent = item.topic_label;
+
+        left.appendChild(rankBadge);
+        left.appendChild(titleEl);
+
+        const catBadge = document.createElement('span');
+        catBadge.className = 'topic-cat-badge';
+        catBadge.textContent = item.category || 'Local';
+
+        top.appendChild(left);
+        top.appendChild(catBadge);
+
+        const track = document.createElement('div');
+        track.className = 'topic-bar-track';
+        const fill = document.createElement('div');
+        fill.className = 'topic-bar-fill';
+        const pct = Math.max(12, Math.round(((item.search_count || 1) / maxCount) * 100));
+        fill.style.width = pct + '%';
+        track.appendChild(fill);
+
+        const meta = document.createElement('div');
+        meta.className = 'topic-rank-meta';
+
+        const stats = document.createElement('span');
+        const countLabel = item.search_count === 1 ? '1 search' : item.search_count + ' searches';
+        const matchLabel = typeof item.matching_articles === 'number'
+          ? ' • ' + item.matching_articles + ' articles'
+          : '';
+        stats.textContent = countLabel + matchLabel + ' • ' + formatQrScanTime(new Date(item.last_searched_at_ms || Date.now()).toISOString());
+
+        const actions = document.createElement('div');
+        actions.className = 'topic-rank-actions';
+
+        const boostBtn = document.createElement('button');
+        boostBtn.type = 'button';
+        boostBtn.className = 'topic-mini-btn';
+        boostBtn.title = 'Search this Balasore topic again';
+        boostBtn.textContent = '+1 Search';
+        boostBtn.addEventListener('click', function(evt) {
+          evt.stopPropagation();
+          trackBalasoreNewsTopic(item.topic_label, item.category);
+        });
+
+        const delBtn = document.createElement('button');
+        delBtn.type = 'button';
+        delBtn.className = 'topic-mini-btn';
+        delBtn.setAttribute('aria-label', 'Remove tracked topic');
+        delBtn.textContent = '×';
+        delBtn.addEventListener('click', function(evt) {
+          evt.stopPropagation();
+          removeBalasoreNewsTopic(item.topic_key);
+        });
+
+        actions.appendChild(boostBtn);
+        actions.appendChild(delBtn);
+        meta.appendChild(stats);
+        meta.appendChild(actions);
+
+        card.appendChild(top);
+        card.appendChild(track);
+        card.appendChild(meta);
+        listEl.appendChild(card);
+      });
+
+      const activeTopic = topics.find(function(t) { return t.topic_key === selectedBalasoreTopicKey; }) || topics[0];
+      if (currentHistoryTab === 'topics') {
+        requestAnimationFrame(function() {
+          renderTopicTrendLineChart(activeTopic);
+        });
+      }
+    }
+
+    function switchHistoryModalTab(tabName) {
+      currentHistoryTab = tabName === 'topics' ? 'topics' : 'qr';
+      const qrTabBtn = document.getElementById('historyTabQrBtn');
+      const topicsTabBtn = document.getElementById('historyTabTopicsBtn');
+      const qrPanel = document.getElementById('qrHistoryTabPanel');
+      const topicsPanel = document.getElementById('newsTopicsTabPanel');
+
+      if (qrTabBtn) {
+        qrTabBtn.classList.toggle('active', currentHistoryTab === 'qr');
+        qrTabBtn.setAttribute('aria-selected', String(currentHistoryTab === 'qr'));
+      }
+      if (topicsTabBtn) {
+        topicsTabBtn.classList.toggle('active', currentHistoryTab === 'topics');
+        topicsTabBtn.setAttribute('aria-selected', String(currentHistoryTab === 'topics'));
+      }
+      if (qrPanel) qrPanel.style.display = currentHistoryTab === 'qr' ? 'block' : 'none';
+      if (topicsPanel) topicsPanel.style.display = currentHistoryTab === 'topics' ? 'block' : 'none';
+
+      if (currentHistoryTab === 'topics') {
+        renderRankedNewsTopics();
+      }
+    }
+
+    function handleTopicSearchSubmit(event) {
+      if (event) event.preventDefault();
+      const input = document.getElementById('balasoreTopicInput');
+      if (!input) return;
+      const val = input.value.trim();
+      if (!val) return;
+      input.value = '';
+      trackBalasoreNewsTopic(val);
+    }
+
+    function openQrHistoryModal(initialTab) {
       const modal = document.getElementById('qrHistoryModal');
       if (!modal) return;
       renderQrHistoryList();
       modal.classList.add('open');
       modal.setAttribute('aria-hidden', 'false');
+      switchHistoryModalTab(initialTab || currentHistoryTab || 'qr');
+      if (currentHistoryTab !== 'topics') {
+        renderRankedNewsTopics();
+      }
     }
 
     function closeQrHistoryModal() {
@@ -2134,27 +3114,89 @@
     </div>
   </div>
 
-  <!-- QR Scan History Modal -->
+  <!-- QR Scan History & Top Balasore News Topics Modal -->
   <div id="qrHistoryModal" class="qr-modal-backdrop" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="qrHistoryModalTitle" onclick="if (event.target === this) closeQrHistoryModal();">
     <div class="qr-modal-dialog qr-history-dialog">
       <button type="button" class="qr-modal-close" onclick="closeQrHistoryModal()" aria-label="Close Scan History dialog">&times;</button>
       <div style="font-size: 12px; font-weight: 800; color: #38bdf8; text-transform: uppercase; letter-spacing: 0.7px; margin-bottom: 4px;">
-        Quick Re-Download
+        Local Activity &amp; Insights
       </div>
       <h3 id="qrHistoryModalTitle" style="font-size: 19px; font-weight: 800; color: #f8fafc; margin-bottom: 6px;">
-        QR Scan History
+        Scan History &amp; Balasore News Topics
       </h3>
       <p style="font-size: 12.5px; color: #94a3b8; line-height: 1.5;">
-        Previously scanned release QR codes saved on this browser for one-click re-downloading.
+        Re-download previously scanned QR releases or track and rank your most frequently searched Balasore news topics in the local database.
       </p>
 
-      <div id="qrHistoryList" class="qr-history-list" aria-live="polite"></div>
-
-      <div class="qr-history-footer">
-        <span id="qrHistorySummaryText" style="font-size: 12px; color: #94a3b8;">0 saved QR codes</span>
-        <button type="button" id="clearQrHistoryBtn" class="qr-history-secondary-btn" onclick="clearQrScanHistory()" style="display: none;">
-          Clear History
+      <div class="history-modal-tabs" role="tablist" aria-label="Scan History Sections">
+        <button type="button" id="historyTabQrBtn" class="history-modal-tab active" role="tab" aria-selected="true" onclick="switchHistoryModalTab('qr')">
+          <span>QR Scans</span>
         </button>
+        <button type="button" id="historyTabTopicsBtn" class="history-modal-tab" role="tab" aria-selected="false" onclick="switchHistoryModalTab('topics')">
+          <span>Top News Topics</span>
+          <span class="history-tab-pill" id="newsTopicsTabCount">0</span>
+        </button>
+      </div>
+
+      <div id="qrHistoryTabPanel" role="tabpanel">
+        <div id="qrHistoryList" class="qr-history-list" aria-live="polite"></div>
+
+        <div class="qr-history-footer">
+          <span id="qrHistorySummaryText" style="font-size: 12px; color: #94a3b8;">0 saved QR codes</span>
+          <button type="button" id="clearQrHistoryBtn" class="qr-history-secondary-btn" onclick="clearQrScanHistory()" style="display: none;">
+            Clear History
+          </button>
+        </div>
+      </div>
+
+      <div id="newsTopicsTabPanel" role="tabpanel" style="display: none;">
+        <form id="balasoreTopicSearchForm" class="topic-search-form" onsubmit="handleTopicSearchSubmit(event)">
+          <input
+            type="text"
+            id="balasoreTopicInput"
+            class="topic-search-input"
+            maxlength="80"
+            placeholder="Search or track a Balasore news topic..."
+            aria-label="Balasore news topic"
+          />
+          <button type="submit" class="topic-search-submit">Track</button>
+        </form>
+
+        <div class="topic-quick-chips" aria-label="Quick Balasore news topics">
+          <button type="button" class="topic-quick-chip" onclick="trackBalasoreNewsTopic('Chandipur Tide', 'Weather')">🌊 Chandipur Tide</button>
+          <button type="button" class="topic-quick-chip" onclick="trackBalasoreNewsTopic('Subarnarekha Flood', 'Weather')">🌧️ Subarnarekha Flood</button>
+          <button type="button" class="topic-quick-chip" onclick="trackBalasoreNewsTopic('DRDO ITR Chandipur', 'Defense')">🚀 DRDO ITR</button>
+          <button type="button" class="topic-quick-chip" onclick="trackBalasoreNewsTopic('Khirachora Temple', 'Heritage')">🛕 Khirachora Temple</button>
+          <button type="button" class="topic-quick-chip" onclick="trackBalasoreNewsTopic('Balasore Cyclone', 'Weather')">🌀 Cyclone Alert</button>
+          <button type="button" class="topic-quick-chip" onclick="trackBalasoreNewsTopic('Balaramgadi Fish', 'Agriculture')">🐟 Balaramgadi Fish</button>
+        </div>
+
+        <div id="topicTrendChartSection" class="topic-trend-card" style="display: none;" aria-live="polite">
+          <div class="topic-trend-header">
+            <div class="topic-trend-title-wrap">
+              <span class="topic-trend-eyebrow">7-Day Search Frequency Trend</span>
+              <div class="topic-trend-topic-row">
+                <span id="topicTrendSelectedTitle" class="topic-trend-selected-title">Select a topic</span>
+                <span id="topicTrendSelectedCategory" class="topic-cat-badge">Local</span>
+              </div>
+            </div>
+            <div id="topicTrendStatsPill" class="topic-trend-stats-pill">0 searches (7d)</div>
+          </div>
+          <div id="topicTrendChartMount" class="topic-trend-chart-wrap" aria-label="Recharts 7-day search frequency line chart"></div>
+          <div class="topic-trend-footer">
+            <span id="topicTrendPeakText">Peak: —</span>
+            <span id="topicTrendEngineBadge">Powered by Recharts</span>
+          </div>
+        </div>
+
+        <div id="rankedNewsTopicsList" class="qr-history-list" aria-live="polite"></div>
+
+        <div class="qr-history-footer">
+          <span id="newsTopicsSummaryText" style="font-size: 11.5px; color: #94a3b8;">0 topics tracked (Local IndexedDB)</span>
+          <button type="button" id="clearNewsTopicsBtn" class="qr-history-secondary-btn" onclick="clearBalasoreNewsTopics()" style="display: none;">
+            Clear Topics
+          </button>
+        </div>
       </div>
     </div>
   </div>

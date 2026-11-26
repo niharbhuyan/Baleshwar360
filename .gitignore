@@ -27,4 +27,9 @@ download_dist/
 serviceAccountKey.json
 *serviceAccount*.json
 *firebase-adminsdk*.json
+*.db
+*.db-wal
+*.db-shm
+backend/data/
+
 

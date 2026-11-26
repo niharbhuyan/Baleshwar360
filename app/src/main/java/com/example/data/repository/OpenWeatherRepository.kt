@@ -179,6 +179,121 @@ class OpenWeatherRepository(
     fun getCuratedBalasoreFiveDayForecastFallback(): List<OpenWeatherDailyForecast> =
         getCuratedBalasoreSevenDayForecastFallback().take(5)
 
+    /**
+     * Fetches the next 24 hours of Balasore hourly/3-hourly forecast slots directly from
+     * OpenWeatherMap (`/data/2.5/forecast`) with automatic fallback to curated coastal slots.
+     */
+    suspend fun fetchHourlyForecast(
+        lat: Double = BALASORE_LAT,
+        lon: Double = BALASORE_LON,
+        apiKey: String = ""
+    ): Result<BalasoreHourlyForecastBundle> {
+        val resolved = getResolvedApiKey(apiKey)
+        if (apiService != null || isApiKeyConfigured(resolved)) {
+            try {
+                val service = apiService ?: OpenWeatherMapApiService.create()
+                val response = service.getFiveDayForecast(
+                    lat = lat,
+                    lon = lon,
+                    units = "metric",
+                    apiKey = resolved
+                )
+                val items = response.list.take(8)
+                if (items.isNotEmpty()) {
+                    val slots = items.mapIndexed { idx, item ->
+                        mapOpenWeatherItemToHourlySlot(item, idx)
+                    }
+                    return Result.success(
+                        BalasoreHourlyForecastBundle(
+                            cityName = response.city?.name?.ifBlank { "Balasore" } ?: "Balasore",
+                            slots = slots,
+                            isLiveOpenWeather = true,
+                            updatedAtMillis = System.currentTimeMillis()
+                        )
+                    )
+                }
+            } catch (e: Exception) {
+                android.util.Log.w("OpenWeatherRepository", "Hourly forecast live fetch notice: ${e.message}")
+                if (apiService != null) {
+                    return Result.failure(e)
+                }
+            }
+        }
+        return Result.success(getCuratedBalasoreHourlyForecastFallback())
+    }
+
+    fun getCuratedBalasoreHourlyForecastFallback(): BalasoreHourlyForecastBundle {
+        val fallbackItems = getCuratedBalasoreSevenDayForecastFallback()
+            .take(2)
+            .flatMap { it.hourlySlots }
+            .take(8)
+        val slots = fallbackItems.mapIndexed { idx, item ->
+            mapOpenWeatherItemToHourlySlot(item, idx)
+        }
+        return BalasoreHourlyForecastBundle(
+            cityName = "Balasore",
+            slots = slots,
+            isLiveOpenWeather = false,
+            updatedAtMillis = System.currentTimeMillis()
+        )
+    }
+
+    private fun mapOpenWeatherItemToHourlySlot(
+        item: OpenWeatherForecastItem,
+        index: Int
+    ): BalasoreHourlyForecastSlot {
+        val epochSec = item.dt ?: (System.currentTimeMillis() / 1000L + index * 10800L)
+        val sdf = java.text.SimpleDateFormat("h a", java.util.Locale.US).apply {
+            timeZone = java.util.TimeZone.getTimeZone("Asia/Kolkata")
+        }
+        val hourLabel = if (index == 0) "Now" else sdf.format(java.util.Date(epochSec * 1000L))
+        val cond = item.weather.firstOrNull()
+        val tempC = item.main?.temp ?: 29.5
+        val feelsC = item.main?.feelsLike ?: (tempC + 1.5)
+        val humidity = item.main?.humidity ?: 72
+        val pressure = item.main?.pressure ?: 1008
+        val windKmh = (item.wind?.speed ?: 4.2) * 3.6
+        val popPct = ((item.pop ?: 0.0) * 100.0).toInt().coerceIn(0, 100)
+        val mainCond = cond?.main ?: "Clouds"
+        val desc = cond?.description?.replaceFirstChar { it.uppercaseChar() } ?: "Coastal Breeze"
+        val iconCode = cond?.icon ?: "02d"
+        val advisoryEn = when {
+            popPct >= 60 || mainCond.contains("Rain", ignoreCase = true) || mainCond.contains("Thunder", ignoreCase = true) ->
+                "High rain probability — carry an umbrella and avoid open Chandipur mudflats."
+            windKmh >= 30.0 ->
+                "Gusty Bay of Bengal winds — coastal boats and trawlers advised caution."
+            tempC >= 34.0 ->
+                "Warm peak hour — stay hydrated with tender coconut water and wear sun protection."
+            else ->
+                "Favorable coastal weather for Balasore travel, temple visits, or Chandipur beach walk."
+        }
+        val advisoryOr = when {
+            popPct >= 60 || mainCond.contains("Rain", ignoreCase = true) || mainCond.contains("Thunder", ignoreCase = true) ->
+                "ବର୍ଷା ସମ୍ଭାବନା ଅଧିକ — ଛତା ସାଥୀରେ ରଖନ୍ତୁ ଏବଂ ଖୋଲା ବେଳାଭୂମିରୁ ଦୂରରେ ରୁହନ୍ତୁ।"
+            windKmh >= 30.0 ->
+                "ସାମୁଦ୍ରିକ ପବନର ବେଗ ଅଧିକ — ମତ୍ସ୍ୟଜୀବୀ ଓ ପର୍ଯ୍ୟଟକ ସତର୍କ ରୁହନ୍ତୁ।"
+            tempC >= 34.0 ->
+                "ଅଧିକ ଖରା — ପର୍ଯ୍ୟାପ୍ତ ପାଣି ପିଅନ୍ତୁ ଏବଂ ଛାଇରେ ରୁହନ୍ତୁ।"
+            else ->
+                "ବାଲେଶ୍ୱର ଭ୍ରମଣ, ମନ୍ଦିର ଦର୍ଶନ ଓ ଚାନ୍ଦିପୁର ବେଳାଭୂମି ପାଇଁ ଉତ୍ତମ ପାଣିପାଗ।"
+        }
+        return BalasoreHourlyForecastSlot(
+            epochSeconds = epochSec,
+            timeLabel = hourLabel,
+            tempC = tempC,
+            feelsLikeC = feelsC,
+            humidityPercent = humidity,
+            windSpeedKmh = windKmh,
+            rainChancePercent = popPct,
+            pressureHpa = pressure,
+            conditionMain = mainCond,
+            conditionDescription = desc,
+            iconCode = iconCode,
+            advisoryEn = advisoryEn,
+            advisoryOr = advisoryOr
+        )
+    }
+
     suspend fun fetchThreeDayForecast(apiKey: String = ""): Result<List<OpenWeatherThreeDayForecast>> {
         val fiveDayRes = fetchFiveDayForecast(BALASORE_LAT, BALASORE_LON, apiKey)
         if (fiveDayRes.isSuccess) {

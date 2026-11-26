@@ -3293,13 +3293,10 @@ fun BalasoreApp(
                     }
                 }
                 UniqueFeatureSheetType.OSM_OFFLINE_TOURISM_MAP -> {
-                    BalasoreOsmTourismMapView(
+                    com.example.ui.features.map.BalasoreTourismOsmMapScreen(
                         language = uiState.language,
-                        civicReports = uiState.myCivicReports,
-                        onReportStatusChange = { id -> viewModel.advanceCivicReportStatus(id) },
-                        onAddReportClick = {
-                            viewModel.closeFeatureSheet()
-                            viewModel.openFeatureSheet(UniqueFeatureSheetType.CITIZEN_CIVIC_EYE)
+                        onOpenCivicMap = {
+                            viewModel.openFeatureSheet(UniqueFeatureSheetType.CIVIC_ISSUES_MAP)
                         },
                         onClose = { viewModel.closeFeatureSheet() }
                     )

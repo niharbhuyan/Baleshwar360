@@ -239,6 +239,73 @@
         "updatedAt": { "type": "integer", "description": "Last updated epoch timestamp" }
       },
       "required": ["postId", "title", "body", "category", "authorName", "createdAtMs", "upvotes", "updatedAt"]
+    },
+    "WeatherAlert": {
+      "title": "WeatherAlert",
+      "description": "Aggregated severe weather and coastal hazard alert for the Balasore region",
+      "type": "object",
+      "properties": {
+        "alertId": { "type": "string", "description": "Unique weather alert document ID" },
+        "regionCode": { "type": "string", "description": "Balasore monitoring region code (e.g. BLS_SADAR, CHANDIPUR, JALESWAR)" },
+        "eventType": { "type": "string", "description": "Alert event category (CYCLONE, FLOOD, HEATWAVE, HEAVY_RAIN, THUNDERSTORM, HIGH_TIDE, COASTAL_WIND, ADVISORY)" },
+        "severity": { "type": "string", "description": "Severity level (INFO, ADVISORY, WATCH, WARNING, EMERGENCY)" },
+        "headline": { "type": "string", "description": "English alert headline" },
+        "headlineOr": { "type": "string", "description": "Odia alert headline" },
+        "description": { "type": "string", "description": "Detailed safety guidance and meteorological bulletin" },
+        "affectedBlocks": { "type": "array", "description": "Affected Balasore blocks or coastal zones" },
+        "source": { "type": "string", "description": "Originating weather agency or aggregator" },
+        "startsAtMs": { "type": "integer", "description": "Alert start epoch timestamp in ms" },
+        "expiresAtMs": { "type": "integer", "description": "Alert expiration epoch timestamp in ms" },
+        "isActive": { "type": "boolean", "description": "Whether the alert is currently active" },
+        "updatedAtMs": { "type": "integer", "description": "Last updated epoch timestamp in ms" }
+      },
+      "required": ["alertId", "regionCode", "eventType", "severity", "headline", "description", "affectedBlocks", "source", "startsAtMs", "expiresAtMs", "isActive", "updatedAtMs"]
+    },
+    "WeatherSnapshot": {
+      "title": "WeatherSnapshot",
+      "description": "Latest aggregated weather telemetry snapshot for a Balasore monitoring station",
+      "type": "object",
+      "properties": {
+        "regionCode": { "type": "string", "description": "Balasore monitoring region code" },
+        "provider": { "type": "string", "description": "Weather provider name" },
+        "temperatureC": { "type": "number", "description": "Current temperature in Celsius" },
+        "feelsLikeC": { "type": "number", "description": "Apparent temperature in Celsius" },
+        "humidityPct": { "type": "integer", "description": "Relative humidity percentage" },
+        "windSpeedKmh": { "type": "number", "description": "Wind speed in km/h" },
+        "rainMm3h": { "type": "number", "description": "Recent 3-hour rainfall in mm" },
+        "weatherCode": { "type": "string", "description": "Provider weather code" },
+        "conditionSummary": { "type": "string", "description": "Human-readable weather condition" },
+        "floodRiskLevel": { "type": "string", "description": "River basin flood risk (NORMAL, WATCH, WARNING, DANGER)" },
+        "tideAdvisory": { "type": "string", "description": "Optional coastal tide advisory" },
+        "observedAtMs": { "type": "integer", "description": "Observation epoch timestamp in ms" }
+      },
+      "required": ["regionCode", "provider", "temperatureC", "feelsLikeC", "humidityPct", "windSpeedKmh", "rainMm3h", "weatherCode", "conditionSummary", "floodRiskLevel", "observedAtMs"]
+    },
+    "TourismHotspot": {
+      "title": "TourismHotspot",
+      "description": "Balasore tourism landmark with bilingual metadata, images, and map coordinates",
+      "type": "object",
+      "properties": {
+        "spotId": { "type": "string", "description": "Unique tourism hotspot ID" },
+        "regionCode": { "type": "string", "description": "Balasore block or monitoring zone code" },
+        "nameEn": { "type": "string", "description": "English hotspot name (e.g. Chandipur Beach, Remuna)" },
+        "nameOr": { "type": "string", "description": "Odia hotspot name" },
+        "shortDescription": { "type": "string", "description": "Map pin summary text" },
+        "description": { "type": "string", "description": "Full heritage and visitor description" },
+        "category": { "type": "string", "description": "Category (BEACH, TEMPLE, WILDLIFE, HERITAGE, ESTUARY, HILL_SHRINE, WATERFALL)" },
+        "heroImageUrl": { "type": "string", "description": "Primary hero image URL or drawable reference" },
+        "galleryImageUrls": { "type": "array", "description": "Additional gallery image URLs" },
+        "latitude": { "type": "number", "description": "WGS-84 latitude coordinate" },
+        "longitude": { "type": "number", "description": "WGS-84 longitude coordinate" },
+        "address": { "type": "string", "description": "Landmark address in Balasore" },
+        "bestSeason": { "type": "string", "description": "Recommended season to visit" },
+        "visitingHours": { "type": "string", "description": "Daily visiting or darshan hours" },
+        "entryFeeInr": { "type": "integer", "description": "Entry fee in INR" },
+        "rating": { "type": "number", "description": "Average visitor rating (0-5)" },
+        "isFeatured": { "type": "boolean", "description": "Whether featured on the home map" },
+        "updatedAtMs": { "type": "integer", "description": "Last updated epoch timestamp in ms" }
+      },
+      "required": ["spotId", "regionCode", "nameEn", "nameOr", "shortDescription", "description", "category", "heroImageUrl", "latitude", "longitude", "address", "rating", "isFeatured", "updatedAtMs"]
     }
   },
   "firestore": {
@@ -293,6 +360,18 @@
     "/community_forum_posts/{postId}": {
       "schema": "CommunityForumPost",
       "description": "Community forum discussion posts"
+    },
+    "/weather_alerts/{alertId}": {
+      "schema": "WeatherAlert",
+      "description": "Aggregated Balasore severe weather and coastal hazard alerts"
+    },
+    "/weather_snapshots/{regionCode}": {
+      "schema": "WeatherSnapshot",
+      "description": "Latest aggregated weather telemetry per Balasore monitoring zone"
+    },
+    "/tourism_hotspots/{spotId}": {
+      "schema": "TourismHotspot",
+      "description": "Curated Balasore tourism landmarks with images and geolocation coordinates"
     }
   }
 }

@@ -1,0 +1,6 @@
+# Core scheduler & timezone support for Balasore 360 daily background worker
+APScheduler>=3.10.4,<4.0.0
+tzdata>=2024.1
+
+# Optional Cloud Firestore dual-sync (used when FIREBASE_SERVICE_ACCOUNT_PATH is set)
+firebase-admin>=6.5.0,<7.0.0

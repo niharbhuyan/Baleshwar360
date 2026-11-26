@@ -37,6 +37,7 @@ import com.example.data.model.AppLanguage
 import com.example.data.model.CycloneShelter
 import com.example.data.model.Hotspot
 import com.example.data.repository.BalasoreRepository
+import com.example.data.repository.toEntity
 import org.osmdroid.config.Configuration
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory
 import org.osmdroid.util.GeoPoint
@@ -461,15 +462,45 @@ fun BalasoreTourismInteractiveMapSheet(
 
                         filtered.forEach { poi ->
                             val distKm = haversineKm(userLat, userLon, poi.latitude, poi.longitude)
+                            val matchedSpot = hotspots.find { "hotspot_${it.id}" == poi.id }
                             val marker = Marker(mapView).apply {
                                 position = GeoPoint(poi.latitude, poi.longitude)
                                 title = "${poi.name} (${String.format("%.1f km", distKm)})"
                                 snippet = "${poi.subtitle} • ${poi.contactPhone}"
                                 setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
+                                if (matchedSpot != null) {
+                                    val spotEntity = matchedSpot.toEntity()
+                                    icon = BalasoreTourismMarkerIconFactory.createDrawable(
+                                        context = sheetContext,
+                                        category = matchedSpot.category,
+                                        spotName = matchedSpot.name,
+                                        isSelected = selectedHotspotModal?.id == matchedSpot.id,
+                                        isFavorite = matchedSpot.isFeatured
+                                    )
+                                    setInfoWindowAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_TOP)
+                                    infoWindow = TourismHotspotInfoWindow(
+                                        mapView = mapView,
+                                        hotspot = spotEntity,
+                                        language = language,
+                                        onViewDetails = {
+                                            selectedHotspotModal = matchedSpot
+                                            selectedNewsModal = null
+                                            selectedWeatherZoneModal = null
+                                            onSelectHotspotForDetail(matchedSpot)
+                                        },
+                                        onNavigate = {
+                                            TourismMapDirectionsHelper.launchDirections(
+                                                context = sheetContext,
+                                                spotName = matchedSpot.name,
+                                                destLat = poi.latitude,
+                                                destLng = poi.longitude
+                                            )
+                                        }
+                                    )
+                                }
                                 setOnMarkerClickListener { m, _ ->
                                     m.showInfoWindow()
                                     selectedPoiSummary = "${poi.name} • ${String.format("%.1f km away", distKm)} • ${poi.subtitle} (${poi.contactPhone})"
-                                    val matchedSpot = hotspots.find { "hotspot_${it.id}" == poi.id }
                                     val matchedNews = geoNewsList.find { "news_${it.id}" == poi.id }
                                     val matchedWx = weatherZonesList.find { "wx_${it.id}" == poi.id }
                                     when {

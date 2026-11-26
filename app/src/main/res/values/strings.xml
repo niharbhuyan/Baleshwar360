@@ -50,4 +50,15 @@
     <string name="tide_reminder_sound_section_title">Custom Alert Sound</string>
     <string name="tide_reminder_pick_device_sound">Choose from Device Ringtones</string>
     <string name="tide_reminder_send_test">Send Test 30-Min Tide Reminder</string>
+    <string name="osm_tourism_map_title">Balasore Tourism Map</string>
+    <string name="osm_tourism_map_subtitle_db">Tourism Database • OSMDroid Interactive</string>
+    <string name="osm_tourism_search_placeholder">Search Chandipur, Remuna, temples…</string>
+    <string name="osm_tourism_fit_all">Fit All Hotspots</string>
+    <string name="osm_tourism_recenter">Recenter Balasore</string>
+    <string name="osm_tourism_directions">Directions</string>
+    <string name="osm_tourism_reviews">Reviews &amp; Rate</string>
+    <string name="osm_tourism_focus_pin">Open Callout</string>
+    <string name="osm_tourism_empty_filter">No hotspots match your filter. Try clearing the search or choosing All.</string>
+    <string name="hourly_weather_card_title">Balasore Hourly Forecast</string>
+    <string name="hourly_weather_open_full">Full Weather &amp; Radar</string>
 </resources>

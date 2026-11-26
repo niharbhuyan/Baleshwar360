@@ -159,9 +159,10 @@ dependencies {
     implementation(libs.play.services.maps)
     implementation(libs.kotlinx.coroutines.play.services)
     implementation(libs.mlkit.barcode.scanning)
-    implementation(libs.camera.camera2)
-    implementation(libs.camera.lifecycle)
-    implementation(libs.camera.view)
+    // Unused CameraX dependencies commented out to speed up builds and reduce APK size
+    // implementation(libs.camera.camera2)
+    // implementation(libs.camera.lifecycle)
+    // implementation(libs.camera.view)
     implementation(libs.play.services.code.scanner)
     implementation(libs.osmdroid.android)
     implementation(libs.zxing.core)

@@ -551,6 +551,14 @@ fun TourismScreen(
             }
         }
 
+        // 1-Weather. Interactive Balasore Hourly Weather Forecast Cards (OpenWeatherMap Integration)
+        item {
+            com.example.ui.components.BalasoreHourlyWeatherCardsSection(
+                language = language,
+                onOpenFullWeather = onNavigateToWeather
+            )
+        }
+
         // 1A. Interactive Balasore Tourism Map (Attractions, Hotspots, Turn-by-Turn Directions & User Reviews)
         item {
             BalasoreExploreMapSection(

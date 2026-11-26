@@ -270,6 +270,64 @@ service cloud.firestore {
         data.updatedAt is int;
     }
 
+    function isValidWeatherAlert(data) {
+      return data.keys().hasAll(['alertId', 'regionCode', 'eventType', 'severity', 'headline', 'description', 'affectedBlocks', 'source', 'startsAtMs', 'expiresAtMs', 'isActive', 'updatedAtMs']) &&
+        data.keys().hasOnly(['alertId', 'regionCode', 'eventType', 'severity', 'headline', 'headlineOr', 'description', 'affectedBlocks', 'source', 'startsAtMs', 'expiresAtMs', 'isActive', 'updatedAtMs']) &&
+        data.alertId is string && data.alertId.size() > 0 && data.alertId.size() <= 128 &&
+        data.regionCode is string && data.regionCode.size() > 0 && data.regionCode.size() <= 40 &&
+        data.eventType in ['CYCLONE', 'FLOOD', 'HEATWAVE', 'HEAVY_RAIN', 'THUNDERSTORM', 'HIGH_TIDE', 'COASTAL_WIND', 'ADVISORY'] &&
+        data.severity in ['INFO', 'ADVISORY', 'WATCH', 'WARNING', 'EMERGENCY'] &&
+        data.headline is string && data.headline.size() > 0 && data.headline.size() <= 240 &&
+        (!('headlineOr' in data) || data.headlineOr == null || (data.headlineOr is string && data.headlineOr.size() <= 240)) &&
+        data.description is string && data.description.size() > 0 && data.description.size() <= 2000 &&
+        data.affectedBlocks is list && data.affectedBlocks.size() <= 20 &&
+        data.source is string && data.source.size() <= 100 &&
+        data.startsAtMs is int &&
+        data.expiresAtMs is int &&
+        data.isActive is bool &&
+        data.updatedAtMs is int;
+    }
+
+    function isValidWeatherSnapshot(data) {
+      return data.keys().hasAll(['regionCode', 'provider', 'temperatureC', 'feelsLikeC', 'humidityPct', 'windSpeedKmh', 'rainMm3h', 'weatherCode', 'conditionSummary', 'floodRiskLevel', 'observedAtMs']) &&
+        data.keys().hasOnly(['regionCode', 'provider', 'temperatureC', 'feelsLikeC', 'humidityPct', 'windSpeedKmh', 'rainMm3h', 'weatherCode', 'conditionSummary', 'floodRiskLevel', 'tideAdvisory', 'observedAtMs']) &&
+        data.regionCode is string && data.regionCode.size() > 0 && data.regionCode.size() <= 40 &&
+        data.provider is string && data.provider.size() <= 60 &&
+        data.temperatureC is number &&
+        data.feelsLikeC is number &&
+        data.humidityPct is int && data.humidityPct >= 0 && data.humidityPct <= 100 &&
+        data.windSpeedKmh is number && data.windSpeedKmh >= 0 &&
+        data.rainMm3h is number && data.rainMm3h >= 0 &&
+        data.weatherCode is string && data.weatherCode.size() <= 40 &&
+        data.conditionSummary is string && data.conditionSummary.size() <= 200 &&
+        data.floodRiskLevel in ['NORMAL', 'WATCH', 'WARNING', 'DANGER'] &&
+        (!('tideAdvisory' in data) || data.tideAdvisory == null || (data.tideAdvisory is string && data.tideAdvisory.size() <= 300)) &&
+        data.observedAtMs is int;
+    }
+
+    function isValidTourismHotspot(data) {
+      return data.keys().hasAll(['spotId', 'regionCode', 'nameEn', 'nameOr', 'shortDescription', 'description', 'category', 'heroImageUrl', 'latitude', 'longitude', 'address', 'rating', 'isFeatured', 'updatedAtMs']) &&
+        data.keys().hasOnly(['spotId', 'regionCode', 'nameEn', 'nameOr', 'shortDescription', 'description', 'category', 'heroImageUrl', 'galleryImageUrls', 'latitude', 'longitude', 'address', 'bestSeason', 'visitingHours', 'entryFeeInr', 'rating', 'isFeatured', 'updatedAtMs']) &&
+        data.spotId is string && data.spotId.size() > 0 && data.spotId.size() <= 128 &&
+        data.regionCode is string && data.regionCode.size() > 0 && data.regionCode.size() <= 40 &&
+        data.nameEn is string && data.nameEn.size() > 0 && data.nameEn.size() <= 150 &&
+        data.nameOr is string && data.nameOr.size() > 0 && data.nameOr.size() <= 150 &&
+        data.shortDescription is string && data.shortDescription.size() <= 300 &&
+        data.description is string && data.description.size() <= 4000 &&
+        data.category in ['BEACH', 'TEMPLE', 'WILDLIFE', 'HERITAGE', 'ESTUARY', 'HILL_SHRINE', 'WATERFALL'] &&
+        data.heroImageUrl is string && data.heroImageUrl.size() > 0 && data.heroImageUrl.size() <= 1000 &&
+        (!('galleryImageUrls' in data) || (data.galleryImageUrls is list && data.galleryImageUrls.size() <= 15)) &&
+        data.latitude is number && data.latitude >= -90.0 && data.latitude <= 90.0 &&
+        data.longitude is number && data.longitude >= -180.0 && data.longitude <= 180.0 &&
+        data.address is string && data.address.size() <= 300 &&
+        (!('bestSeason' in data) || (data.bestSeason is string && data.bestSeason.size() <= 120)) &&
+        (!('visitingHours' in data) || (data.visitingHours is string && data.visitingHours.size() <= 120)) &&
+        (!('entryFeeInr' in data) || (data.entryFeeInr is int && data.entryFeeInr >= 0)) &&
+        data.rating is number && data.rating >= 0.0 && data.rating <= 5.0 &&
+        data.isFeatured is bool &&
+        data.updatedAtMs is int;
+    }
+
     // 1. User Profiles & Subcollections
     match /users/{userId} {
       allow get: if isOwner(userId) || isAdmin();
@@ -418,6 +476,33 @@ service cloud.firestore {
     match /community_forum_posts/{postId} {
       allow read: if true;
       allow create, update: if isValidCommunityForumPost(request.resource.data);
+      allow delete: if isAdmin();
+    }
+
+    // 11. Aggregated Balasore Severe Weather Alerts (Admin/Backend Write Only)
+    match /weather_alerts/{alertId} {
+      allow read: if true;
+      allow create, update: if isAdmin() &&
+        isValidId(alertId) &&
+        isValidWeatherAlert(request.resource.data);
+      allow delete: if isAdmin();
+    }
+
+    // 12. Aggregated Balasore Weather Telemetry Snapshots (Admin/Backend Write Only)
+    match /weather_snapshots/{regionCode} {
+      allow read: if true;
+      allow create, update: if isAdmin() &&
+        isValidId(regionCode) &&
+        isValidWeatherSnapshot(request.resource.data);
+      allow delete: if isAdmin();
+    }
+
+    // 13. Curated Balasore Tourism Hotspots for Interactive Maps (Admin Write Only)
+    match /tourism_hotspots/{spotId} {
+      allow read: if true;
+      allow create, update: if isAdmin() &&
+        isValidId(spotId) &&
+        isValidTourismHotspot(request.resource.data);
       allow delete: if isAdmin();
     }
   }
