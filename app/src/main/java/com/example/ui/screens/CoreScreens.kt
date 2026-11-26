@@ -559,6 +559,17 @@ fun TourismScreen(
             )
         }
 
+        // 1-DailySync. Live Public API (Open-Meteo + Google News RSS) Daily Updates Card (Room-backed)
+        item {
+            com.example.ui.components.BalasoreDailyNewsWeatherDashboardCard(
+                language = language,
+                onOpenFullWeather = onNavigateToWeather,
+                onOpenNewsArticleFallback = {
+                    onOpenFeatureSheet(UniqueFeatureSheetType.BALASORE_AUTO_UPDATE_CENTER)
+                }
+            )
+        }
+
         // 1A. Interactive Balasore Tourism Map (Attractions, Hotspots, Turn-by-Turn Directions & User Reviews)
         item {
             BalasoreExploreMapSection(

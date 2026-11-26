@@ -62,60 +62,30 @@ object BalasoreMapsApiKeyManager {
      */
     fun autoPopulateMapsApiKey(context: Context? = null): String {
         val prefs = context?.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        val savedKey = prefs?.getString(KEY_AUTO_MAPS_API, null)?.trim().orEmpty()
-        if (isValidKey(savedKey)) {
-            return savedKey
+        val resolved = com.example.data.config.BalasoreApiKeys.mapsApiKey(context)
+        if (isValidKey(resolved)) {
+            prefs?.edit()?.putString(KEY_AUTO_MAPS_API, resolved)?.apply()
+            return resolved
         }
-
-        val buildConfigKey = runCatching { BuildConfig.MAPS_API_KEY.trim() }.getOrDefault("")
-        if (isValidKey(buildConfigKey)) {
-            prefs?.edit()?.putString(KEY_AUTO_MAPS_API, buildConfigKey)?.apply()
-            return buildConfigKey
-        }
-
-        val manifestKey = runCatching {
-            val appInfo = context?.packageManager?.getApplicationInfo(
-                context.packageName,
-                PackageManager.GET_META_DATA
-            )
-            appInfo?.metaData?.getString("com.google.android.geo.API_KEY")?.trim().orEmpty()
-        }.getOrDefault("")
-        if (isValidKey(manifestKey)) {
-            prefs?.edit()?.putString(KEY_AUTO_MAPS_API, manifestKey)?.apply()
-            return manifestKey
-        }
-
-        val firebaseKey = runCatching {
-            FirebaseApp.getInstance().options.apiKey.trim()
-        }.getOrDefault("")
-        if (isValidKey(firebaseKey)) {
-            prefs?.edit()?.putString(KEY_AUTO_MAPS_API, firebaseKey)?.apply()
-            return firebaseKey
-        }
-
-        return buildConfigKey
+        return ""
     }
 
     /**
      * Automatically resolves the OpenWeatherMap API key from BuildConfig.OPENWEATHERMAP_API_KEY
-     * without falling back to Google Maps or Firebase API keys.
+     * (injected from AI Studio Secrets / .env) without falling back to Google Maps or Firebase keys.
      */
     fun autoPopulateWeatherMapApiKey(context: Context? = null): String {
         val prefs = context?.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val resolved = com.example.data.config.BalasoreApiKeys.openWeatherApiKey(context)
+        if (isValidWeatherKey(resolved)) {
+            prefs?.edit()?.putString(KEY_AUTO_WEATHER_API, resolved)?.apply()
+            return resolved
+        }
         val saved = prefs?.getString(KEY_AUTO_WEATHER_API, null)?.trim().orEmpty()
-        if (isValidWeatherKey(saved)) {
-            return saved
-        } else if (saved.isNotBlank()) {
-            // Clear any stale non-OpenWeatherMap key (such as an AIza... Google key)
+        if (saved.isNotBlank() && !isValidWeatherKey(saved)) {
+            // Clear any stale placeholder or non-OpenWeatherMap key
             prefs?.edit()?.remove(KEY_AUTO_WEATHER_API)?.apply()
         }
-
-        val envWeatherKey = runCatching { BuildConfig.OPENWEATHERMAP_API_KEY.trim() }.getOrDefault("")
-        if (isValidWeatherKey(envWeatherKey)) {
-            prefs?.edit()?.putString(KEY_AUTO_WEATHER_API, envWeatherKey)?.apply()
-            return envWeatherKey
-        }
-
         return ""
     }
 

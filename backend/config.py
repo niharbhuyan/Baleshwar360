@@ -110,14 +110,58 @@ def _load_dotenv_if_present() -> None:
 
 def resolve_db_path(raw_path: str | None) -> Path:
     """Resolve database path safely within the project workspace or explicit absolute data dir."""
-    if not raw_path:
+    cleaned = (raw_path or "").strip()
+    if not cleaned:
+        DEFAULT_DB_PATH.parent.mkdir(parents=True, exist_ok=True)
         return DEFAULT_DB_PATH
-    candidate = Path(raw_path).expanduser()
+    candidate = Path(cleaned).expanduser()
     if not candidate.is_absolute():
         candidate = (PROJECT_ROOT / candidate).resolve()
     else:
         candidate = candidate.resolve()
+    candidate.parent.mkdir(parents=True, exist_ok=True)
     return candidate
+
+
+def _discover_firestore_database_id() -> str:
+    """Read the provisioned Firestore named database ID automatically from firebase_applet_config.xml."""
+    xml_path = PROJECT_ROOT / "app" / "src" / "main" / "res" / "values" / "firebase_applet_config.xml"
+    if xml_path.is_file():
+        try:
+            import re
+            match = re.search(r'name="firestore_database_id"[^>]*>([^<]+)<', xml_path.read_text(encoding="utf-8"))
+            if match and match.group(1).strip():
+                return match.group(1).strip()
+        except OSError:
+            pass
+    return "ai-studio-android-balasore-011eecca-ad37-48d7-9ed9-0ca2c072c765"
+
+
+def _discover_firebase_project_id() -> str:
+    """Read Firebase project_id automatically from app/google-services.json."""
+    gs_path = PROJECT_ROOT / "app" / "google-services.json"
+    if gs_path.is_file():
+        try:
+            import json
+            data = json.loads(gs_path.read_text(encoding="utf-8"))
+            pid = (data.get("project_info") or {}).get("project_id", "").strip()
+            if pid and pid != "remixed-project-id":
+                return pid
+        except (OSError, ValueError):
+            pass
+    return ""
+
+
+def resolve_firebase_service_account_path(raw_path: str | None) -> str:
+    """Auto-resolve Firebase service account JSON from explicit env or GOOGLE_APPLICATION_CREDENTIALS."""
+    candidates = [
+        (raw_path or "").strip(),
+        os.getenv("GOOGLE_APPLICATION_CREDENTIALS", "").strip(),
+    ]
+    for item in candidates:
+        if item and not item.startswith("YOUR_") and Path(item).expanduser().is_file():
+            return str(Path(item).expanduser().resolve())
+    return ""
 
 
 @dataclass(frozen=True)
@@ -127,6 +171,7 @@ class BackendConfig:
     news_api_key: str
     firebase_service_account_path: str
     firestore_database_id: str
+    firebase_project_id: str = ""
     timezone: str = "Asia/Kolkata"
     daily_hour: int = 6
     daily_minute: int = 0
@@ -141,7 +186,7 @@ class BackendConfig:
         if owm_key in {"YOUR_OPENWEATHERMAP_API_KEY", "REPLACE_ME"}:
             owm_key = ""
 
-        news_key = os.getenv("NEWS_API_KEY", "").strip()
+        news_key = (os.getenv("NEWS_API_KEY") or os.getenv("NEWSAPI_KEY") or "").strip()
         if news_key in {"YOUR_NEWS_API_KEY", "REPLACE_ME"}:
             news_key = ""
 
@@ -150,15 +195,18 @@ class BackendConfig:
         hour = max(0, min(23, hour))
         minute = max(0, min(59, minute))
 
+        default_db_id = _discover_firestore_database_id()
+        default_project_id = _discover_firebase_project_id()
+
         return cls(
             db_path=resolve_db_path(os.getenv("BALASORE_DB_PATH")),
             openweathermap_api_key=owm_key,
             news_api_key=news_key,
-            firebase_service_account_path=os.getenv("FIREBASE_SERVICE_ACCOUNT_PATH", "").strip(),
-            firestore_database_id=os.getenv(
-                "FIRESTORE_DATABASE_ID",
-                "ai-studio-android-balasore-011eecca-ad37-48d7-9ed9-0ca2c072c765",
-            ).strip(),
+            firebase_service_account_path=resolve_firebase_service_account_path(
+                os.getenv("FIREBASE_SERVICE_ACCOUNT_PATH")
+            ),
+            firestore_database_id=os.getenv("FIRESTORE_DATABASE_ID", default_db_id).strip() or default_db_id,
+            firebase_project_id=os.getenv("FIREBASE_PROJECT_ID", default_project_id).strip() or default_project_id,
             timezone=os.getenv("BALASORE_TIMEZONE", "Asia/Kolkata").strip() or "Asia/Kolkata",
             daily_hour=hour,
             daily_minute=minute,

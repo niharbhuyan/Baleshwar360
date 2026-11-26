@@ -39,27 +39,33 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
-import androidx.core.content.FileProvider
 import coil.compose.AsyncImage
+import com.example.R
+import com.example.data.firebase.FirebaseAuthManager
 import com.example.data.local.CivicReportEntity
 import com.example.data.model.AppLanguage
 import com.example.data.model.FirestoreUserReport
+import com.example.ui.viewmodel.CivicEyeSubmitStatus
 import com.example.util.BalasoreHapticHelper
 import com.example.util.ShareHelper
+import com.google.firebase.FirebaseApp
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.FirebaseUser
+import kotlinx.coroutines.launch
 import java.io.File
-import java.io.FileOutputStream
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
 /**
- * Civic Eye Component: Allows citizens of Balasore to report and monitor infrastructure issues
- * like potholes and waterlogging, persisting real-time records directly to Firebase Firestore
- * and local Room database with full offline-first resilience.
+ * Civic Eye Component: Allows citizens of Balasore to capture camera photos and live GPS
+ * coordinates for infrastructure issues (potholes, drainage issues, etc.) and persist them
+ * directly to Firebase Firestore (gated by Google Sign-In) with local Room DB fallback.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -68,6 +74,8 @@ fun CivicEyeComponent(
     myReports: List<CivicReportEntity> = emptyList(),
     firestoreReports: List<FirestoreUserReport> = emptyList(),
     isFirestoreLoading: Boolean = false,
+    submitStatus: CivicEyeSubmitStatus = CivicEyeSubmitStatus.Idle,
+    onClearSubmitStatus: () -> Unit = {},
     onRefreshFirestore: () -> Unit = {},
     onSubmitReport: (
         title: String,
@@ -77,6 +85,7 @@ fun CivicEyeComponent(
         urgency: String,
         hasPhoto: Boolean,
         photoUri: String?,
+        photoBase64: String?,
         latitude: Double?,
         longitude: Double?,
         geoAddress: String?,
@@ -100,6 +109,7 @@ fun CivicEyeComponent(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
     val isOdia = language == AppLanguage.ODIA
 
     var selectedTabIndex by remember { mutableIntStateOf(0) } // 0: Submit Report, 1: Live Feed (List View), 2: Map Pins
@@ -110,9 +120,105 @@ fun CivicEyeComponent(
     var selectedUrgency by remember { mutableStateOf("HIGH") }
     var attachedPhotoUri by remember { mutableStateOf<String?>(null) }
     var attachedPhotoBitmap by remember { mutableStateOf<Bitmap?>(null) }
-    var isSubmitting by remember { mutableStateOf(false) }
-    var submissionSuccessId by remember { mutableStateOf<String?>(null) }
+    var attachedPhotoBase64 by remember { mutableStateOf<String?>(null) }
+    var isEncodingPhoto by remember { mutableStateOf(false) }
     var queueWhenOnlineMode by remember { mutableStateOf(false) }
+
+    // Firebase Auth live session state (Google Sign-In required for Firestore writes)
+    var firebaseUser by remember {
+        mutableStateOf<FirebaseUser?>(
+            runCatching {
+                if (FirebaseApp.getApps(context).isNotEmpty()) FirebaseAuth.getInstance().currentUser else null
+            }.getOrNull()
+        )
+    }
+    var isSigningInWithGoogle by remember { mutableStateOf(false) }
+
+    DisposableEffect(Unit) {
+        val auth = runCatching {
+            if (FirebaseApp.getApps(context).isNotEmpty()) FirebaseAuth.getInstance() else null
+        }.getOrNull()
+        val listener = FirebaseAuth.AuthStateListener { fa ->
+            firebaseUser = fa.currentUser
+        }
+        auth?.addAuthStateListener(listener)
+        onDispose {
+            auth?.removeAuthStateListener(listener)
+        }
+    }
+
+    // Real device GPS telemetry state
+    var gpsFix by remember { mutableStateOf<CivicGpsFix?>(null) }
+    var isAcquiringGps by remember { mutableStateOf(false) }
+    var locationPermissionDenied by remember { mutableStateOf(false) }
+
+    val fetchLiveGps: () -> Unit = {
+        coroutineScope.launch {
+            isAcquiringGps = true
+            locationPermissionDenied = false
+            val fix = CivicEyeMediaAndLocationHelper.acquireUserLocation(context)
+            gpsFix = fix
+            isAcquiringGps = false
+            if (fix == null) {
+                Toast.makeText(
+                    context,
+                    if (isOdia) "GPS ସିଗନାଲ୍ ମିଳିଲା ନାହିଁ, ଦୟାକରି ପୁନଃ ଚେଷ୍ଟା କରନ୍ତୁ" else "Unable to obtain GPS fix. Ensure Location Services are on and retry.",
+                    Toast.LENGTH_SHORT
+                ).show()
+            }
+        }
+    }
+
+    val locationPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        val granted = permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
+            permissions[Manifest.permission.ACCESS_COARSE_LOCATION] == true
+        if (granted) {
+            locationPermissionDenied = false
+            fetchLiveGps()
+        } else {
+            locationPermissionDenied = true
+            Toast.makeText(
+                context,
+                if (isOdia) "ସ୍ଥାନ ଅନୁମତି ନାକଚ ହୋଇଛି" else "Location permission denied. Enable it to attach live coordinates.",
+                Toast.LENGTH_SHORT
+            ).show()
+        }
+    }
+
+    val requestLocationAndAcquire: () -> Unit = {
+        BalasoreHapticHelper.vibrateButtonClick(context)
+        if (CivicEyeMediaAndLocationHelper.hasLocationPermission(context)) {
+            fetchLiveGps()
+        } else {
+            locationPermissionLauncher.launch(
+                arrayOf(
+                    Manifest.permission.ACCESS_FINE_LOCATION,
+                    Manifest.permission.ACCESS_COARSE_LOCATION
+                )
+            )
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        if (CivicEyeMediaAndLocationHelper.hasLocationPermission(context) && gpsFix == null) {
+            fetchLiveGps()
+        }
+    }
+
+    // Reset form inputs once Firestore or offline save completes
+    LaunchedEffect(submitStatus) {
+        if (submitStatus is CivicEyeSubmitStatus.SyncedToFirestore ||
+            submitStatus is CivicEyeSubmitStatus.SavedOffline
+        ) {
+            issueTitle = ""
+            issueDescription = ""
+            attachedPhotoBitmap = null
+            attachedPhotoUri = null
+            attachedPhotoBase64 = null
+        }
+    }
 
     // Search & Filter in Feed
     var searchQuery by remember { mutableStateOf("") }
@@ -128,12 +234,13 @@ fun CivicEyeComponent(
     // Combined Room + Firestore Reports across all tabs
     val allCombinedReports = remember(myReports, firestoreReports) {
         val firestoreAsEntities = firestoreReports.map { f ->
+            val resolvedPhoto = f.photoBase64?.takeIf { it.isNotBlank() } ?: f.photoUrl
             CivicReportEntity(
                 id = f.id,
                 title = f.title,
-                category = when (f.category) {
+                category = when (f.category.lowercase()) {
                     "pothole" -> "Road Pothole"
-                    "waterlogging" -> "Drain Clog / Waterlogging"
+                    "drainage", "waterlogging" -> "Drain Clog / Waterlogging"
                     "road" -> "Damaged Culvert / Road"
                     "garbage" -> "Garbage Heap / Waste"
                     "electricity" -> "Faulty Streetlight"
@@ -151,15 +258,15 @@ fun CivicEyeComponent(
                 assignedDepartment = "Balasore Municipality Grievance Cell",
                 reportedTimestamp = f.reportedTimestamp,
                 lastUpdatedTimestamp = f.lastUpdatedTimestamp,
-                hasPhotoAttached = !f.photoUrl.isNullOrBlank(),
-                photoUri = f.photoUrl,
+                hasPhotoAttached = !resolvedPhoto.isNullOrBlank(),
+                photoUri = resolvedPhoto,
                 latitude = f.latitude,
                 longitude = f.longitude,
-                geoAddress = f.wardLocation,
+                geoAddress = f.geoAddress ?: f.wardLocation,
                 resolutionNotes = f.resolutionNotes ?: "Filed via Civic Eye."
             )
         }
-        (myReports + firestoreAsEntities).distinctBy { it.id }.sortedByDescending { it.reportedTimestamp }
+        (firestoreAsEntities + myReports).distinctBy { it.id }.sortedByDescending { it.reportedTimestamp }
     }
 
     // Localities & Wards in Balasore
@@ -186,31 +293,18 @@ fun CivicEyeComponent(
     var pendingCameraPhotoFile by remember { mutableStateOf<File?>(null) }
     var cameraPermissionDeniedMessage by remember { mutableStateOf<String?>(null) }
 
-    val createCivicPhotoOutput: () -> Pair<File, Uri>? = {
-        runCatching {
-            val photoDir = File(context.cacheDir, "civic_eye_photos").apply { mkdirs() }
-            val photoFile = File(photoDir, "civic_issue_${System.currentTimeMillis()}.jpg")
-            val contentUri = FileProvider.getUriForFile(
-                context,
-                "${context.packageName}.fileprovider",
-                photoFile
-            )
-            photoFile to contentUri
-        }.getOrNull()
-    }
-
     val photoPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickVisualMedia()
     ) { uri ->
         if (uri != null) {
             cameraPermissionDeniedMessage = null
             attachedPhotoUri = uri.toString()
-            try {
-                context.contentResolver.openInputStream(uri)?.use { stream ->
-                    attachedPhotoBitmap = BitmapFactory.decodeStream(stream)
-                }
-            } catch (_: Exception) {
-                attachedPhotoBitmap = null
+            coroutineScope.launch {
+                isEncodingPhoto = true
+                val bmp = CivicEyeMediaAndLocationHelper.decodeSampledBitmap(context, uri = uri)
+                attachedPhotoBitmap = bmp
+                attachedPhotoBase64 = bmp?.let { CivicEyeMediaAndLocationHelper.encodeBitmapForFirestore(it) }
+                isEncodingPhoto = false
             }
         }
     }
@@ -224,16 +318,20 @@ fun CivicEyeComponent(
             cameraPermissionDeniedMessage = null
             // Enforce single-photo attachment by replacing any previously attached photo
             attachedPhotoUri = capturedUri.toString()
-            attachedPhotoBitmap = runCatching {
-                if (capturedFile != null && capturedFile.exists()) {
-                    BitmapFactory.decodeFile(capturedFile.absolutePath)
-                } else {
-                    context.contentResolver.openInputStream(capturedUri)?.use { BitmapFactory.decodeStream(it) }
-                }
-            }.getOrNull()
+            coroutineScope.launch {
+                isEncodingPhoto = true
+                val bmp = CivicEyeMediaAndLocationHelper.decodeSampledBitmap(
+                    context = context,
+                    file = capturedFile,
+                    uri = capturedUri
+                )
+                attachedPhotoBitmap = bmp
+                attachedPhotoBase64 = bmp?.let { CivicEyeMediaAndLocationHelper.encodeBitmapForFirestore(it) }
+                isEncodingPhoto = false
+            }
             Toast.makeText(
                 context,
-                if (isOdia) "ଫଟୋ ସଂଲଗ୍ନ ହୋଇଛି!" else "Photo captured and attached to report!",
+                if (isOdia) "ଫଟୋ ସଂଲଗ୍ନ ହୋଇଛି!" else "Photo captured and ready for Firestore!",
                 Toast.LENGTH_SHORT
             ).show()
         } else {
@@ -244,7 +342,7 @@ fun CivicEyeComponent(
     }
 
     val launchCameraCapture: () -> Unit = {
-        val output = createCivicPhotoOutput()
+        val output = CivicEyeMediaAndLocationHelper.createDurableCameraPhotoOutput(context)
         if (output != null) {
             pendingCameraPhotoFile = output.first
             pendingCameraPhotoUri = output.second
@@ -449,45 +547,52 @@ fun CivicEyeComponent(
                 verticalArrangement = Arrangement.spacedBy(14.dp),
                 contentPadding = PaddingValues(top = 14.dp, bottom = 32.dp)
             ) {
-                // SUCCESS BANNER IF JUST SUBMITTED
-                if (submissionSuccessId != null) {
+                // HONEST SUBMISSION RESULT BANNER (Firestore Synced / Offline Queued / Error)
+                if (submitStatus !is CivicEyeSubmitStatus.Idle && submitStatus !is CivicEyeSubmitStatus.Submitting) {
                     item {
-                        Card(
-                            colors = CardDefaults.cardColors(containerColor = Color(0xFFF0FDF4)),
-                            border = BorderStroke(1.dp, Color(0xFF86EFAC)),
-                            shape = RoundedCornerShape(12.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(14.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color(0xFF16A34A), modifier = Modifier.size(24.dp))
-                                Spacer(modifier = Modifier.width(10.dp))
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        text = if (isOdia) "ରିପୋର୍ଟ ସଫଳତାର ସହ ଦାଖଲ ହୋଇଛି!" else "Report Submitted & Synced!",
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 14.sp,
-                                        color = Color(0xFF15803D)
-                                    )
-                                    Text(
-                                        text = "Tracking ID: $submissionSuccessId • Saved in Room & synced to Firestore.",
-                                        fontSize = 11.5.sp,
-                                        color = Color(0xFF166534)
-                                    )
-                                }
-                                TextButton(
-                                    onClick = {
-                                        selectedTabIndex = 1
-                                        submissionSuccessId = null
-                                    }
-                                ) {
-                                    Text("View in Feed", fontSize = 12.sp, color = Color(0xFF15803D), fontWeight = FontWeight.Bold)
+                        CivicEyeSubmitStatusBanner(
+                            status = submitStatus,
+                            isOdia = isOdia,
+                            onViewFeed = {
+                                selectedTabIndex = 1
+                                onClearSubmitStatus()
+                                onRefreshFirestore()
+                            },
+                            onDismiss = onClearSubmitStatus
+                        )
+                    }
+                }
+
+                // GOOGLE SIGN-IN AUTH GATE FOR FIRESTORE PERSISTENCE
+                item {
+                    CivicEyeAuthGateCard(
+                        firebaseUser = firebaseUser,
+                        isSigningIn = isSigningInWithGoogle,
+                        onSignInClick = {
+                            BalasoreHapticHelper.vibrateButtonClick(context)
+                            coroutineScope.launch {
+                                isSigningInWithGoogle = true
+                                val authManager = FirebaseAuthManager(context)
+                                val result = authManager.signInWithGoogle(context)
+                                isSigningInWithGoogle = false
+                                result.onSuccess { user ->
+                                    firebaseUser = runCatching { FirebaseAuth.getInstance().currentUser }.getOrNull()
+                                    onClearSubmitStatus()
+                                    Toast.makeText(
+                                        context,
+                                        "Signed in as ${user.fullName}. Ready to save to Firestore!",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                }.onFailure { err ->
+                                    Toast.makeText(
+                                        context,
+                                        err.message ?: "Google Sign-In failed.",
+                                        Toast.LENGTH_LONG
+                                    ).show()
                                 }
                             }
                         }
-                    }
+                    )
                 }
 
                 // 0. ROOM DB & SYNC-WHEN-ONLINE QUEUE CONTROL CARD
@@ -786,53 +891,14 @@ fun CivicEyeComponent(
                     }
                 }
 
-                // 7. GPS LOCATION TELEMETRY TILE
+                // 7. REAL DEVICE GPS COORDINATES TILE
                 item {
-                    Card(
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)),
-                        shape = RoundedCornerShape(12.dp),
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(12.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(36.dp)
-                                    .clip(CircleShape)
-                                    .background(Color(0xFF0284C7).copy(alpha = 0.15f)),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(Icons.Default.MyLocation, contentDescription = null, tint = Color(0xFF0284C7), modifier = Modifier.size(18.dp))
-                            }
-                            Spacer(modifier = Modifier.width(10.dp))
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = "GPS Coordinates (Balasore)",
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                                Text(
-                                    text = "Lat: 21.4934° N • Lng: 86.9135° E • Ward 14 Municipal Grid",
-                                    fontSize = 11.sp,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                            Surface(
-                                shape = RoundedCornerShape(6.dp),
-                                color = Color(0xFFDCFCE7)
-                            ) {
-                                Text(
-                                    text = "ACQUIRED",
-                                    color = Color(0xFF15803D),
-                                    fontSize = 9.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                )
-                            }
-                        }
-                    }
+                    CivicEyeLiveGpsCard(
+                        gpsFix = gpsFix,
+                        isAcquiringGps = isAcquiringGps,
+                        locationPermissionDenied = locationPermissionDenied,
+                        onCaptureGps = requestLocationAndAcquire
+                    )
                 }
 
                 // 8. SINGLE-PHOTO CAMERA EVIDENCE CAPTURE (Pothole / Drainage Issue)
@@ -922,6 +988,7 @@ fun CivicEyeComponent(
                                             onClick = {
                                                 attachedPhotoBitmap = null
                                                 attachedPhotoUri = null
+                                                attachedPhotoBase64 = null
                                             },
                                             modifier = Modifier
                                                 .size(48.dp)
@@ -932,14 +999,23 @@ fun CivicEyeComponent(
                                     }
 
                                     Surface(
-                                        color = Color.Black.copy(alpha = 0.6f),
+                                        color = Color.Black.copy(alpha = 0.65f),
                                         shape = RoundedCornerShape(topEnd = 8.dp),
                                         modifier = Modifier.align(Alignment.BottomStart)
                                     ) {
+                                        val photoLocationLabel = gpsFix?.let {
+                                            String.format(Locale.US, "📍 %.4f, %.4f", it.latitude, it.longitude)
+                                        } ?: "📍 $selectedWard"
                                         Text(
-                                            text = "📍 $selectedWard",
+                                            text = if (isEncodingPhoto) {
+                                                "Compressing photo for Firestore…"
+                                            } else if (attachedPhotoBase64 != null) {
+                                                "$photoLocationLabel • ${stringResource(R.string.civic_eye_photo_ready_firestore)}"
+                                            } else {
+                                                photoLocationLabel
+                                            },
                                             color = Color.White,
-                                            fontSize = 11.sp,
+                                            fontSize = 10.5.sp,
                                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                                         )
                                     }
@@ -968,6 +1044,7 @@ fun CivicEyeComponent(
                                             BalasoreHapticHelper.vibrateButtonClick(context)
                                             attachedPhotoBitmap = null
                                             attachedPhotoUri = null
+                                            attachedPhotoBase64 = null
                                         },
                                         modifier = Modifier
                                             .weight(1f)
@@ -1021,19 +1098,31 @@ fun CivicEyeComponent(
                     }
                 }
 
-                // 9. SUBMIT BUTTON (SUPPORTS DIRECT ROOM+CLOUD OR ROOM 'SYNC-WHEN-ONLINE' QUEUE)
+                // 9. SUBMIT BUTTON (SUPPORTS DIRECT FIRESTORE SYNC OR ROOM 'SYNC-WHEN-ONLINE' QUEUE)
                 item {
+                    val isCurrentlySubmitting = submitStatus is CivicEyeSubmitStatus.Submitting
                     Spacer(modifier = Modifier.height(4.dp))
                     Button(
                         onClick = {
                             if (issueTitle.isBlank()) {
-                                Toast.makeText(context, if (isOdia) "ଦୟାକରି ଶୀର୍ଷକ ଲେଖନ୍ତୁ" else "Please enter a title for the issue", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(
+                                    context,
+                                    if (isOdia) "ଦୟାକରି ଶୀର୍ଷକ ଲେଖନ୍ତୁ" else "Please enter a title for the issue",
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                                return@Button
+                            }
+                            if (!queueWhenOnlineMode && firebaseUser == null) {
+                                Toast.makeText(
+                                    context,
+                                    "Please tap 'Sign in with Google' above to save incidents to Firestore.",
+                                    Toast.LENGTH_LONG
+                                ).show()
                                 return@Button
                             }
                             BalasoreHapticHelper.vibrateButtonClick(context)
-                            isSubmitting = true
-                            val generatedId = "BLS-CIVIC-2026-${1000 + kotlin.random.Random.nextInt(9000)}"
-                            val hasPhoto = attachedPhotoUri != null || attachedPhotoBitmap != null
+                            val hasPhoto = attachedPhotoUri != null || attachedPhotoBitmap != null || !attachedPhotoBase64.isNullOrBlank()
+                            val activeFix = gpsFix
 
                             if (queueWhenOnlineMode && onQueueReportOffline != null) {
                                 onQueueReportOffline(
@@ -1043,7 +1132,7 @@ fun CivicEyeComponent(
                                     issueDescription.ifBlank { "Reported via Civic Eye (Queued for Sync-When-Online)" },
                                     selectedUrgency,
                                     hasPhoto,
-                                    attachedPhotoUri
+                                    attachedPhotoBase64 ?: attachedPhotoUri
                                 )
                             } else {
                                 onSubmitReport(
@@ -1054,40 +1143,40 @@ fun CivicEyeComponent(
                                     selectedUrgency,
                                     hasPhoto,
                                     attachedPhotoUri,
-                                    21.4934,
-                                    86.9135,
-                                    selectedWard,
-                                    "citizen_user",
-                                    "Baleswari Citizen"
+                                    attachedPhotoBase64,
+                                    activeFix?.latitude,
+                                    activeFix?.longitude,
+                                    activeFix?.geoAddress ?: selectedWard,
+                                    firebaseUser?.uid.orEmpty(),
+                                    firebaseUser?.displayName ?: firebaseUser?.email ?: "Baleswari Citizen"
                                 )
                             }
-
-                            isSubmitting = false
-                            submissionSuccessId = generatedId
-                            issueTitle = ""
-                            issueDescription = ""
-                            attachedPhotoBitmap = null
-                            attachedPhotoUri = null
                         },
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(50.dp)
+                            .heightIn(min = 50.dp)
                             .testTag("civic_eye_submit_btn"),
                         shape = RoundedCornerShape(12.dp),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = if (queueWhenOnlineMode) Color(0xFFD97706) else Color(0xFF0284C7)
                         ),
-                        enabled = !isSubmitting
+                        enabled = !isCurrentlySubmitting && !isEncodingPhoto
                     ) {
-                        if (isSubmitting) {
+                        if (isCurrentlySubmitting || isEncodingPhoto) {
                             CircularProgressIndicator(
                                 modifier = Modifier.size(20.dp),
                                 color = Color.White,
                                 strokeWidth = 2.dp
                             )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = if (isEncodingPhoto) "Preparing Photo…" else "Saving to Firestore…",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 14.sp
+                            )
                         } else {
                             Icon(
-                                imageVector = if (queueWhenOnlineMode) Icons.Default.CloudQueue else Icons.Default.Send,
+                                imageVector = if (queueWhenOnlineMode) Icons.Default.CloudQueue else Icons.Default.CloudUpload,
                                 contentDescription = null,
                                 modifier = Modifier.size(18.dp)
                             )
@@ -1096,7 +1185,7 @@ fun CivicEyeComponent(
                                 text = if (queueWhenOnlineMode) {
                                     if (isOdia) "Room DB 'Sync-When-Online' କ୍ୟୁରେ ସେଭ୍ କରନ୍ତୁ" else "Save to Room DB (Sync-When-Online Queue)"
                                 } else {
-                                    if (isOdia) "Room DB ଓ କ୍ଲାଉଡ୍ କୁ ଦାଖଲ କରନ୍ତୁ" else "Submit Report (Room DB & Cloud Sync)"
+                                    if (isOdia) "Firestore ରେ ଦାଖଲ କରନ୍ତୁ" else stringResource(R.string.civic_eye_submit_firestore_cta)
                                 },
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 14.sp
@@ -1615,39 +1704,77 @@ private fun CivicReportCardItem(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // WARD & LOCATION
+            // WARD & LIVE GPS COORDINATES
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
                     imageVector = Icons.Default.LocationOn,
-                    contentDescription = null,
+                    contentDescription = "Incident location",
                     tint = Color(0xFFEF4444),
                     modifier = Modifier.size(14.dp)
                 )
                 Spacer(modifier = Modifier.width(4.dp))
                 Text(
-                    text = report.wardLocation,
+                    text = report.geoAddress?.takeIf { it.isNotBlank() } ?: report.wardLocation,
                     fontSize = 11.5.sp,
                     color = MaterialTheme.colorScheme.onSurface,
                     fontWeight = FontWeight.Medium
                 )
             }
+            if (report.latitude != null && report.longitude != null) {
+                Spacer(modifier = Modifier.height(2.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.MyLocation,
+                        contentDescription = "GPS coordinates",
+                        tint = Color(0xFF0284C7),
+                        modifier = Modifier.size(12.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = String.format(
+                            Locale.US,
+                            "GPS: %.5f°, %.5f°",
+                            report.latitude,
+                            report.longitude
+                        ),
+                        fontSize = 10.5.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
 
-            // PHOTO THUMBNAIL IF PRESENT
+            // PHOTO THUMBNAIL IF PRESENT (supports cross-device Firestore Base64 & local/remote URIs)
             if (report.hasPhotoAttached && !report.photoUri.isNullOrBlank()) {
+                val decodedBase64Bitmap = remember(report.photoUri) {
+                    if (report.photoUri.startsWith("data:image")) {
+                        CivicEyeMediaAndLocationHelper.decodeBase64Photo(report.photoUri)
+                    } else {
+                        null
+                    }
+                }
                 Spacer(modifier = Modifier.height(8.dp))
                 Surface(
                     shape = RoundedCornerShape(8.dp),
                     color = MaterialTheme.colorScheme.surfaceVariant,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(110.dp)
+                        .height(140.dp)
                 ) {
-                    AsyncImage(
-                        model = report.photoUri,
-                        contentDescription = "Photo Evidence",
-                        modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Crop
-                    )
+                    if (decodedBase64Bitmap != null) {
+                        androidx.compose.foundation.Image(
+                            bitmap = decodedBase64Bitmap.asImageBitmap(),
+                            contentDescription = "Incident Photo Evidence",
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop
+                        )
+                    } else {
+                        AsyncImage(
+                            model = report.photoUri,
+                            contentDescription = "Incident Photo Evidence",
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop
+                        )
+                    }
                 }
             }
 

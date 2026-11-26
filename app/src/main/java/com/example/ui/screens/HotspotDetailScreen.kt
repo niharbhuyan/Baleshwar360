@@ -925,5 +925,5 @@ private fun getHotspotCategoryIcon(category: String): ImageVector {
 }
 
 private fun getHotspotImageRes(id: String): Int? {
-    return null
+    return com.example.ui.features.map.BalasoreHotspotMediaResolver.primaryDrawableFor(id)
 }

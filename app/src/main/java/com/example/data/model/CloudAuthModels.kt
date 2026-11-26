@@ -238,6 +238,8 @@ data class FavoriteNewsCloudItem(
  * Cloud model for citizen civic reports persisted in Firestore collection 'user_reports'
  * matching schema FirestoreUserReport in firebase-blueprint.json and firestore.rules.
  */
+@androidx.annotation.Keep
+@com.google.firebase.firestore.IgnoreExtraProperties
 data class FirestoreUserReport(
     val id: String = "",
     val userId: String = "",
@@ -248,30 +250,36 @@ data class FirestoreUserReport(
     val wardLocation: String = "Balasore Municipality",
     val status: String = "SUBMITTED", // "SUBMITTED", "IN_PROGRESS", "RESOLVED", "REJECTED"
     val urgency: String = "MEDIUM", // "LOW", "MEDIUM", "HIGH", "EMERGENCY"
-    val latitude: Double? = 21.4934,
-    val longitude: Double? = 86.9135,
+    val latitude: Double? = null,
+    val longitude: Double? = null,
+    val geoAddress: String? = null,
     val photoUrl: String? = null,
+    val photoBase64: String? = null,
     val reportedTimestamp: Long = System.currentTimeMillis(),
     val lastUpdatedTimestamp: Long = System.currentTimeMillis(),
     val resolutionNotes: String? = null
 ) {
     fun toFirestoreMap(): Map<String, Any> {
+        val safeLat = latitude?.takeIf { it in -90.0..90.0 }
+        val safeLng = longitude?.takeIf { it in -180.0..180.0 }
         val map = mutableMapOf<String, Any?>(
-            "id" to id,
-            "userId" to userId,
-            "userName" to userName,
-            "title" to title,
-            "category" to category,
-            "description" to description,
-            "wardLocation" to wardLocation,
+            "id" to id.take(128),
+            "userId" to userId.take(128),
+            "userName" to userName.ifBlank { "Balasore Citizen" }.take(120),
+            "title" to title.ifBlank { "Civic Incident" }.take(200),
+            "category" to category.ifBlank { "other" }.take(50),
+            "description" to description.ifBlank { "Reported via Civic Eye." }.take(2000),
+            "wardLocation" to wardLocation.take(150),
             "status" to status,
             "urgency" to urgency,
-            "latitude" to latitude,
-            "longitude" to longitude,
-            "photoUrl" to photoUrl,
+            "latitude" to safeLat,
+            "longitude" to safeLng,
+            "geoAddress" to geoAddress?.takeIf { it.isNotBlank() }?.take(250),
+            "photoUrl" to photoUrl?.takeIf { it.isNotBlank() }?.take(1000),
+            "photoBase64" to photoBase64?.takeIf { it.isNotBlank() && it.length <= 120000 },
             "reportedTimestamp" to reportedTimestamp,
             "lastUpdatedTimestamp" to lastUpdatedTimestamp,
-            "resolutionNotes" to resolutionNotes
+            "resolutionNotes" to resolutionNotes?.takeIf { it.isNotBlank() }?.take(1000)
         )
         @Suppress("UNCHECKED_CAST")
         return map.filterValues { it != null } as Map<String, Any>
@@ -289,9 +297,11 @@ data class FirestoreUserReport(
                 wardLocation = data["wardLocation"] as? String ?: "Balasore",
                 status = data["status"] as? String ?: "SUBMITTED",
                 urgency = data["urgency"] as? String ?: "MEDIUM",
-                latitude = (data["latitude"] as? Number)?.toDouble() ?: 21.4934,
-                longitude = (data["longitude"] as? Number)?.toDouble() ?: 86.9135,
+                latitude = (data["latitude"] as? Number)?.toDouble(),
+                longitude = (data["longitude"] as? Number)?.toDouble(),
+                geoAddress = data["geoAddress"] as? String,
                 photoUrl = data["photoUrl"] as? String,
+                photoBase64 = data["photoBase64"] as? String,
                 reportedTimestamp = (data["reportedTimestamp"] as? Number)?.toLong() ?: System.currentTimeMillis(),
                 lastUpdatedTimestamp = (data["lastUpdatedTimestamp"] as? Number)?.toLong() ?: System.currentTimeMillis(),
                 resolutionNotes = data["resolutionNotes"] as? String

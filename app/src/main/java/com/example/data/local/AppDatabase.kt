@@ -29,13 +29,19 @@ import androidx.room.TypeConverters
         EmergencyContactEntity::class,
         NewsSearchQueryEntity::class,
         CitizenVoteEntity::class,
-        CommunityNewsSubmissionEntity::class
+        CommunityNewsSubmissionEntity::class,
+        DailyNewsWeatherUpdateEntity::class
     ],
-    version = 22,
+    version = 23,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
 abstract class AppDatabase : RoomDatabase() {
+
+    /**
+     * Abstract getter method for Daily Public News & Weather Snapshot DAO.
+     */
+    abstract fun dailyNewsWeatherUpdateDao(): DailyNewsWeatherUpdateDao
 
     /**
      * Abstract getter method for Citizen Local News Submissions & Editorial Moderation DAO.

@@ -95,11 +95,13 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.R
 import com.example.data.local.AppDatabase
 import com.example.data.local.HotspotEntity
+import com.example.data.local.ReviewEntity
 import com.example.data.maps.BalasoreOfflineTileCacheManager
 import com.example.data.maps.BalasoreOsmDarkStyleHelper
 import com.example.data.maps.BalasoreOsmOfflineTileProvider
 import com.example.data.model.AppLanguage
 import com.example.data.repository.TourismRepository
+import com.example.ui.screens.HotspotDetailScreen
 import com.google.firebase.FirebaseApp
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.Dispatchers
@@ -151,11 +153,14 @@ fun BalasoreTourismOsmMapScreen(
     val tileProvider = remember { BalasoreOsmOfflineTileProvider(context.applicationContext ?: context) }
     val isOfflineOnly by tileProvider.isOfflineOnlyMode.collectAsState()
 
-    // Tourism Module Database repository (Room HotspotDao + CacheMetadataDao)
-    val tourismRepository = remember(context) {
-        val db = AppDatabase.getInstance(context.applicationContext)
+    // Tourism Module Database repository (Room HotspotDao + CacheMetadataDao + ReviewDao + WeatherDao)
+    val db = remember(context) { AppDatabase.getInstance(context.applicationContext) }
+    val tourismRepository = remember(db) {
         TourismRepository(db.hotspotDao(), db.cacheMetadataDao())
     }
+    val reviewDao = remember(db) { db.reviewDao() }
+    val cachedWeather by remember(db) { db.weatherDao().getWeatherCache() }
+        .collectAsStateWithLifecycle(initialValue = null)
     val dbHotspots by tourismRepository.allHotspots.collectAsStateWithLifecycle(initialValue = emptyList())
 
     // Ensure Room tourism_hotspots table is seeded and optionally sync public Firestore updates
@@ -174,6 +179,7 @@ fun BalasoreTourismOsmMapScreen(
     var selectedHotspotId by remember { mutableStateOf(initialSpotId) }
     var showBottomCard by remember { mutableStateOf(true) }
     var openCalloutSpotId by remember { mutableStateOf<String?>(initialSpotId) }
+    var detailModalSpot by remember { mutableStateOf<HotspotEntity?>(null) }
     var reviewModalSpot by remember { mutableStateOf<HotspotEntity?>(null) }
     var mapViewInstance by remember { mutableStateOf<MapView?>(null) }
 
@@ -405,6 +411,7 @@ fun BalasoreTourismOsmMapScreen(
                             onViewDetails = { tapped ->
                                 selectedHotspotId = tapped.id
                                 showBottomCard = true
+                                detailModalSpot = tapped
                             },
                             onNavigate = { tapped ->
                                 TourismMapDirectionsHelper.launchDirections(
@@ -634,7 +641,7 @@ fun BalasoreTourismOsmMapScreen(
                 )
             }
 
-            // Bottom Database-Backed Selected Hotspot Detail Card
+            // Bottom Database-Backed Selected Hotspot Pin Card (Images, Short Description & View More Details)
             AnimatedVisibility(
                 visible = showBottomCard && selectedHotspot != null,
                 enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
@@ -645,7 +652,7 @@ fun BalasoreTourismOsmMapScreen(
                     .navigationBarsPadding()
             ) {
                 selectedHotspot?.let { spot ->
-                    TourismDatabaseHotspotCard(
+                    TourismHotspotPinCard(
                         spot = spot,
                         isOdia = isOdia,
                         onToggleFavorite = {
@@ -653,6 +660,7 @@ fun BalasoreTourismOsmMapScreen(
                                 tourismRepository.toggleFavorite(spot.id, spot.isFavorite)
                             }
                         },
+                        onViewMoreDetails = { detailModalSpot = spot },
                         onFocusCallout = { focusHotspotOnMap(spot, true) },
                         onOpenReviews = { reviewModalSpot = spot },
                         onDirections = {
@@ -667,6 +675,56 @@ fun BalasoreTourismOsmMapScreen(
                     )
                 }
             }
+        }
+    }
+
+    // Full-screen Hotspot Detail View launched from the Pin Card "View More Details" button or pin callout
+    detailModalSpot?.let { activeSpot ->
+        val liveSpot = dbHotspots.find { it.id == activeSpot.id } ?: activeSpot
+        Surface(
+            modifier = Modifier
+                .fillMaxSize()
+                .testTag("tourism_map_hotspot_detail_overlay"),
+            color = MaterialTheme.colorScheme.background
+        ) {
+            HotspotDetailScreen(
+                hotspot = liveSpot,
+                weather = cachedWeather,
+                reviewsFlow = remember(liveSpot.id) {
+                    reviewDao.getReviewsForTarget("HOTSPOT", liveSpot.id)
+                },
+                onSubmitReview = { rating, comment, guestName ->
+                    coroutineScope.launch(Dispatchers.IO) {
+                        reviewDao.insertReview(
+                            ReviewEntity(
+                                targetType = "HOTSPOT",
+                                targetId = liveSpot.id,
+                                targetTitle = liveSpot.name,
+                                userId = "local_explorer",
+                                userName = guestName?.takeIf { it.isNotBlank() } ?: "Balasore Explorer",
+                                userLocality = "Balasore, Odisha",
+                                rating = rating,
+                                comment = comment
+                            )
+                        )
+                    }
+                },
+                onNavigateBack = { detailModalSpot = null },
+                onToggleFavorite = {
+                    coroutineScope.launch {
+                        tourismRepository.toggleFavorite(liveSpot.id, liveSpot.isFavorite)
+                    }
+                },
+                onExploreWithMaps = {
+                    TourismMapDirectionsHelper.launchDirections(
+                        context = context,
+                        spotName = liveSpot.name,
+                        destLat = liveSpot.latitude,
+                        destLng = liveSpot.longitude
+                    )
+                },
+                selectedLanguage = language
+            )
         }
     }
 
@@ -712,206 +770,6 @@ private fun MapControlCircleButton(
                 tint = tint,
                 modifier = Modifier.size(22.dp)
             )
-        }
-    }
-}
-
-@Composable
-private fun TourismDatabaseHotspotCard(
-    spot: HotspotEntity,
-    isOdia: Boolean,
-    onToggleFavorite: () -> Unit,
-    onFocusCallout: () -> Unit,
-    onOpenReviews: () -> Unit,
-    onDirections: () -> Unit,
-    onDismiss: () -> Unit
-) {
-    val pinStyle = TourismPinCategory.resolve(spot.category, spot.name)
-    val accent = Color(pinStyle.primaryColor)
-
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 10.dp)
-            .testTag("tourism_osm_selected_hotspot_card"),
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
-        border = BorderStroke(1.2.dp, accent.copy(alpha = 0.45f))
-    ) {
-        Column(
-            modifier = Modifier.padding(14.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        Surface(
-                            shape = RoundedCornerShape(999.dp),
-                            color = accent
-                        ) {
-                            Text(
-                                text = if (isOdia) pinStyle.labelOr else pinStyle.labelEn,
-                                color = Color.White,
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.Bold,
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
-                            )
-                        }
-                        Text(
-                            text = if (spot.distanceKmFromBls > 0) "${spot.distanceKmFromBls} km • GPS ${String.format(Locale.US, "%.4f, %.4f", spot.latitude, spot.longitude)}" else "Balasore Town",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = if (isOdia && spot.odiaName.isNotBlank()) spot.odiaName else spot.name,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.ExtraBold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    if (spot.odiaName.isNotBlank() && !isOdia) {
-                        Text(
-                            text = spot.odiaName,
-                            style = MaterialTheme.typography.labelMedium,
-                            color = accent,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-                }
-
-                IconButton(
-                    onClick = onToggleFavorite,
-                    modifier = Modifier
-                        .minimumInteractiveComponentSize()
-                        .testTag("tourism_osm_favorite_btn")
-                ) {
-                    Icon(
-                        imageVector = if (spot.isFavorite) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
-                        contentDescription = if (spot.isFavorite) "Remove from Saved Hotspots" else "Save Hotspot",
-                        tint = if (spot.isFavorite) Color(0xFFE11D48) else MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-
-                IconButton(
-                    onClick = onDismiss,
-                    modifier = Modifier
-                        .minimumInteractiveComponentSize()
-                        .testTag("tourism_osm_dismiss_card_btn")
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Close,
-                        contentDescription = "Close Hotspot Card"
-                    )
-                }
-            }
-
-            Text(
-                text = spot.shortDescription.ifBlank { spot.fullDescription },
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis
-            )
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Surface(
-                    shape = RoundedCornerShape(10.dp),
-                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Text(
-                        text = spot.timings.ifBlank { "6:00 AM - 6:00 PM" },
-                        style = MaterialTheme.typography.labelSmall,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp)
-                    )
-                }
-                Surface(
-                    shape = RoundedCornerShape(10.dp),
-                    color = accent.copy(alpha = 0.12f),
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Text(
-                        text = "${spot.bestTimeToVisit.ifBlank { "Oct - Mar" }} • ${spot.entryFee.ifBlank { "Free" }}",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = accent,
-                        fontWeight = FontWeight.SemiBold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp)
-                    )
-                }
-            }
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Button(
-                    onClick = onDirections,
-                    colors = ButtonDefaults.buttonColors(containerColor = accent),
-                    shape = RoundedCornerShape(12.dp),
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(48.dp)
-                        .testTag("tourism_osm_directions_btn")
-                ) {
-                    Icon(Icons.Default.Navigation, contentDescription = null, modifier = Modifier.size(16.dp))
-                    Spacer(Modifier.width(6.dp))
-                    Text(
-                        text = stringResource(R.string.osm_tourism_directions),
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-                OutlinedButton(
-                    onClick = onFocusCallout,
-                    shape = RoundedCornerShape(12.dp),
-                    border = BorderStroke(1.dp, accent.copy(alpha = 0.55f)),
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(48.dp)
-                        .testTag("tourism_osm_open_callout_btn")
-                ) {
-                    Icon(Icons.Default.LocationOn, contentDescription = null, tint = accent, modifier = Modifier.size(16.dp))
-                    Spacer(Modifier.width(4.dp))
-                    Text(
-                        text = stringResource(R.string.osm_tourism_focus_pin),
-                        fontSize = 12.sp,
-                        color = accent,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-                IconButton(
-                    onClick = onOpenReviews,
-                    modifier = Modifier
-                        .size(48.dp)
-                        .testTag("tourism_osm_reviews_btn")
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.RateReview,
-                        contentDescription = stringResource(R.string.osm_tourism_reviews),
-                        tint = accent
-                    )
-                }
-            }
         }
     }
 }

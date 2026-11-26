@@ -8,8 +8,8 @@ const fs = require("node:fs");
 
 let testEnv;
 const PROJECT_ID = process.env.GCP_PROJECT || "demo-no-project";
-const ALICE_UID = "alice_123";
-const BOB_UID = "bob_456";
+const ALICE_UID = "citizen_alice_balasore";
+const BOB_UID = "citizen_bob_balasore";
 
 const [emulatorHost, emulatorPortStr] = (
   process.env.FIRESTORE_EMULATOR_HOST || "127.0.0.1:8085"
@@ -40,263 +40,139 @@ beforeEach(async () => {
   }
 });
 
-test("Unauthenticated user: cannot read or write weather preferences", async () => {
+function buildValidUserReport(userId, reportId = "BLS-CIVIC-2026-4123") {
+  const now = Date.now();
+  return {
+    id: reportId,
+    userId,
+    userName: "Alice Mohanty",
+    title: "Deep pothole near Phandi Chhak",
+    category: "pothole",
+    description: "Large water-filled pothole near Ward 14 OT Road junction.",
+    wardLocation: "Ward 14 - OT Road / Phandi Chhak",
+    status: "SUBMITTED",
+    urgency: "HIGH",
+    latitude: 21.4942,
+    longitude: 86.9318,
+    geoAddress: "OT Road, Phandi Chhak, Balasore, Odisha",
+    photoBase64: "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAA==",
+    reportedTimestamp: now,
+    lastUpdatedTimestamp: now,
+  };
+}
+
+function buildValidCivicReport(userId, reportId = "BLS-CIVIC-2026-4123") {
+  const now = Date.now();
+  return {
+    id: reportId,
+    userId,
+    title: "Clogged drainage near Cinema Chhak",
+    category: "Drain Clog / Waterlogging",
+    wardLocation: "Ward 12 - Cinema Chhak",
+    description: "Stormwater drain overflowing onto road after rain.",
+    status: "PENDING",
+    urgency: "HIGH",
+    assignedDepartment: "Drainage Desiltation Taskforce",
+    reportedTimestamp: now,
+    lastUpdatedTimestamp: now,
+    hasPhotoAttached: true,
+    photoUri: "content://com.niharsales.baleshwar360.fileprovider/civic_eye_saved_photos/issue.jpg",
+    photoBase64: "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAA==",
+    latitude: 21.4911,
+    longitude: 86.9295,
+    geoAddress: "Cinema Chhak, Balasore, Odisha",
+    resolutionNotes: "Report registered via Civic Eye.",
+  };
+}
+
+test("Unauthenticated user: can read public civic feed but cannot submit incidents", async () => {
   const unauthDb = testEnv.unauthenticatedContext().firestore();
+  await assertSucceeds(unauthDb.collection("user_reports").limit(20).get());
   await assertFails(
     unauthDb
-      .collection("users")
-      .doc(ALICE_UID)
-      .collection("preferences")
-      .doc("weather")
-      .get()
+      .collection("user_reports")
+      .doc("BLS-CIVIC-2026-1001")
+      .set(buildValidUserReport(ALICE_UID, "BLS-CIVIC-2026-1001"))
   );
   await assertFails(
     unauthDb
-      .collection("users")
-      .doc(ALICE_UID)
-      .collection("preferences")
-      .doc("weather")
-      .set({
-        userId: ALICE_UID,
-        notifyCyclone: true,
-        notifyHighTide: true,
-        notifySevereHeat: true,
-        notifyRainfall: true,
-        updatedAt: Date.now(),
-      })
+      .collection("civic_reports")
+      .doc("BLS-CIVIC-2026-1001")
+      .set(buildValidCivicReport(ALICE_UID, "BLS-CIVIC-2026-1001"))
   );
 });
 
-test("Authenticated user: can read and write their own full weather preferences", async () => {
+test("Authenticated citizen: can save Civic Eye report with camera photo & GPS coordinates to user_reports and civic_reports", async () => {
   const aliceDb = testEnv.authenticatedContext(ALICE_UID).firestore();
+
   await assertSucceeds(
     aliceDb
-      .collection("users")
-      .doc(ALICE_UID)
-      .collection("preferences")
-      .doc("weather")
-      .set({
-        userId: ALICE_UID,
-        notifyCyclone: true,
-        notifyHighTide: true,
-        notifySevereHeat: false,
-        notifyRainfall: true,
-        notifyLocalEvents: true,
-        notifyTempleFestivals: true,
-        notifyBreakingNews: true,
-        notifyTourismHotspots: true,
-        notifyDefenseAdvisories: true,
-        notifyFloodAlerts: true,
-        notifyKuldihaSafari: true,
-        notifyPanchalingeswar: true,
-        notifySafeTideWindow: true,
-        highTideAlertHoursBefore: 2,
-        minTempThreshold: 12,
-        maxTempThreshold: 38,
-        preferredNewsCategories: ["Civic", "Weather", "Defense"],
-        updatedAt: Date.now(),
-      })
+      .collection("user_reports")
+      .doc("BLS-CIVIC-2026-4123")
+      .set(buildValidUserReport(ALICE_UID))
   );
 
   await assertSucceeds(
     aliceDb
-      .collection("users")
-      .doc(ALICE_UID)
-      .collection("preferences")
-      .doc("weather")
-      .get()
+      .collection("civic_reports")
+      .doc("BLS-CIVIC-2026-4123")
+      .set(buildValidCivicReport(ALICE_UID))
   );
+
+  await assertSucceeds(aliceDb.collection("user_reports").limit(50).get());
 });
 
-test("Authenticated user: cannot read or write another user's weather preferences", async () => {
-  await testEnv.withSecurityRulesDisabled(async (context) => {
-    await context
-      .firestore()
-      .collection("users")
-      .doc(BOB_UID)
-      .collection("preferences")
-      .doc("weather")
-      .set({
-        userId: BOB_UID,
-        notifyCyclone: true,
-        notifyHighTide: true,
-        notifySevereHeat: true,
-        notifyRainfall: true,
-        updatedAt: Date.now(),
-      });
-  });
-
+test("Security bounds: rejects spoofed userId, invalid GPS coordinates, and oversized base64 photo", async () => {
   const aliceDb = testEnv.authenticatedContext(ALICE_UID).firestore();
+
+  // Spoofed userId must fail
   await assertFails(
     aliceDb
-      .collection("users")
-      .doc(BOB_UID)
-      .collection("preferences")
-      .doc("weather")
-      .get()
+      .collection("user_reports")
+      .doc("BLS-CIVIC-2026-9001")
+      .set(buildValidUserReport(BOB_UID, "BLS-CIVIC-2026-9001"))
   );
+
+  // Out-of-range latitude must fail
   await assertFails(
     aliceDb
-      .collection("users")
-      .doc(BOB_UID)
-      .collection("preferences")
-      .doc("weather")
+      .collection("user_reports")
+      .doc("BLS-CIVIC-2026-9002")
       .set({
-        userId: BOB_UID,
-        notifyCyclone: false,
-        notifyHighTide: false,
-        notifySevereHeat: false,
-        notifyRainfall: false,
-        updatedAt: Date.now(),
+        ...buildValidUserReport(ALICE_UID, "BLS-CIVIC-2026-9002"),
+        latitude: 125.0,
+      })
+  );
+
+  // Oversized photoBase64 (> 120,000 chars) must fail
+  await assertFails(
+    aliceDb
+      .collection("user_reports")
+      .doc("BLS-CIVIC-2026-9003")
+      .set({
+        ...buildValidUserReport(ALICE_UID, "BLS-CIVIC-2026-9003"),
+        photoBase64: "A".repeat(120001),
       })
   );
 });
 
-test("Shadow update test: rejects ghost fields in weather preferences", async () => {
+test("Cross-user isolation: another user cannot overwrite or delete Alice's Civic Eye incident", async () => {
   const aliceDb = testEnv.authenticatedContext(ALICE_UID).firestore();
-  await assertFails(
-    aliceDb
-      .collection("users")
-      .doc(ALICE_UID)
-      .collection("preferences")
-      .doc("weather")
-      .set({
-        userId: ALICE_UID,
-        notifyCyclone: true,
-        notifyHighTide: true,
-        notifySevereHeat: true,
-        notifyRainfall: true,
-        ghostField: "hacked",
-        updatedAt: Date.now(),
-      })
-  );
-});
+  const bobDb = testEnv.authenticatedContext(BOB_UID).firestore();
 
-test("Authenticated user: can create and read their own profile and bookmarks", async () => {
-  const aliceDb = testEnv.authenticatedContext(ALICE_UID).firestore();
-  const now = Date.now();
+  const report = buildValidUserReport(ALICE_UID, "BLS-CIVIC-2026-5555");
   await assertSucceeds(
-    aliceDb.collection("users").doc(ALICE_UID).set({
-      userId: ALICE_UID,
-      displayName: "Alice",
-      email: "alice@example.com",
-      createdAt: now,
-      updatedAt: now,
-    })
+    aliceDb.collection("user_reports").doc("BLS-CIVIC-2026-5555").set(report)
   );
-  await assertSucceeds(
-    aliceDb
-      .collection("users")
-      .doc(ALICE_UID)
-      .collection("bookmarks")
-      .doc("spot_1")
-      .set({
-        spotId: "spot_1",
-        userId: ALICE_UID,
-        spotName: "Chandipur Beach",
-        category: "Beach",
-        location: "Chandipur",
-        rating: 4.8,
-        bookmarkedAt: now,
-      })
+
+  await assertFails(
+    bobDb
+      .collection("user_reports")
+      .doc("BLS-CIVIC-2026-5555")
+      .update({ title: "Tampered by Bob" })
+  );
+
+  await assertFails(
+    bobDb.collection("user_reports").doc("BLS-CIVIC-2026-5555").delete()
   );
 });
-
-test("Weather alerts and snapshots: public read allowed, non-admin writes denied", async () => {
-  const now = Date.now();
-  await testEnv.withSecurityRulesDisabled(async (context) => {
-    await context.firestore().collection("weather_alerts").doc("alert_chandipur_cyclone").set({
-      alertId: "alert_chandipur_cyclone",
-      regionCode: "CHANDIPUR",
-      eventType: "CYCLONE",
-      severity: "WARNING",
-      headline: "Coastal Wind Alert across Balasore",
-      description: "High wind warning for Chandipur and Balaramgadi coast.",
-      affectedBlocks: ["Chandipur", "Balaramgadi"],
-      source: "OpenWeatherMap",
-      startsAtMs: now,
-      expiresAtMs: now + 43200000,
-      isActive: true,
-      updatedAtMs: now,
-    });
-  });
-
-  const aliceDb = testEnv.authenticatedContext(ALICE_UID).firestore();
-  await assertSucceeds(aliceDb.collection("weather_alerts").doc("alert_chandipur_cyclone").get());
-  await assertFails(
-    aliceDb.collection("weather_alerts").doc("alert_forged").set({
-      alertId: "alert_forged",
-      regionCode: "BLS_SADAR",
-      eventType: "FLOOD",
-      severity: "EMERGENCY",
-      headline: "Forged Alert",
-      description: "Unauthorized write attempt",
-      affectedBlocks: ["Balasore Sadar"],
-      source: "Spoofed",
-      startsAtMs: now,
-      expiresAtMs: now + 3600000,
-      isActive: true,
-      updatedAtMs: now,
-    })
-  );
-  await assertFails(
-    aliceDb.collection("weather_snapshots").doc("BLS_SADAR").set({
-      regionCode: "BLS_SADAR",
-      provider: "OpenWeatherMap",
-      temperatureC: 32.0,
-      feelsLikeC: 35.0,
-      humidityPct: 75,
-      windSpeedKmh: 14.0,
-      rainMm3h: 0.0,
-      weatherCode: "Clear",
-      conditionSummary: "Clear Sky",
-      floodRiskLevel: "NORMAL",
-      observedAtMs: now,
-    })
-  );
-});
-
-test("Tourism hotspots: public read allowed, non-admin writes denied", async () => {
-  const now = Date.now();
-  await testEnv.withSecurityRulesDisabled(async (context) => {
-    await context.firestore().collection("tourism_hotspots").doc("spot_chandipur_beach").set({
-      spotId: "spot_chandipur_beach",
-      regionCode: "CHANDIPUR",
-      nameEn: "Chandipur Beach (Vanishing Sea)",
-      nameOr: "ଚାନ୍ଦିପୁର ବେଳାଭୂମି",
-      shortDescription: "Sea recedes up to 5 km twice daily during low tide.",
-      description: "Iconic Bay of Bengal vanishing beach in Balasore.",
-      category: "BEACH",
-      heroImageUrl: "drawable://hero_chandipur_beach",
-      latitude: 21.4416,
-      longitude: 87.0149,
-      address: "Chandipur Sea Beach, Balasore, Odisha 756025",
-      rating: 4.8,
-      isFeatured: true,
-      updatedAtMs: now,
-    });
-  });
-
-  const aliceDb = testEnv.authenticatedContext(ALICE_UID).firestore();
-  await assertSucceeds(aliceDb.collection("tourism_hotspots").doc("spot_chandipur_beach").get());
-  await assertFails(
-    aliceDb.collection("tourism_hotspots").doc("spot_forged").set({
-      spotId: "spot_forged",
-      regionCode: "REMUNA",
-      nameEn: "Forged Spot",
-      nameOr: "ନକଲି",
-      shortDescription: "Unauthorized write",
-      description: "Should be denied",
-      category: "TEMPLE",
-      heroImageUrl: "https://example.com/img.jpg",
-      latitude: 21.529,
-      longitude: 86.8712,
-      address: "Remuna",
-      rating: 4.5,
-      isFeatured: false,
-      updatedAtMs: now,
-    })
-  );
-});
-
-

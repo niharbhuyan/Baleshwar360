@@ -59,14 +59,15 @@ class OpenWeatherRepository(
     }
 
     fun getResolvedApiKey(explicitKey: String? = null): String {
-        if (!explicitKey.isNullOrBlank()) return explicitKey.trim()
-        val envKey = runCatching { com.example.BuildConfig.OPENWEATHERMAP_API_KEY }.getOrDefault("")
-        return envKey.trim()
+        val sanitizedExplicit = com.example.data.config.BalasoreApiKeys.sanitize(explicitKey)
+        if (sanitizedExplicit.isNotBlank() && !sanitizedExplicit.startsWith("AIza")) {
+            return sanitizedExplicit
+        }
+        return com.example.data.config.BalasoreApiKeys.openWeatherApiKey(context)
     }
 
     fun isApiKeyConfigured(explicitKey: String? = null): Boolean {
-        val key = getResolvedApiKey(explicitKey)
-        return key.isNotBlank() && !key.contains("YOUR_OPENWEATHERMAP_API_KEY", ignoreCase = true)
+        return getResolvedApiKey(explicitKey).isNotBlank()
     }
 
     suspend fun fetchCurrentWeather(apiKey: String = ""): Result<OpenWeatherCurrentResponse> {
@@ -219,7 +220,106 @@ class OpenWeatherRepository(
                 }
             }
         }
+        // Automatic live keyless Open-Meteo fallback when OPENWEATHERMAP_API_KEY is not configured yet
+        if (apiService == null) {
+            val openMeteoBundle = runCatching { fetchOpenMeteoHourlyFallback(lat, lon) }.getOrNull()
+            if (openMeteoBundle != null && openMeteoBundle.slots.isNotEmpty()) {
+                return Result.success(openMeteoBundle)
+            }
+        }
         return Result.success(getCuratedBalasoreHourlyForecastFallback())
+    }
+
+    private suspend fun fetchOpenMeteoHourlyFallback(
+        lat: Double,
+        lon: Double
+    ): BalasoreHourlyForecastBundle {
+        val response = WeatherApiService.create().getBalasoreForecast(
+            latitude = lat,
+            longitude = lon,
+            forecastDays = 2
+        )
+        val hourly = response.hourly ?: return getCuratedBalasoreHourlyForecastFallback()
+        val times = hourly.time.orEmpty()
+        val temps = hourly.temperature.orEmpty()
+        val humidities = hourly.relativeHumidity.orEmpty()
+        val rainProbs = hourly.precipitationProbability.orEmpty()
+        val wmoCodes = hourly.weatherCode.orEmpty()
+        val winds = hourly.windSpeed.orEmpty()
+
+        val parseFmt = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm", java.util.Locale.US).apply {
+            timeZone = java.util.TimeZone.getTimeZone("Asia/Kolkata")
+        }
+        val displayFmt = java.text.SimpleDateFormat("h a", java.util.Locale.US).apply {
+            timeZone = java.util.TimeZone.getTimeZone("Asia/Kolkata")
+        }
+        val nowMs = System.currentTimeMillis()
+        val startIdx = times.indexOfFirst { ts ->
+            (runCatching { parseFmt.parse(ts)?.time }.getOrNull() ?: 0L) >= (nowMs - 3600_000L)
+        }.coerceAtLeast(0)
+
+        val slots = (0 until 8).mapNotNull { step ->
+            val idx = startIdx + step * 3
+            if (idx >= times.size || idx >= temps.size) return@mapNotNull null
+            val parsedMs = runCatching { parseFmt.parse(times[idx])?.time }.getOrNull()
+                ?: (nowMs + step * 10800_000L)
+            val tempC = temps[idx]
+            val humidity = humidities.getOrElse(idx) { 72 }
+            val popPct = rainProbs.getOrElse(idx) { 10 }.coerceIn(0, 100)
+            val wmo = wmoCodes.getOrElse(idx) { 1 }
+            val windKmh = winds.getOrElse(idx) { 12.0 }
+            val (mainCond, desc, iconCode) = when (wmo) {
+                0 -> Triple("Clear", "Clear Sky", "01d")
+                1, 2 -> Triple("Clouds", "Partly Cloudy", "02d")
+                3 -> Triple("Clouds", "Overcast Clouds", "04d")
+                45, 48 -> Triple("Mist", "Coastal Fog", "50d")
+                in 51..67, in 80..82 -> Triple("Rain", "Coastal Showers", "10d")
+                in 95..99 -> Triple("Thunderstorm", "Bay Squall", "11d")
+                else -> Triple("Clouds", "Coastal Breeze", "03d")
+            }
+            val advisoryEn = when {
+                popPct >= 60 || mainCond == "Rain" || mainCond == "Thunderstorm" ->
+                    "High rain probability — carry an umbrella and avoid open Chandipur mudflats."
+                windKmh >= 30.0 ->
+                    "Gusty Bay of Bengal winds — coastal boats and trawlers advised caution."
+                tempC >= 34.0 ->
+                    "Warm coastal afternoon — stay hydrated during Remuna or Balasore outings."
+                else ->
+                    "Pleasant coastal weather — ideal for Chandipur Beach & heritage visits."
+            }
+            val advisoryOr = when {
+                popPct >= 60 || mainCond == "Rain" || mainCond == "Thunderstorm" ->
+                    "ବର୍ଷା ସମ୍ଭାବନା ଅଧିକ — ଛତା ରଖନ୍ତୁ ଓ ଚାନ୍ଦିପୁର ବେଳାଭୂମିରେ ସତର୍କ ରୁହନ୍ତୁ।"
+                windKmh >= 30.0 ->
+                    "ସାମୁଦ୍ରିକ ପବନର ବେଗ ଅଧିକ — ମତ୍ସ୍ୟଜୀବୀମାନେ ସତର୍କ ରୁହନ୍ତୁ।"
+                tempC >= 34.0 ->
+                    "ଖରା ଓ ଗୁଳୁଗୁଳି — ପର୍ଯ୍ୟାପ୍ତ ପାଣି ପିଅନ୍ତୁ ଓ ଛାଇରେ ରୁହନ୍ତୁ।"
+                else ->
+                    "ସୁହାବଣା ଉପକୂଳ ପାଣିପାଗ — ଚାନ୍ଦିପୁର ଓ ରେମୁଣା ଭ୍ରମଣ ପାଇଁ ଅନୁକୂଳ।"
+            }
+            BalasoreHourlyForecastSlot(
+                epochSeconds = parsedMs / 1000L,
+                timeLabel = if (step == 0) "Now" else displayFmt.format(java.util.Date(parsedMs)),
+                tempC = tempC,
+                feelsLikeC = tempC + if (humidity > 70) 1.8 else 0.6,
+                humidityPercent = humidity,
+                windSpeedKmh = windKmh,
+                rainChancePercent = popPct,
+                pressureHpa = 1009,
+                conditionMain = mainCond,
+                conditionDescription = desc,
+                iconCode = iconCode,
+                advisoryEn = advisoryEn,
+                advisoryOr = advisoryOr
+            )
+        }
+
+        return BalasoreHourlyForecastBundle(
+            cityName = "Balasore (Open-Meteo Live)",
+            slots = slots,
+            isLiveOpenWeather = true,
+            updatedAtMillis = nowMs
+        )
     }
 
     fun getCuratedBalasoreHourlyForecastFallback(): BalasoreHourlyForecastBundle {

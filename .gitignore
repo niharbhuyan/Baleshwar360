@@ -31,5 +31,6 @@ serviceAccountKey.json
 *.db-wal
 *.db-shm
 backend/data/
+*-debug.log
 
 

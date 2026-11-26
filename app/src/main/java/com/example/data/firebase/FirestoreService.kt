@@ -816,67 +816,109 @@ class FirestoreService(
     }
 
     /**
-     * Attempts background upload of Citizen Civic Eye infrastructure reports to Firestore collection 'civic_reports'.
+     * Uploads Citizen Civic Eye infrastructure reports to Firestore collection 'civic_reports'.
+     * Requires an active Firebase Auth session and validates payload fields against firestore.rules.
      */
-    suspend fun submitCivicReport(report: CivicReportEntity): Result<String> = withContext(Dispatchers.IO) {
+    suspend fun submitCivicReport(
+        report: CivicReportEntity,
+        photoBase64: String? = null
+    ): Result<String> = withContext(Dispatchers.IO) {
+        val path = "civic_reports/${report.id}"
         try {
-            val db = getSignedInFirestore()
-            if (db != null) {
-                val data = hashMapOf(
-                    "id" to report.id,
-                    "title" to report.title,
-                    "category" to report.category,
-                    "wardLocation" to report.wardLocation,
-                    "description" to report.description,
-                    "status" to report.status,
-                    "urgency" to report.urgency,
-                    "assignedDepartment" to report.assignedDepartment,
-                    "reportedTimestamp" to report.reportedTimestamp,
-                    "lastUpdatedTimestamp" to report.lastUpdatedTimestamp,
-                    "hasPhotoAttached" to report.hasPhotoAttached,
-                    "photoUri" to (report.photoUri ?: ""),
-                    "latitude" to (report.latitude ?: 21.4934),
-                    "longitude" to (report.longitude ?: 86.9135),
-                    "geoAddress" to (report.geoAddress ?: ""),
-                    "resolutionNotes" to report.resolutionNotes
-                )
-                db.collection("civic_reports")
-                    .document(report.id)
-                    .set(data, SetOptions.merge())
-                    .await()
-                Log.d("FirestoreService", "Civic report synced to Firestore 'civic_reports': ${report.id}")
-            } else {
-                Log.i("FirestoreService", "Firestore offline/unauthenticated. Report preserved safely in local Room database: ${report.id}")
+            val currentFbUid = try {
+                if (FirebaseApp.getApps(context).isNotEmpty()) {
+                    FirebaseAuth.getInstance().currentUser?.uid
+                } else {
+                    null
+                }
+            } catch (_: Exception) {
+                null
             }
+            val db = getSignedInFirestore()
+            if (db == null || (requireClientAuthMatch && currentFbUid == null)) {
+                return@withContext Result.failure(
+                    IllegalStateException("Sign in with Google to save Civic Eye incidents to Firestore.")
+                )
+            }
+            val safeLat = report.latitude?.takeIf { it in -90.0..90.0 }
+            val safeLng = report.longitude?.takeIf { it in -180.0..180.0 }
+            val normalizedStatus = report.status.uppercase().let {
+                if (it in listOf("PENDING", "SUBMITTED", "IN_PROGRESS", "RESOLVED", "REJECTED", "DRAFT")) it else "PENDING"
+            }
+            val normalizedUrgency = report.urgency.uppercase().let {
+                if (it in listOf("LOW", "NORMAL", "MEDIUM", "HIGH", "EMERGENCY")) it else "MEDIUM"
+            }
+            val effectivePhotoBase64 = photoBase64?.takeIf { it.isNotBlank() }
+                ?: report.photoUri?.takeIf { it.startsWith("data:image") }
+            val rawData = mutableMapOf<String, Any?>(
+                "id" to report.id.take(128),
+                "userId" to (currentFbUid ?: "authenticated_citizen").take(128),
+                "title" to report.title.ifBlank { "Civic Incident" }.take(200),
+                "category" to report.category.ifBlank { "Civic Issue" }.take(80),
+                "wardLocation" to report.wardLocation.take(150),
+                "description" to report.description.ifBlank { "Reported via Civic Eye." }.take(2000),
+                "status" to normalizedStatus,
+                "urgency" to normalizedUrgency,
+                "assignedDepartment" to report.assignedDepartment.take(150),
+                "reportedTimestamp" to report.reportedTimestamp,
+                "lastUpdatedTimestamp" to report.lastUpdatedTimestamp,
+                "hasPhotoAttached" to (report.hasPhotoAttached || !effectivePhotoBase64.isNullOrBlank()),
+                "photoUri" to report.photoUri?.takeIf { it.isNotBlank() && !it.startsWith("data:image") }?.take(1000),
+                "photoBase64" to effectivePhotoBase64?.takeIf { it.length <= 120000 },
+                "latitude" to safeLat,
+                "longitude" to safeLng,
+                "geoAddress" to report.geoAddress?.takeIf { it.isNotBlank() }?.take(250),
+                "resolutionNotes" to report.resolutionNotes?.takeIf { it.isNotBlank() }?.take(1000)
+            )
+            @Suppress("UNCHECKED_CAST")
+            val data = rawData.filterValues { it != null } as Map<String, Any>
+            db.collection("civic_reports")
+                .document(report.id)
+                .set(data, SetOptions.merge())
+                .await()
+            Log.d("FirestoreService", "Civic report synced to Firestore 'civic_reports': ${report.id}")
             Result.success(report.id)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            handleFirestoreError(e, OperationType.WRITE, "civic_reports/${report.id}")
+            handleFirestoreError(e, OperationType.WRITE, path)
             Result.failure(e)
         }
     }
 
     /**
      * Submit a Citizen Civic Eye report directly to Firestore collection 'user_reports'.
+     * Requires Google Sign-In via Firebase Auth and writes real coordinates & Base64 photo thumbnail.
      */
     suspend fun submitUserReport(report: FirestoreUserReport): Result<String> = withContext(Dispatchers.IO) {
+        val path = "user_reports/${report.id}"
         try {
-            val db = getSignedInFirestore()
-            if (db != null) {
-                val currentFbUid = try { FirebaseAuth.getInstance().currentUser?.uid } catch (_: Exception) { null }
-                val effectiveReport = if (currentFbUid != null) report.copy(userId = currentFbUid) else report
-                db.collection("user_reports")
-                    .document(effectiveReport.id)
-                    .set(effectiveReport.toFirestoreMap(), SetOptions.merge())
-                    .await()
-                Log.d("FirestoreService", "Civic report synced to Firestore 'user_reports': ${effectiveReport.id}")
+            val currentFbUid = try {
+                if (FirebaseApp.getApps(context).isNotEmpty()) {
+                    FirebaseAuth.getInstance().currentUser?.uid
+                } else {
+                    null
+                }
+            } catch (_: Exception) {
+                null
             }
-            Result.success(report.id)
+            val db = getSignedInFirestore()
+            if (db == null || (requireClientAuthMatch && currentFbUid == null)) {
+                return@withContext Result.failure(
+                    IllegalStateException("Sign in with Google to save Civic Eye incidents to Firestore.")
+                )
+            }
+            val effectiveReport = if (currentFbUid != null) report.copy(userId = currentFbUid) else report
+            db.collection("user_reports")
+                .document(effectiveReport.id)
+                .set(effectiveReport.toFirestoreMap(), SetOptions.merge())
+                .await()
+            Log.d("FirestoreService", "Civic report synced to Firestore 'user_reports': ${effectiveReport.id}")
+            Result.success(effectiveReport.id)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            handleFirestoreError(e, OperationType.WRITE, "user_reports/${report.id}")
+            handleFirestoreError(e, OperationType.WRITE, path)
             Result.failure(e)
         }
     }

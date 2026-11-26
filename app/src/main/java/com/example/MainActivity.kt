@@ -2340,8 +2340,10 @@ fun BalasoreApp(
                             myReports = uiState.myCivicReports,
                             firestoreReports = uiState.firestoreUserReports,
                             isFirestoreLoading = uiState.isFirestoreReportsLoading,
+                            submitStatus = uiState.civicEyeSubmitStatus,
+                            onClearSubmitStatus = { viewModel.clearCivicEyeSubmitStatus() },
                             onRefreshFirestore = { viewModel.fetchFirestoreUserReports() },
-                            onSubmitReport = { title, cat, ward, desc, urgency, photo, photoUri, lat, lng, addr, uid, uname ->
+                            onSubmitReport = { title, cat, ward, desc, urgency, photo, photoUri, photoBase64, lat, lng, addr, uid, uname ->
                                 viewModel.submitCivicEyeReport(
                                     title = title,
                                     category = cat,
@@ -2350,6 +2352,7 @@ fun BalasoreApp(
                                     urgency = urgency,
                                     hasPhotoAttached = photo,
                                     photoUri = photoUri,
+                                    photoBase64 = photoBase64,
                                     latitude = lat,
                                     longitude = lng,
                                     geoAddress = addr,

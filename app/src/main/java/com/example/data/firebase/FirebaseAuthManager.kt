@@ -558,7 +558,8 @@ class FirebaseAuthManager(context: Context) {
             // 1. Delete user profile document from Firestore if signed into Firebase as this owner
             if (fbUser != null && !uid.isNullOrBlank()) {
                 runCatching {
-                    val firestore = com.google.firebase.firestore.FirebaseFirestore.getInstance()
+                    val dbId = appContext.getString(R.string.firestore_database_id)
+                    val firestore = com.google.firebase.firestore.FirebaseFirestore.getInstance(dbId)
                     firestore.collection("users").document(uid).delete().await()
                 }.onFailure { e ->
                     Log.w(TAG, "Firestore profile deletion note: ${e.message}")

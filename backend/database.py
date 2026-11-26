@@ -680,20 +680,15 @@ class BalasoreDatabase:
 class FirestoreSyncAdapter:
     """Optional dual-write adapter syncing aggregated records to the Android app's Cloud Firestore."""
 
-    def __init__(self, service_account_path: str, database_id: str) -> None:
+    def __init__(self, service_account_path: str, database_id: str, project_id: str = "") -> None:
         self.service_account_path = service_account_path
         self.database_id = database_id
+        self.project_id = project_id
         self._client: Any = None
 
     def _ensure_client(self) -> Any:
         if self._client is not None:
             return self._client
-        if not self.service_account_path:
-            return None
-        sa_path = Path(self.service_account_path).expanduser().resolve()
-        if not sa_path.is_file():
-            logger.warning("Firebase service account file not found; skipping Firestore sync.")
-            return None
 
         try:
             import firebase_admin
@@ -703,10 +698,27 @@ class FirestoreSyncAdapter:
             return None
 
         if not firebase_admin._apps:
-            cred = credentials.Certificate(str(sa_path))
-            firebase_admin.initialize_app(cred)
+            if self.service_account_path:
+                sa_path = Path(self.service_account_path).expanduser().resolve()
+                if not sa_path.is_file():
+                    logger.warning("Firebase service account file not found; skipping Firestore sync.")
+                    return None
+                cred = credentials.Certificate(str(sa_path))
+                firebase_admin.initialize_app(cred)
+            else:
+                try:
+                    cred = credentials.ApplicationDefault()
+                    options = {"projectId": self.project_id} if self.project_id else None
+                    firebase_admin.initialize_app(cred, options=options)
+                except Exception as exc:
+                    logger.info("No Firebase Admin credentials/ADC detected (%s); running in local SQLite mode.", exc)
+                    return None
 
-        self._client = firestore.client(database_id=self.database_id)
+        try:
+            self._client = firestore.client(database_id=self.database_id)
+        except Exception as exc:
+            logger.info("Firestore client unavailable (%s); continuing with local SQLite database.", exc)
+            return None
         return self._client
 
     def sync_all(

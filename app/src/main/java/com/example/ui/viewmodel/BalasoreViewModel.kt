@@ -311,6 +311,22 @@ object NewsFeedFilter {
     }
 }
 
+sealed interface CivicEyeSubmitStatus {
+    data object Idle : CivicEyeSubmitStatus
+    data object Submitting : CivicEyeSubmitStatus
+    data class SyncedToFirestore(
+        val reportId: String,
+        val latitude: Double?,
+        val longitude: Double?,
+        val hasPhoto: Boolean
+    ) : CivicEyeSubmitStatus
+    data class SavedOffline(
+        val reportId: String,
+        val message: String
+    ) : CivicEyeSubmitStatus
+    data class Error(val message: String) : CivicEyeSubmitStatus
+}
+
 data class BalasoreUiState(
     val selectedTab: Int = 0,
     val currentHash: String = "#tourism",
@@ -404,6 +420,7 @@ data class BalasoreUiState(
     val selectedMyReportsFilter: String = "ALL",
     val firestoreUserReports: List<FirestoreUserReport> = emptyList(),
     val isFirestoreReportsLoading: Boolean = false,
+    val civicEyeSubmitStatus: CivicEyeSubmitStatus = CivicEyeSubmitStatus.Idle,
     // OpenWeatherMap Real-Time Telemetry & 3-Day / 7-Day Forecast Suite
     val openWeatherCurrent: OpenWeatherCurrentResponse? = null,
     val openWeatherThreeDayForecast: List<OpenWeatherThreeDayForecast> = emptyList(),
@@ -1234,10 +1251,11 @@ class BalasoreViewModel(
         latitude: Double? = 21.4934,
         longitude: Double? = 86.9135,
         geoAddress: String? = null,
-        queueForSyncWhenOnline: Boolean = false
+        queueForSyncWhenOnline: Boolean = false,
+        customReportId: String? = null
     ) {
         val trackingNumber = 1000 + kotlin.random.Random.nextInt(9000)
-        val reportId = "BLS-CIVIC-2026-$trackingNumber"
+        val reportId = customReportId ?: "BLS-CIVIC-2026-$trackingNumber"
         val dept = when {
             category.contains("Pothole", ignoreCase = true) -> "PWD & Balasore Municipality Road Div"
             category.contains("Light", ignoreCase = true) || category.contains("Electric", ignoreCase = true) -> "TPNODL & Municipal Electrical Wing"
@@ -1435,6 +1453,10 @@ class BalasoreViewModel(
         }
     }
 
+    fun clearCivicEyeSubmitStatus() {
+        _uiState.value = _uiState.value.copy(civicEyeSubmitStatus = CivicEyeSubmitStatus.Idle)
+    }
+
     fun submitCivicEyeReport(
         title: String,
         category: String,
@@ -1443,64 +1465,122 @@ class BalasoreViewModel(
         urgency: String = "MEDIUM",
         hasPhotoAttached: Boolean = false,
         photoUri: String? = null,
-        latitude: Double? = 21.4934,
-        longitude: Double? = 86.9135,
+        photoBase64: String? = null,
+        latitude: Double? = null,
+        longitude: Double? = null,
         geoAddress: String? = null,
-        userId: String = "guest_balasore_citizen",
+        userId: String = "",
         userName: String = "Baleswari Citizen",
         queueForSyncWhenOnline: Boolean = false
     ) {
-        submitCivicReport(
-            title = title,
-            category = category,
-            wardLocation = wardLocation,
-            description = description,
-            urgency = urgency,
-            hasPhotoAttached = hasPhotoAttached,
-            photoUri = photoUri,
-            latitude = latitude,
-            longitude = longitude,
-            geoAddress = geoAddress,
-            queueForSyncWhenOnline = queueForSyncWhenOnline
-        )
-
-        if (queueForSyncWhenOnline) return
-
         val trackingNumber = 1000 + kotlin.random.Random.nextInt(9000)
         val cloudReportId = "BLS-CIVIC-2026-$trackingNumber"
+        val effectivePhotoAttached = hasPhotoAttached || !photoBase64.isNullOrBlank() || !photoUri.isNullOrBlank()
+
+        if (queueForSyncWhenOnline) {
+            submitCivicReport(
+                title = title,
+                category = category,
+                wardLocation = wardLocation,
+                description = description,
+                urgency = urgency,
+                hasPhotoAttached = effectivePhotoAttached,
+                photoUri = photoBase64 ?: photoUri,
+                latitude = latitude,
+                longitude = longitude,
+                geoAddress = geoAddress,
+                queueForSyncWhenOnline = true,
+                customReportId = cloudReportId
+            )
+            _uiState.value = _uiState.value.copy(
+                civicEyeSubmitStatus = CivicEyeSubmitStatus.SavedOffline(
+                    reportId = cloudReportId,
+                    message = "Saved in local Room DB queue. Tap 'Sync Queue Now' when online."
+                )
+            )
+            return
+        }
+
         val normalizedCategory = when {
             category.contains("Pothole", ignoreCase = true) -> "pothole"
-            category.contains("Waterlog", ignoreCase = true) || category.contains("Drain", ignoreCase = true) -> "waterlogging"
+            category.contains("Drain", ignoreCase = true) -> "drainage"
+            category.contains("Waterlog", ignoreCase = true) -> "waterlogging"
             category.contains("Road", ignoreCase = true) -> "road"
             category.contains("Garbage", ignoreCase = true) || category.contains("Waste", ignoreCase = true) -> "garbage"
             category.contains("Light", ignoreCase = true) -> "electricity"
             category.contains("Water", ignoreCase = true) || category.contains("Supply", ignoreCase = true) -> "water"
             else -> "other"
         }
+        val safeUrgency = urgency.uppercase().let {
+            if (it in listOf("LOW", "MEDIUM", "HIGH", "EMERGENCY")) it else "MEDIUM"
+        }
+        val now = System.currentTimeMillis()
         val cloudReport = FirestoreUserReport(
             id = cloudReportId,
             userId = userId,
-            userName = userName,
+            userName = userName.ifBlank { "Baleswari Citizen" },
             title = title.ifBlank { "$category in $wardLocation" },
             category = normalizedCategory,
             description = description.ifBlank { "Reported via Civic Eye" },
             wardLocation = wardLocation,
             status = "SUBMITTED",
-            urgency = urgency.uppercase().let { if (it in listOf("LOW", "MEDIUM", "HIGH", "EMERGENCY")) it else "MEDIUM" },
-            latitude = latitude,
-            longitude = longitude,
-            photoUrl = photoUri,
-            reportedTimestamp = System.currentTimeMillis(),
-            lastUpdatedTimestamp = System.currentTimeMillis(),
-            resolutionNotes = "Submitted via Civic Eye. Synced to municipal registry."
+            urgency = safeUrgency,
+            latitude = latitude?.takeIf { it in -90.0..90.0 },
+            longitude = longitude?.takeIf { it in -180.0..180.0 },
+            geoAddress = geoAddress?.takeIf { it.isNotBlank() } ?: wardLocation,
+            photoUrl = photoUri?.takeIf { !it.startsWith("data:image") },
+            photoBase64 = photoBase64?.takeIf { it.isNotBlank() },
+            reportedTimestamp = now,
+            lastUpdatedTimestamp = now,
+            resolutionNotes = "Submitted via Civic Eye with live GPS & evidence."
         )
+
+        _uiState.value = _uiState.value.copy(civicEyeSubmitStatus = CivicEyeSubmitStatus.Submitting)
 
         viewModelScope.launch {
             try {
-                firestoreService?.submitUserReport(cloudReport)
-                fetchFirestoreUserReports()
+                val result = firestoreService?.submitUserReport(cloudReport)
+                if (result != null && result.isSuccess) {
+                    submitCivicReport(
+                        title = title,
+                        category = category,
+                        wardLocation = wardLocation,
+                        description = description,
+                        urgency = safeUrgency,
+                        hasPhotoAttached = effectivePhotoAttached,
+                        photoUri = photoBase64 ?: photoUri,
+                        latitude = cloudReport.latitude,
+                        longitude = cloudReport.longitude,
+                        geoAddress = cloudReport.geoAddress,
+                        queueForSyncWhenOnline = false,
+                        customReportId = result.getOrDefault(cloudReportId)
+                    )
+                    fetchFirestoreUserReports()
+                    _uiState.value = _uiState.value.copy(
+                        civicEyeSubmitStatus = CivicEyeSubmitStatus.SyncedToFirestore(
+                            reportId = result.getOrDefault(cloudReportId),
+                            latitude = cloudReport.latitude,
+                            longitude = cloudReport.longitude,
+                            hasPhoto = effectivePhotoAttached
+                        )
+                    )
+                } else {
+                    val reason = result?.exceptionOrNull()?.message
+                        ?: "Sign in with Google to save Civic Eye incidents to Firestore."
+                    android.util.Log.w("BalasoreViewModel", "Firestore user report submit failed: $reason")
+                    _uiState.value = _uiState.value.copy(
+                        civicEyeSubmitStatus = CivicEyeSubmitStatus.Error(reason)
+                    )
+                }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
             } catch (e: Exception) {
                 android.util.Log.w("BalasoreViewModel", "Firestore user report submit failed: ${e.message}")
+                _uiState.value = _uiState.value.copy(
+                    civicEyeSubmitStatus = CivicEyeSubmitStatus.Error(
+                        e.message ?: "Failed to save incident to Firestore."
+                    )
+                )
             }
         }
     }

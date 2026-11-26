@@ -579,6 +579,7 @@ class BalasoreAggregationService:
         self.firestore_sync = firestore_sync or FirestoreSyncAdapter(
             config.firebase_service_account_path,
             config.firestore_database_id,
+            project_id=config.firebase_project_id,
         )
 
     def run_aggregation(self, trigger_type: str = "SCHEDULED_DAILY") -> AggregationSummary:

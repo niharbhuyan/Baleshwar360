@@ -104,13 +104,9 @@ class GeminiChatService {
         enableMapsGrounding: Boolean = true,
         systemInstruction: String = ChatRolePersonas.TOURISM_GUIDE.systemInstruction
     ): ChatMessage = withContext(Dispatchers.IO) {
-        val apiKey = try {
-            BuildConfig.GEMINI_API_KEY
-        } catch (e: Exception) {
-            ""
-        }
+        val apiKey = com.example.data.config.BalasoreApiKeys.geminiApiKey()
 
-        if (apiKey.isBlank() || apiKey == "MY_GEMINI_API_KEY") {
+        if (apiKey.isBlank()) {
             return@withContext ChatMessage(
                 sender = MessageSender.BOT,
                 text = "Gemini API key is not configured. Please add your key in AI Studio Secrets panel.\n\nSimulated Offline Guide: Balasore is famous for Chandipur's unique disappearing sea (receding up to 5 km during low tide), the historic 12th-century Khirachora Gopinatha Temple at Remuna famous for Amrita Keli, and the lush Kuldiha Wildlife Sanctuary.",
@@ -291,13 +287,9 @@ class GeminiChatService {
         isShortClip: Boolean = true
     ): ChatMessage = withContext(Dispatchers.IO) {
         val model = if (isShortClip) "lyria-3-clip-preview" else "lyria-3-pro-preview"
-        val apiKey = try {
-            BuildConfig.GEMINI_API_KEY
-        } catch (e: Exception) {
-            ""
-        }
+        val apiKey = com.example.data.config.BalasoreApiKeys.geminiApiKey()
 
-        if (apiKey.isBlank() || apiKey == "MY_GEMINI_API_KEY") {
+        if (apiKey.isBlank()) {
             return@withContext ChatMessage(
                 sender = MessageSender.BOT,
                 text = "🎵 Lyria Music Track Generated (Preview Mode)\nPrompt: \"$prompt\"\nModel: $model\nDuration: ${if (isShortClip) "30s Ambient Loop" else "Full Track"}\n\nExperience traditional Odissi temple rhythm and coastal flute soundscapes inspired by Balasore's maritime heritage.",

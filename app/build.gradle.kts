@@ -23,57 +23,79 @@ android {
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
-        val envFile = rootProject.file(".env")
         val envProperties = Properties()
-        if (envFile.exists()) {
-            FileInputStream(envFile).use { stream ->
-                envProperties.load(stream)
+        listOf(rootProject.file(".env.example"), rootProject.file(".env")).forEach { candidate ->
+            if (candidate.exists()) {
+                FileInputStream(candidate).use { stream ->
+                    envProperties.load(stream)
+                }
             }
         }
 
-        val rawGeminiKey = System.getenv("GEMINI_API_KEY")
-            ?: envProperties.getProperty("GEMINI_API_KEY")
-            ?: "MY_GEMINI_API_KEY"
-        val geminiKey = rawGeminiKey.trim()
-        buildConfigField("String", "GEMINI_API_KEY", "\"$geminiKey\"")
+        fun isPlaceholderSecret(value: String): Boolean {
+            val v = value.trim()
+            return v.isEmpty() ||
+                v.startsWith("YOUR_", ignoreCase = true) ||
+                v.startsWith("MY_", ignoreCase = true) ||
+                v.contains("PLACEHOLDER", ignoreCase = true) ||
+                v.contains("REPLACE_ME", ignoreCase = true) ||
+                v.equals("AIzaSyBalasore360MapsKey", ignoreCase = true) ||
+                v.equals("AIzaSyBiQAArK-Hc0lYU35S41zBvPQnZT1S0d0k", ignoreCase = true)
+        }
 
-        val rawWeatherKey = System.getenv("OPENWEATHERMAP_API_KEY")
-            ?: envProperties.getProperty("OPENWEATHERMAP_API_KEY")
-            ?: ""
-        val openWeatherKey = rawWeatherKey.trim()
-        buildConfigField("String", "OPENWEATHERMAP_API_KEY", "\"$openWeatherKey\"")
+        fun resolveSecret(vararg names: String): String {
+            for (name in names) {
+                val fromEnv = System.getenv(name)?.trim()?.trim('"', '\'').orEmpty()
+                if (!isPlaceholderSecret(fromEnv)) return fromEnv
+            }
+            for (name in names) {
+                val fromFile = envProperties.getProperty(name)?.trim()?.trim('"', '\'').orEmpty()
+                if (!isPlaceholderSecret(fromFile)) return fromFile
+            }
+            return ""
+        }
+
+        fun escapeBuildConfig(value: String): String =
+            value.replace("\\", "\\\\").replace("\"", "\\\"")
+
+        val geminiKey = resolveSecret("GEMINI_API_KEY")
+        buildConfigField("String", "GEMINI_API_KEY", "\"${escapeBuildConfig(geminiKey)}\"")
+
+        val openWeatherKey = resolveSecret("OPENWEATHERMAP_API_KEY", "OPENWEATHER_API_KEY")
+        buildConfigField("String", "OPENWEATHERMAP_API_KEY", "\"${escapeBuildConfig(openWeatherKey)}\"")
+
+        val newsApiKey = resolveSecret("NEWS_API_KEY", "NEWSAPI_KEY")
+        buildConfigField("String", "NEWS_API_KEY", "\"${escapeBuildConfig(newsApiKey)}\"")
+
+        val balasoreDbPath = resolveSecret("BALASORE_DB_PATH")
+            .ifBlank { "balasore_database" }
+        buildConfigField("String", "BALASORE_DB_PATH", "\"${escapeBuildConfig(balasoreDbPath)}\"")
 
         val googleServicesFile = file("google-services.json")
-        val autoGoogleServicesKey = if (googleServicesFile.exists()) {
-            Regex("\"current_key\"\\s*:\\s*\"([^\"]+)\"")
-                .find(googleServicesFile.readText())
-                ?.groupValues
-                ?.getOrNull(1)
-                ?.trim()
-                .orEmpty()
-        } else {
-            ""
-        }
+        val firebaseConfigXml = file("src/main/res/values/firebase_applet_config.xml")
+        val googleServicesText = if (googleServicesFile.exists()) googleServicesFile.readText() else ""
+        val autoFirebaseProjectId = Regex("\"project_id\"\\s*:\\s*\"([^\"]+)\"")
+            .find(googleServicesText)
+            ?.groupValues
+            ?.getOrNull(1)
+            ?.trim()
+            .orEmpty()
+        val firebaseAutoConfigured = (googleServicesFile.exists() && firebaseConfigXml.exists()) ||
+            autoFirebaseProjectId.isNotBlank()
+        buildConfigField("String", "FIREBASE_PROJECT_ID", "\"${escapeBuildConfig(autoFirebaseProjectId)}\"")
+        buildConfigField("boolean", "FIREBASE_AUTO_CONFIGURED", firebaseAutoConfigured.toString())
 
-        val rawMapsKey = System.getenv("MAPS_API_KEY")?.takeIf { it.isNotBlank() }
-            ?: System.getenv("GOOGLE_MAPS_KEY")?.takeIf { it.isNotBlank() }
-            ?: System.getenv("GOOGLE_MAPS_API_KEY")?.takeIf { it.isNotBlank() }
-            ?: envProperties.getProperty("MAPS_API_KEY")?.takeIf { it.isNotBlank() }
-            ?: envProperties.getProperty("GOOGLE_MAPS_KEY")?.takeIf { it.isNotBlank() }
-            ?: envProperties.getProperty("GOOGLE_MAPS_API_KEY")?.takeIf { it.isNotBlank() }
-            ?: autoGoogleServicesKey
-        val trimmedMapsKey = rawMapsKey.trim()
-        // Sanitize out placeholder or fake keys to prevent Google Maps authorization failure
-        val mapsApiKey = if (trimmedMapsKey.equals("AIzaSyBalasore360MapsKey", ignoreCase = true) ||
-            trimmedMapsKey.equals("AIzaSyBiQAArK-Hc0lYU35S41zBvPQnZT1S0d0k", ignoreCase = true) ||
-            trimmedMapsKey.contains("YOUR_KEY", ignoreCase = true) ||
-            trimmedMapsKey.contains("PLACEHOLDER", ignoreCase = true)) {
-            autoGoogleServicesKey
-        } else {
-            trimmedMapsKey
-        }
+        val autoGoogleServicesKey = Regex("\"current_key\"\\s*:\\s*\"([^\"]+)\"")
+            .find(googleServicesText)
+            ?.groupValues
+            ?.getOrNull(1)
+            ?.trim()
+            .orEmpty()
+
+        val mapsApiKey = resolveSecret("MAPS_API_KEY", "GOOGLE_MAPS_API_KEY", "GOOGLE_MAPS_KEY")
+            .ifBlank { autoGoogleServicesKey }
         manifestPlaceholders["MAPS_API_KEY"] = mapsApiKey
-        buildConfigField("String", "MAPS_API_KEY", "\"$mapsApiKey\"")
+        buildConfigField("String", "MAPS_API_KEY", "\"${escapeBuildConfig(mapsApiKey)}\"")
     }
 
     val uploadKeystoreFile = file("${rootDir}/my-upload-key.jks")

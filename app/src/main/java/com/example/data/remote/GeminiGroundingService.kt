@@ -81,13 +81,9 @@ class GeminiGroundingService {
         toolMode: GroundingToolMode = GroundingToolMode.COMBINED,
         systemInstruction: String = "You are the authoritative Baleshwar 360 Local & Tourism AI Assistant. Provide accurate, up-to-date information regarding Balasore district, Chandipur, Kuldiha, Panchalingeswar, Nilgiri, weather, and civic services in Odisha. Ground your answers using the provided tools."
     ): GroundingResponse = withContext(Dispatchers.IO) {
-        val apiKey = try {
-            BuildConfig.GEMINI_API_KEY
-        } catch (e: Exception) {
-            ""
-        }
+        val apiKey = com.example.data.config.BalasoreApiKeys.geminiApiKey()
 
-        if (apiKey.isBlank() || apiKey == "MY_GEMINI_API_KEY") {
+        if (apiKey.isBlank()) {
             Log.w(TAG, "GEMINI_API_KEY is not configured or placeholder. Returning informative notice.")
             return@withContext GroundingResponse(
                 text = "Gemini API key is required for live Search & Maps Grounding. Please add your key in the AI Studio Secrets panel. (Currently in offline/cached mode).",

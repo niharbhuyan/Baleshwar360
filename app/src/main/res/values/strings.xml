@@ -61,4 +61,21 @@
     <string name="osm_tourism_empty_filter">No hotspots match your filter. Try clearing the search or choosing All.</string>
     <string name="hourly_weather_card_title">Balasore Hourly Forecast</string>
     <string name="hourly_weather_open_full">Full Weather &amp; Radar</string>
+    <string name="daily_updates_source_badge">Open-Meteo + Google News RSS</string>
+    <string name="daily_updates_card_title">Balasore Daily News &amp; Weather</string>
+    <string name="daily_updates_refresh_cd">Refresh Daily News and Weather</string>
+    <string name="daily_updates_loading">Syncing Balasore public weather &amp; news…</string>
+    <string name="tourism_pin_view_more_details">View More Details</string>
+    <string name="civic_eye_sign_in_title">Google Sign-In Required for Cloud Sync</string>
+    <string name="civic_eye_sign_in_desc">Sign in with your Google account to save Civic Eye incidents, photos, and GPS coordinates directly to Firestore.</string>
+    <string name="civic_eye_sign_in_cta">Sign in with Google</string>
+    <string name="civic_eye_signed_in_badge">Firestore Sync Ready</string>
+    <string name="civic_eye_gps_title">Live GPS Coordinates</string>
+    <string name="civic_eye_gps_capture_btn">Capture Live GPS</string>
+    <string name="civic_eye_gps_refresh_btn">Refresh GPS</string>
+    <string name="civic_eye_gps_locating">Acquiring device GPS coordinates…</string>
+    <string name="civic_eye_gps_permission_denied">Location permission denied. Enable location access to attach your exact coordinates to this incident.</string>
+    <string name="civic_eye_gps_unavailable">Waiting for GPS fix. Tap Capture Live GPS to attach your current coordinates.</string>
+    <string name="civic_eye_photo_ready_firestore">Camera photo compressed for Firestore</string>
+    <string name="civic_eye_submit_firestore_cta">Save Incident to Firestore</string>
 </resources>
