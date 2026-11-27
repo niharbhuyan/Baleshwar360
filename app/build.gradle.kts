@@ -37,6 +37,7 @@ android {
             return v.isEmpty() ||
                 v.startsWith("YOUR_", ignoreCase = true) ||
                 v.startsWith("MY_", ignoreCase = true) ||
+                v.endsWith("_DEFAULT_VALUE", ignoreCase = true) ||
                 v.contains("PLACEHOLDER", ignoreCase = true) ||
                 v.contains("REPLACE_ME", ignoreCase = true) ||
                 v.equals("AIzaSyBalasore360MapsKey", ignoreCase = true) ||

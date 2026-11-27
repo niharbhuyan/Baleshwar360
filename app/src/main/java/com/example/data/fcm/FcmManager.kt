@@ -143,6 +143,7 @@ object FcmManager {
             // Ensure topics are subscribed if enabled
             if (_weatherAlertsEnabled.value) {
                 subscribeToTopic(TOPIC_WEATHER_ALERTS)
+                subscribeToTopic(FcmSevereWeatherHandler.TOPIC_BALASORE_SEVERE_WEATHER)
             }
             if (_defenseAdvisoriesEnabled.value) {
                 subscribeToTopic(TOPIC_DEFENSE_ADVISORIES)
@@ -212,8 +213,12 @@ object FcmManager {
         getPrefs(context).edit().putBoolean(KEY_WEATHER_ALERTS, enabled).apply()
         if (enabled) {
             subscribeToTopic(TOPIC_WEATHER_ALERTS)
+            subscribeToTopic(FcmSevereWeatherHandler.TOPIC_BALASORE_SEVERE_WEATHER)
+            com.example.data.notification.BalasoreSevereWeatherAlertWorker
+                .schedulePeriodicWeatherAlertCheck(context)
         } else {
             unsubscribeFromTopic(TOPIC_WEATHER_ALERTS)
+            unsubscribeFromTopic(FcmSevereWeatherHandler.TOPIC_BALASORE_SEVERE_WEATHER)
         }
     }
 

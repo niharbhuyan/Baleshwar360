@@ -80,7 +80,8 @@ class BalasorePublicNewsWeatherService(
     private val newsDao: NewsDao,
     private val cacheMetadataDao: CacheMetadataDao,
     private val weatherApiService: WeatherApiService = WeatherApiService.create(),
-    private val httpClient: OkHttpClient = defaultHttpClient()
+    private val httpClient: OkHttpClient = defaultHttpClient(),
+    private val newsApiOrgClient: com.example.data.repository.NewsApiOrgClient = com.example.data.repository.NewsApiOrgClient()
 ) {
     private val moshi: Moshi = Moshi.Builder()
         .addLast(KotlinJsonAdapterFactory())
@@ -327,10 +328,10 @@ class BalasorePublicNewsWeatherService(
      * (injected into `BuildConfig.NEWS_API_KEY`), and merges or falls back seamlessly to
      * keyless Google News Public RSS so Balasore headlines always load automatically.
      */
-    private fun fetchBalasoreNewsWithAutoKey(): Pair<List<DailyPublicNewsItem>, String> {
-        val newsApiKey = com.example.data.config.BalasoreApiKeys.newsApiKey()
-        val apiItems = if (newsApiKey.isNotBlank()) {
-            runCatching { fetchNewsApiArticles(newsApiKey) }.getOrDefault(emptyList())
+    private suspend fun fetchBalasoreNewsWithAutoKey(): Pair<List<DailyPublicNewsItem>, String> {
+        val apiItems = if (newsApiOrgClient.isConfigured()) {
+            newsApiOrgClient.fetchBalasoreDailyNews(pageSize = MAX_STORED_HEADLINES)
+                .getOrDefault(emptyList())
         } else {
             emptyList()
         }

@@ -1281,9 +1281,9 @@ fun NewsScreen(
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
                                 text = if (language == AppLanguage.ODIA) {
-                                    "ଉତ୍ସ: ସମ୍ବାଦ, OTV, ପ୍ରଗତିବାଦୀ • PTI, DD News, PIB • Reuters, AP, BBC, UN"
+                                    "ଉତ୍ସ: ${multiSourcePullSummary.activeSourcesSummary}"
                                 } else {
-                                    "Sources: Sambad, OTV, Pragativadi • PTI, DD News, PIB • Reuters, AP, BBC, UN"
+                                    "Sources: ${multiSourcePullSummary.activeSourcesSummary}"
                                 },
                                 style = MaterialTheme.typography.labelSmall.copy(
                                     fontSize = 10.sp,

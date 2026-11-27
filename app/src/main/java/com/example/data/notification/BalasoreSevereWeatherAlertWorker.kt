@@ -5,14 +5,17 @@ import android.util.Log
 import androidx.work.Constraints
 import androidx.work.CoroutineWorker
 import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.ExistingWorkPolicy
 import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
-import com.example.data.fcm.BalasoreNotificationHelper
+import androidx.work.workDataOf
 import com.example.data.fcm.FcmManager
+import com.example.data.fcm.FcmSevereWeatherHandler
 import com.example.data.local.AppDatabase
+import com.example.data.remote.OpenWeatherAlertDto
 import com.example.data.remote.OpenWeatherCurrentResponse
 import com.example.data.remote.OpenWeatherForecastItem
 import com.example.data.repository.OpenWeatherRepository
@@ -47,37 +50,58 @@ class BalasoreSevereWeatherAlertWorker(
             return Result.success()
         }
 
+        val fcmMessageId = inputData.getString(KEY_FCM_MESSAGE_ID)
+        val forceNotify = inputData.getBoolean(KEY_FORCE_NOTIFY, false)
+
+        // Ensure Firebase Cloud Messaging topic subscription for Balasore severe weather stays active
+        FcmSevereWeatherHandler.ensureFcmTopicSubscription(applicationContext)
+
         return try {
             val repo = OpenWeatherRepository(applicationContext)
+            val officialAlerts = repo.fetchOfficialWeatherAlerts().getOrNull().orEmpty()
             val currentWeather = repo.fetchCurrentWeather().getOrNull()
             val forecastItems = repo.fetchFiveDayForecast().getOrNull()
                 ?.firstOrNull()
                 ?.hourlySlots
                 .orEmpty()
 
-            if (currentWeather == null) {
-                Log.w(TAG, "OpenWeatherMap current weather unavailable; will retry later.")
+            if (currentWeather == null && officialAlerts.isEmpty()) {
+                Log.w(TAG, "OpenWeatherMap weather & alerts unavailable; will retry later.")
                 return Result.retry()
             }
 
-            val severeWarning = evaluateSevereWeatherWarning(currentWeather, forecastItems)
+            val severeWarning = evaluateSevereWeatherWarning(
+                current = currentWeather,
+                upcomingForecast = forecastItems,
+                officialAlerts = officialAlerts
+            )
             if (severeWarning != null) {
-                updateLocalWeatherCache(currentWeather, severeWarning)
-                if (shouldDispatchAlert(applicationContext, severeWarning.fingerprint)) {
-                    BalasoreNotificationHelper.createNotificationChannels(applicationContext)
-                    BalasoreNotificationHelper.showWeatherAlertNotification(
-                        context = applicationContext,
-                        title = severeWarning.title,
-                        message = severeWarning.message,
-                        alertLevel = severeWarning.alertLevel
-                    )
-                    recordDispatchedAlert(applicationContext, severeWarning.fingerprint)
-                    Log.i(TAG, "Severe Balasore weather alert dispatched: ${severeWarning.title}")
-                } else {
-                    Log.d(TAG, "Skipping duplicate severe weather notification within cooldown window.")
+                if (currentWeather != null) {
+                    updateLocalWeatherCache(currentWeather, severeWarning)
                 }
+                val matchingOfficialAlert = officialAlerts.firstOrNull {
+                    FcmSevereWeatherHandler.isSevereAlert(it)
+                }
+                val validFromMs = matchingOfficialAlert?.start?.times(1000L)
+                    ?.takeIf { it > 0L } ?: System.currentTimeMillis()
+                val validUntilMs = matchingOfficialAlert?.end?.times(1000L)
+                    ?.takeIf { it > validFromMs } ?: (validFromMs + 6L * 60L * 60L * 1000L)
+
+                val dispatchResult = FcmSevereWeatherHandler.handleOpenWeatherSevereAlert(
+                    context = applicationContext,
+                    detection = severeWarning,
+                    senderName = matchingOfficialAlert?.senderName,
+                    fcmMessageId = fcmMessageId,
+                    validFromMillis = validFromMs,
+                    validUntilMillis = validUntilMs,
+                    forceNotify = forceNotify
+                )
+                Log.i(
+                    TAG,
+                    "FCM Severe Weather Handler finished (${dispatchResult.reason}) for: ${severeWarning.title}"
+                )
             } else {
-                Log.d(TAG, "Balasore OpenWeatherMap check completed: conditions normal.")
+                Log.d(TAG, "Balasore OpenWeatherMap check completed: no severe weather alerts active.")
             }
 
             Result.success()
@@ -124,24 +148,47 @@ class BalasoreSevereWeatherAlertWorker(
         private const val TAG = "BalasoreWeatherWorker"
         const val PERIODIC_WORK_NAME = "balasore_owm_severe_weather_periodic"
         const val IMMEDIATE_WORK_NAME = "balasore_owm_severe_weather_immediate"
-        private const val PREFS_NAME = "balasore_owm_alert_worker_prefs"
-        private const val KEY_LAST_FINGERPRINT = "last_alert_fingerprint"
-        private const val KEY_LAST_NOTIFIED_MS = "last_alert_notified_ms"
-        private const val ALERT_COOLDOWN_MS = 3L * 60L * 60L * 1000L // 3 hours
+        const val KEY_FCM_MESSAGE_ID = "fcm_message_id"
+        const val KEY_FORCE_NOTIFY = "force_notify"
 
         /**
-         * Pure evaluation engine that inspects OpenWeatherMap current + upcoming 3-hour slots
-         * for Balasore and returns a [SevereWeatherDetection] when a dangerous condition is found.
+         * Pure evaluation engine that inspects OpenWeatherMap official alerts, current weather,
+         * and upcoming 3-hour forecast slots for Balasore, returning a [SevereWeatherDetection]
+         * when a 'Severe' or hazardous condition is present.
          */
         fun evaluateSevereWeatherWarning(
-            current: OpenWeatherCurrentResponse,
-            upcomingForecast: List<OpenWeatherForecastItem> = emptyList()
+            current: OpenWeatherCurrentResponse?,
+            upcomingForecast: List<OpenWeatherForecastItem> = emptyList(),
+            officialAlerts: List<OpenWeatherAlertDto> = emptyList()
         ): SevereWeatherDetection? {
+            // 0. Official OpenWeatherMap 'Severe' / extreme weather alerts (One Call alerts array)
+            val severeOfficialAlert = officialAlerts.firstOrNull { alert ->
+                FcmSevereWeatherHandler.isSevereAlert(alert)
+            }
+            if (severeOfficialAlert != null) {
+                val eventName = severeOfficialAlert.event?.trim()?.takeIf { it.isNotBlank() }
+                    ?: "Severe Weather Alert"
+                val sender = severeOfficialAlert.senderName?.trim()?.takeIf { it.isNotBlank() }
+                    ?: "OpenWeatherMap / IMD"
+                val detail = severeOfficialAlert.description?.trim()?.takeIf { it.isNotBlank() }
+                    ?: "OpenWeatherMap issued a $eventName for Balasore. Move indoors and follow local safety advisories."
+                val eventKey = eventName.uppercase(Locale.US).replace(Regex("[^A-Z0-9]+"), "_").take(32)
+                return SevereWeatherDetection(
+                    alertLevel = "SEVERE",
+                    title = "$eventName — Balasore",
+                    message = "$detail ($sender)",
+                    fingerprint = "OWM_ALERT_${eventKey}_${severeOfficialAlert.start ?: 0L}"
+                )
+            }
+
+            if (current == null) return null
+
             val currentCondition = current.weather.firstOrNull()
             val weatherId = currentCondition?.id ?: 800
+            val mainText = currentCondition?.main.orEmpty()
             val desc = currentCondition?.description
                 ?.replaceFirstChar { it.uppercase(Locale.US) }
-                ?: currentCondition?.main
+                ?: mainText.takeIf { it.isNotBlank() }
                 ?: "Severe Weather"
             val tempC = current.main?.temp ?: 30.0
             val feelsLikeC = current.main?.feelsLike ?: tempC
@@ -149,10 +196,22 @@ class BalasoreSevereWeatherAlertWorker(
             val gustKmh = (current.wind?.gust ?: 0.0) * 3.6
             val peakWindKmh = maxOf(windKmh, gustKmh)
 
+            // 0B. Explicit 'Severe' keyword returned in OpenWeatherMap condition text
+            if (mainText.contains("severe", ignoreCase = true) ||
+                desc.contains("severe", ignoreCase = true)
+            ) {
+                return SevereWeatherDetection(
+                    alertLevel = "SEVERE",
+                    title = "Severe Weather Alert — Balasore",
+                    message = "OpenWeatherMap reports $desc over Balasore (${tempC.roundToInt()}°C, winds ${peakWindKmh.roundToInt()} km/h). Take immediate precautions.",
+                    fingerprint = "SEVERE_COND_$weatherId"
+                )
+            }
+
             // 1. Cyclone / Tornado / Severe Squall (OWM 771, 781) or Extreme Gale Winds >= 60 km/h
             if (weatherId == 781 || weatherId == 771 || peakWindKmh >= 60.0) {
                 return SevereWeatherDetection(
-                    alertLevel = "CRITICAL",
+                    alertLevel = "SEVERE",
                     title = "Severe Cyclone / Coastal Squall Warning — Balasore",
                     message = "$desc detected over Balasore (${peakWindKmh.roundToInt()} km/h winds). Move indoors, avoid Chandipur & Talasari shoreline, and follow OSDMA advisories.",
                     fingerprint = "CYCLONE_SQUALL_$weatherId"
@@ -224,22 +283,6 @@ class BalasoreSevereWeatherAlertWorker(
             return null
         }
 
-        private fun shouldDispatchAlert(context: Context, fingerprint: String): Boolean {
-            val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            val lastFp = prefs.getString(KEY_LAST_FINGERPRINT, null)
-            val lastTs = prefs.getLong(KEY_LAST_NOTIFIED_MS, 0L)
-            val now = System.currentTimeMillis()
-            return lastFp != fingerprint || (now - lastTs) >= ALERT_COOLDOWN_MS
-        }
-
-        private fun recordDispatchedAlert(context: Context, fingerprint: String) {
-            context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-                .edit()
-                .putString(KEY_LAST_FINGERPRINT, fingerprint)
-                .putLong(KEY_LAST_NOTIFIED_MS, System.currentTimeMillis())
-                .apply()
-        }
-
         /**
          * Schedules periodic WorkManager checks against OpenWeatherMap for Balasore severe weather warnings.
          */
@@ -268,19 +311,34 @@ class BalasoreSevereWeatherAlertWorker(
         }
 
         /**
-         * Triggers an immediate one-time OpenWeatherMap severe weather check for Balasore.
+         * Triggers an immediate one-time OpenWeatherMap severe weather check for Balasore,
+         * optionally carrying Firebase Cloud Messaging metadata when triggered from FCM.
          */
-        fun triggerImmediateWeatherAlertCheck(context: Context) {
+        fun triggerImmediateWeatherAlertCheck(
+            context: Context,
+            fcmMessageId: String? = null,
+            forceNotify: Boolean = false
+        ) {
             val constraints = Constraints.Builder()
                 .setRequiredNetworkType(NetworkType.CONNECTED)
                 .build()
 
+            val input = workDataOf(
+                KEY_FCM_MESSAGE_ID to fcmMessageId,
+                KEY_FORCE_NOTIFY to forceNotify
+            )
+
             val request = OneTimeWorkRequestBuilder<BalasoreSevereWeatherAlertWorker>()
                 .setConstraints(constraints)
+                .setInputData(input)
                 .build()
 
             WorkManager.getInstance(context.applicationContext)
-                .enqueue(request)
+                .enqueueUniqueWork(
+                    IMMEDIATE_WORK_NAME,
+                    ExistingWorkPolicy.REPLACE,
+                    request
+                )
         }
     }
 }

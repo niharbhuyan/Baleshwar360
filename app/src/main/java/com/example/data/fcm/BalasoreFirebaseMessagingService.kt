@@ -28,6 +28,7 @@ class BalasoreFirebaseMessagingService : FirebaseMessagingService() {
 
         // Resubscribe to default topics
         FcmManager.subscribeToTopic(FcmManager.TOPIC_WEATHER_ALERTS)
+        FcmManager.subscribeToTopic(FcmSevereWeatherHandler.TOPIC_BALASORE_SEVERE_WEATHER)
         FcmManager.subscribeToTopic(FcmManager.TOPIC_BREAKING_NEWS)
         FcmManager.subscribeToTopic(FcmManager.TOPIC_TRANSPORT_ALERTS)
         if (FcmManager.isChandipurHighTideAlertsEnabled(applicationContext)) {
@@ -53,6 +54,22 @@ class BalasoreFirebaseMessagingService : FirebaseMessagingService() {
         val articleId = data["article_id"]
 
         when {
+            FcmSevereWeatherHandler.shouldTriggerBackgroundOpenWeatherCheck(data) ||
+                    FcmSevereWeatherHandler.isSevereAlertPayload(data, title, body) -> {
+                if (!FcmSevereWeatherHandler.shouldTriggerBackgroundOpenWeatherCheck(data)) {
+                    updateRoomWeatherCache(title, body, data["severity"] ?: alertLevel)
+                }
+                CoroutineScope(Dispatchers.IO).launch {
+                    FcmSevereWeatherHandler.handleIncomingFcmMessage(
+                        context = applicationContext,
+                        data = data,
+                        title = title,
+                        body = body,
+                        messageId = remoteMessage.messageId
+                    )
+                }
+            }
+
             type.contains("CIVIC", ignoreCase = true) ||
                     type.contains("REPORT_STATUS", ignoreCase = true) ||
                     data.containsKey("report_id") ||

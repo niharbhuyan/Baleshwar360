@@ -34,6 +34,15 @@ interface OpenWeatherMapApiService {
         @Query("appid") apiKey: String
     ): OpenWeatherAirPollutionResponse
 
+    @GET("data/3.0/onecall")
+    suspend fun getOneCallAlerts(
+        @Query("lat") lat: Double = 21.4934,
+        @Query("lon") lon: Double = 86.9135,
+        @Query("exclude") exclude: String = "minutely,hourly,daily",
+        @Query("units") units: String = "metric",
+        @Query("appid") apiKey: String
+    ): OpenWeatherOneCallAlertsResponse
+
     companion object {
         private const val BASE_URL = "https://api.openweathermap.org/"
 

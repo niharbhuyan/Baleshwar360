@@ -77,6 +77,20 @@ class MockOpenWeatherMapApiService : OpenWeatherMapApiService {
             list = listOf(AirPollutionItem(main = AirQualityIndexMain(aqi = 2)))
         )
     }
+
+    override suspend fun getOneCallAlerts(
+        lat: Double,
+        lon: Double,
+        exclude: String,
+        units: String,
+        apiKey: String
+    ): com.example.data.remote.OpenWeatherOneCallAlertsResponse {
+        return com.example.data.remote.OpenWeatherOneCallAlertsResponse(
+            lat = lat,
+            lon = lon,
+            alerts = emptyList()
+        )
+    }
 }
 
 /**

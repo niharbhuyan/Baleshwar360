@@ -41,7 +41,8 @@ data class MultiSourceNewsPullSummary(
     val activeSourcesSummary: String = "Sambad, OTV, Pragativadi • PTI, DD News, PIB • Reuters, AP, BBC, UN",
     val isPulling: Boolean = false,
     val autoPublishWithoutApproval: Boolean = true,
-    val hourlyCycleNumber: Int = 1
+    val hourlyCycleNumber: Int = 1,
+    val isNewsApiActive: Boolean = false
 ) {
     val lastPulledTimeFormatted: String
         get() = formattedLastPullTime
@@ -68,6 +69,10 @@ object HourlyMultiSourceNewsSyndicator {
             .connectTimeout(6, TimeUnit.SECONDS)
             .readTimeout(6, TimeUnit.SECONDS)
             .build()
+    }
+
+    private val newsApiOrgClient: com.example.data.repository.NewsApiOrgClient by lazy {
+        com.example.data.repository.NewsApiOrgClient()
     }
 
     private val initialArticles: List<NewsArticle> by lazy {
@@ -167,19 +172,29 @@ object HourlyMultiSourceNewsSyndicator {
             ?.putInt(KEY_HOURLY_CYCLE, nextCycle)
             ?.apply()
 
-        // 1. Attempt live RSS syndication from external Local, National, and International feeds
+        // 1. Automatically pull live NewsAPI articles when NEWS_API_KEY is configured in AI Studio Secrets
+        val newsApiConfigured = com.example.data.config.BalasoreApiKeys.isNewsApiConfigured()
+        val (liveNewsApiArticles, newsApiImagesById) = if (forceNetworkRss && newsApiConfigured) {
+            runCatching {
+                newsApiOrgClient.fetchMultiSectionNews(nowMs = now).getOrDefault(emptyList<NewsArticle>() to emptyMap())
+            }.getOrDefault(emptyList<NewsArticle>() to emptyMap())
+        } else {
+            emptyList<NewsArticle>() to emptyMap()
+        }
+
+        // 2. Attempt live RSS syndication from external Local, National, and International feeds
         val liveRssArticles = if (forceNetworkRss) {
             fetchExternalRssFeedsSafely(now)
         } else {
             emptyList()
         }
 
-        // 2. Combine with rich multi-source syndicated articles for Local, National & International
+        // 3. Combine NewsAPI + RSS + rich multi-source syndicated articles for Local, National & International
         val curatedMultiSource = buildCuratedMultiSourceArticles(cycle = nextCycle, timestampMs = now)
-        val combined = (liveRssArticles + curatedMultiSource)
+        val combined = (liveNewsApiArticles + liveRssArticles + curatedMultiSource)
             .distinctBy { it.title.trim().lowercase(Locale.US) }
 
-        // 3. Persist directly to Room Database without any approval gate
+        // 4. Persist directly to Room Database without any approval gate
         if (context != null) {
             try {
                 val appCtx = context.applicationContext ?: context
@@ -199,7 +214,7 @@ object HourlyMultiSourceNewsSyndicator {
                         publishedAt = article.timeAgo,
                         timestamp = now - (idx * 120_000L),
                         isBreaking = idx < 3,
-                        imageUrl = null,
+                        imageUrl = newsApiImagesById[article.id],
                         isBookmarked = bookmarkedIds.contains(numericId)
                     )
                 }
@@ -211,6 +226,11 @@ object HourlyMultiSourceNewsSyndicator {
                         .approveAllPending(moderatedBy = "Hourly Auto-Publish Engine (No Approval Required)")
                 } catch (_: Throwable) {}
 
+                val syncSourceNote = if (liveNewsApiArticles.isNotEmpty()) {
+                    "Auto-pulled via NewsAPI (NEWS_API_KEY) + RSS feeds directly into Room."
+                } else {
+                    "Auto-pulled hourly from external RSS sources & published without approval."
+                }
                 db.cacheMetadataDao().insertOrUpdate(
                     CacheSyncMetadataEntity(
                         cacheKey = "NEWS_HOURLY_MULTI_SOURCE",
@@ -218,7 +238,7 @@ object HourlyMultiSourceNewsSyndicator {
                         itemCount = entities.size,
                         status = "AUTO_PUBLISHED",
                         cacheLabel = "${entities.size} Local, National & International Stories",
-                        details = "Auto-pulled hourly from external sources & published without approval."
+                        details = syncSourceNote
                     )
                 )
             } catch (t: Throwable) {
@@ -241,6 +261,14 @@ object HourlyMultiSourceNewsSyndicator {
                 it.category.equals("International News", ignoreCase = true)
         }
 
+        val activeSources = if (liveNewsApiArticles.isNotEmpty()) {
+            "NewsAPI Live • Sambad, OTV, PTI, PIB • Reuters, AP, BBC"
+        } else if (newsApiConfigured) {
+            "NewsAPI Ready + Google News RSS • Sambad, OTV, PTI • Reuters, BBC"
+        } else {
+            "Google News RSS • Sambad, OTV, Pragativadi • PTI, DD News • Reuters, BBC"
+        }
+
         _pullSummaryFlow.value = MultiSourceNewsPullSummary(
             lastPullTimestamp = now,
             formattedLastPullTime = formatTimestamp(now),
@@ -249,10 +277,11 @@ object HourlyMultiSourceNewsSyndicator {
             nationalPulledCount = nationalCount,
             internationalPulledCount = internationalCount,
             totalAutoPublishedCount = combined.size,
-            activeSourcesSummary = "Sambad, OTV, Pragativadi • PTI, DD News, PIB • Reuters, AP, BBC, UN",
+            activeSourcesSummary = activeSources,
             isPulling = false,
             autoPublishWithoutApproval = true,
-            hourlyCycleNumber = nextCycle
+            hourlyCycleNumber = nextCycle,
+            isNewsApiActive = liveNewsApiArticles.isNotEmpty()
         )
 
         combined

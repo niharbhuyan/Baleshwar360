@@ -44,7 +44,8 @@ interface INewsRepository {
 class NewsRepository(
     private val newsDao: NewsDao,
     private val cacheMetadataDao: CacheMetadataDao? = null,
-    private val apiService: BalasoreApiService = BalasoreApiService.create()
+    private val apiService: BalasoreApiService = BalasoreApiService.create(),
+    private val newsApiOrgClient: NewsApiOrgClient = NewsApiOrgClient()
 ) : INewsRepository {
 
     override val allNews: Flow<List<NewsArticleEntity>> = newsDao.getAllNews().distinctUntilChanged()
@@ -148,10 +149,26 @@ class NewsRepository(
                     }
                 }.getOrDefault(emptyList())
 
-                val freshEntities = (syndicatedEntities + apiEntities).distinctBy { it.id }
+                // Automatically fetch live NewsAPI articles when NEWS_API_KEY is configured via AI Studio Secrets
+                val newsApiEntities = if (newsApiOrgClient.isConfigured()) {
+                    newsApiOrgClient.fetchNewsArticleEntities(
+                        bookmarkedIds = bookmarkedIds,
+                        bookmarkedTitles = bookmarkedTitles
+                    ).getOrDefault(emptyList())
+                } else {
+                    emptyList()
+                }
+
+                val freshEntities = (newsApiEntities + syndicatedEntities + apiEntities).distinctBy { it.id }
 
                 if (freshEntities.isNotEmpty()) {
                     newsDao.insertArticles(freshEntities)
+                }
+
+                val sourceDetail = if (newsApiEntities.isNotEmpty()) {
+                    "Auto-pulled via NewsAPI (NEWS_API_KEY) + Local, National & International feeds into Room."
+                } else {
+                    "Auto-pulled Local, National & International feeds directly into Room."
                 }
 
                 cacheMetadataDao?.insertOrUpdate(
@@ -161,7 +178,7 @@ class NewsRepository(
                         itemCount = newsDao.getCount(),
                         status = "FRESH",
                         cacheLabel = "${newsDao.getCount()} Multi-Source News Articles",
-                        details = "Auto-pulled Local, National & International feeds directly into Room."
+                        details = sourceDetail
                     )
                 )
 
@@ -305,8 +322,19 @@ class NewsRepository(
             }
         }.getOrDefault(emptyList())
 
-        if (syndicatedEntities.isNotEmpty()) {
-            runCatching { newsDao.insertArticles(syndicatedEntities) }
+        // Automatically fetch live NewsAPI articles when NEWS_API_KEY is configured via AI Studio Secrets
+        val newsApiEntities = if (newsApiOrgClient.isConfigured()) {
+            newsApiOrgClient.fetchNewsArticleEntities(
+                bookmarkedIds = bookmarkedIds,
+                bookmarkedTitles = bookmarkedTitles
+            ).getOrDefault(emptyList())
+        } else {
+            emptyList()
+        }
+
+        val combinedPreEntities = (newsApiEntities + syndicatedEntities).distinctBy { it.id }
+        if (combinedPreEntities.isNotEmpty()) {
+            runCatching { newsDao.insertArticles(combinedPreEntities) }
         }
 
         try {
@@ -324,6 +352,11 @@ class NewsRepository(
             }
 
             val totalCount = newsDao.getCount()
+            val detailText = if (newsApiEntities.isNotEmpty()) {
+                "Synced via NewsAPI (NEWS_API_KEY) + hourly Local, National & International feeds."
+            } else {
+                "Hourly auto-pulled Local, National & International feeds directly into Room."
+            }
             cacheMetadataDao?.insertOrUpdate(
                 CacheSyncMetadataEntity(
                     cacheKey = "NEWS",
@@ -331,7 +364,7 @@ class NewsRepository(
                     itemCount = totalCount,
                     status = "FRESH",
                     cacheLabel = "$totalCount Multi-Source News Articles",
-                    details = "Hourly auto-pulled Local, National & International feeds directly into Room."
+                    details = detailText
                 )
             )
             Result.success(totalCount)

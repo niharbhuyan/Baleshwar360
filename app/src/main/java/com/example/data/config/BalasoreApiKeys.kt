@@ -36,6 +36,7 @@ object BalasoreApiKeys {
         val isPlaceholder =
             clean.startsWith("YOUR_", ignoreCase = true) ||
                 clean.startsWith("MY_", ignoreCase = true) ||
+                clean.endsWith("_DEFAULT_VALUE", ignoreCase = true) ||
                 clean.contains("PLACEHOLDER", ignoreCase = true) ||
                 clean.contains("REPLACE_ME", ignoreCase = true) ||
                 clean.equals("AIzaSyBalasore360MapsKey", ignoreCase = true) ||

@@ -100,6 +100,24 @@ data class OpenWeatherCity(
     @Json(name = "sunset") val sunset: Long? = null
 )
 
+@JsonClass(generateAdapter = true)
+data class OpenWeatherAlertDto(
+    @Json(name = "sender_name") val senderName: String? = null,
+    @Json(name = "event") val event: String? = null,
+    @Json(name = "start") val start: Long? = null,
+    @Json(name = "end") val end: Long? = null,
+    @Json(name = "description") val description: String? = null,
+    @Json(name = "tags") val tags: List<String> = emptyList()
+)
+
+@JsonClass(generateAdapter = true)
+data class OpenWeatherOneCallAlertsResponse(
+    @Json(name = "lat") val lat: Double? = null,
+    @Json(name = "lon") val lon: Double? = null,
+    @Json(name = "timezone") val timezone: String? = null,
+    @Json(name = "alerts") val alerts: List<OpenWeatherAlertDto> = emptyList()
+)
+
 /**
  * Domain-specific 3-day forecast summary model for Balasore
  */

@@ -92,6 +92,38 @@ class OpenWeatherRepository(
         return getBalasoreLiveWeather()
     }
 
+    /**
+     * Fetches official severe weather alerts for Balasore from OpenWeatherMap One Call 3.0.
+     * Gracefully returns an empty list if the configured key only covers 2.5 endpoints or is offline.
+     */
+    suspend fun fetchOfficialWeatherAlerts(
+        lat: Double = BALASORE_LAT,
+        lon: Double = BALASORE_LON,
+        apiKey: String = ""
+    ): Result<List<OpenWeatherAlertDto>> {
+        val resolved = getResolvedApiKey(apiKey)
+        if (apiService != null || isApiKeyConfigured(resolved)) {
+            try {
+                val service = apiService ?: OpenWeatherMapApiService.create()
+                val response = service.getOneCallAlerts(
+                    lat = lat,
+                    lon = lon,
+                    apiKey = resolved
+                )
+                return Result.success(response.alerts)
+            } catch (e: Exception) {
+                android.util.Log.d(
+                    "OpenWeatherRepository",
+                    "OpenWeatherMap One Call alerts unavailable (${e.message}); relying on /2.5/weather & /forecast severe evaluation."
+                )
+                if (apiService != null) {
+                    return Result.failure(e)
+                }
+            }
+        }
+        return Result.success(emptyList())
+    }
+
     suspend fun fetchCurrentWeatherForNode(lat: Double, lon: Double, apiKey: String = ""): Result<OpenWeatherCurrentResponse> {
         val resolved = getResolvedApiKey(apiKey)
         if (apiService != null || isApiKeyConfigured(resolved)) {
