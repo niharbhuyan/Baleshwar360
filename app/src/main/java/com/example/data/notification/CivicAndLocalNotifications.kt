@@ -3,34 +3,95 @@ package com.example.data.notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Context
+import android.app.PendingIntent
+import android.content.Intent
 import android.os.Build
 import androidx.core.app.NotificationCompat
+import com.example.MainActivity
 import com.example.data.model.BalasoreWeatherAlert
 
 object CivicIssueNotificationHelper {
-    private const val CHANNEL_ID = "balasore_civic_updates"
+    private const val CHANNEL_ID = "balasore_civic_updates_high"
+    const val EXTRA_OPEN_CIVIC_EYE = "extra_open_civic_eye"
+    const val EXTRA_CIVIC_REPORT_ID = "extra_civic_report_id"
+
+    fun formatCivicStatusLabel(rawStatus: String): String {
+        return when (rawStatus.trim().uppercase()) {
+            "RESOLVED" -> "Resolved"
+            "IN_PROGRESS", "IN PROGRESS" -> "In Progress"
+            "REJECTED" -> "Rejected"
+            else -> "Pending"
+        }
+    }
 
     fun showStatusChangeNotification(
         context: Context,
         reportId: String,
         title: String,
         newStatus: String,
-        remark: String = ""
+        remark: String = "",
+        previousStatus: String? = null
     ) {
         val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager ?: return
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
                 CHANNEL_ID,
-                "Balasore Civic Tracker Updates",
-                NotificationManager.IMPORTANCE_DEFAULT
-            )
+                "Civic Eye Report Status Updates",
+                NotificationManager.IMPORTANCE_HIGH
+            ).apply {
+                description = "Real-time notifications when your Balasore Civic Eye report status changes."
+                enableVibration(true)
+            }
             nm.createNotificationChannel(channel)
         }
+
+        val newLabel = formatCivicStatusLabel(newStatus)
+        val transitionLine = if (!previousStatus.isNullOrBlank()) {
+            val prevLabel = formatCivicStatusLabel(previousStatus)
+            if (!prevLabel.equals(newLabel, ignoreCase = true)) {
+                "Status changed: $prevLabel → $newLabel"
+            } else {
+                "Status updated: $newLabel"
+            }
+        } else {
+            "Status updated: $newLabel"
+        }
+
+        val contentText = if (remark.isNotBlank()) {
+            "$title • $remark"
+        } else {
+            "$title • $transitionLine"
+        }
+        val expandedText = buildString {
+            append(transitionLine)
+            append("\n")
+            append(title)
+            if (remark.isNotBlank()) {
+                append("\nNote: ")
+                append(remark)
+            }
+        }
+
+        val launchIntent = Intent(context, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            putExtra(EXTRA_OPEN_CIVIC_EYE, true)
+            putExtra(EXTRA_CIVIC_REPORT_ID, reportId)
+        }
+        val pendingIntent = PendingIntent.getActivity(
+            context,
+            reportId.hashCode(),
+            launchIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_dialog_info)
-            .setContentTitle("Civic Issue #$reportId: $newStatus")
-            .setContentText(if (remark.isNotBlank()) "$title — $remark" else title)
-            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .setContentTitle("Civic Eye #$reportId: $newLabel")
+            .setContentText(contentText)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(expandedText))
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setCategory(NotificationCompat.CATEGORY_STATUS)
+            .setContentIntent(pendingIntent)
             .setAutoCancel(true)
             .build()
         nm.notify(reportId.hashCode(), notification)

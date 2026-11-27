@@ -7,8 +7,11 @@ import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
+import android.provider.Settings
 import android.widget.Toast
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.window.Dialog
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.result.PickVisualMediaRequest
@@ -226,6 +229,7 @@ fun CivicEyeComponent(
     var feedCategoryFilter by remember { mutableStateOf("ALL") }
     var feedUrgencyFilter by remember { mutableStateOf("ALL") }
     var showFeedFilterSheet by remember { mutableStateOf(false) }
+    var focusedMapReportId by remember { mutableStateOf<String?>(null) }
 
     val queuedSyncReports = remember(myReports) {
         myReports.filter { it.isQueuedForSync }
@@ -238,15 +242,7 @@ fun CivicEyeComponent(
             CivicReportEntity(
                 id = f.id,
                 title = f.title,
-                category = when (f.category.lowercase()) {
-                    "pothole" -> "Road Pothole"
-                    "drainage", "waterlogging" -> "Drain Clog / Waterlogging"
-                    "road" -> "Damaged Culvert / Road"
-                    "garbage" -> "Garbage Heap / Waste"
-                    "electricity" -> "Faulty Streetlight"
-                    "water" -> "Drinking Water Leak"
-                    else -> "Civic Issue"
-                },
+                category = normalizeCivicEyeCategory(f.category),
                 wardLocation = f.wardLocation,
                 description = f.description,
                 status = when (f.status.uppercase()) {
@@ -289,9 +285,11 @@ fun CivicEyeComponent(
     }
 
     // Camera / Single-Photo Evidence Launchers (Full-resolution FileProvider TakePicture + Photo Picker)
-    var pendingCameraPhotoUri by remember { mutableStateOf<Uri?>(null) }
-    var pendingCameraPhotoFile by remember { mutableStateOf<File?>(null) }
+    // Persisted via rememberSaveable so captured photos survive rotation/process recreation while Camera is open
+    var pendingCameraPhotoUriString by rememberSaveable { mutableStateOf<String?>(null) }
+    var pendingCameraPhotoPath by rememberSaveable { mutableStateOf<String?>(null) }
     var cameraPermissionDeniedMessage by remember { mutableStateOf<String?>(null) }
+    var showFullPhotoPreview by remember { mutableStateOf(false) }
 
     val photoPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickVisualMedia()
@@ -312,8 +310,8 @@ fun CivicEyeComponent(
     val cameraCaptureLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.TakePicture()
     ) { saved ->
-        val capturedUri = pendingCameraPhotoUri
-        val capturedFile = pendingCameraPhotoFile
+        val capturedUri = pendingCameraPhotoUriString?.let { Uri.parse(it) }
+        val capturedFile = pendingCameraPhotoPath?.let { File(it) }
         if (saved && capturedUri != null) {
             cameraPermissionDeniedMessage = null
             // Enforce single-photo attachment by replacing any previously attached photo
@@ -337,16 +335,28 @@ fun CivicEyeComponent(
         } else {
             runCatching { capturedFile?.delete() }
         }
-        pendingCameraPhotoUri = null
-        pendingCameraPhotoFile = null
+        pendingCameraPhotoUriString = null
+        pendingCameraPhotoPath = null
     }
 
     val launchCameraCapture: () -> Unit = {
         val output = CivicEyeMediaAndLocationHelper.createDurableCameraPhotoOutput(context)
         if (output != null) {
-            pendingCameraPhotoFile = output.first
-            pendingCameraPhotoUri = output.second
-            cameraCaptureLauncher.launch(output.second)
+            pendingCameraPhotoPath = output.first.absolutePath
+            pendingCameraPhotoUriString = output.second.toString()
+            val launched = runCatching {
+                cameraCaptureLauncher.launch(output.second)
+            }.isSuccess
+            if (!launched) {
+                runCatching { output.first.delete() }
+                pendingCameraPhotoPath = null
+                pendingCameraPhotoUriString = null
+                Toast.makeText(
+                    context,
+                    context.getString(R.string.civic_eye_camera_unavailable),
+                    Toast.LENGTH_LONG
+                ).show()
+            }
         } else {
             Toast.makeText(
                 context,
@@ -558,7 +568,13 @@ fun CivicEyeComponent(
                                 onClearSubmitStatus()
                                 onRefreshFirestore()
                             },
-                            onDismiss = onClearSubmitStatus
+                            onDismiss = onClearSubmitStatus,
+                            onViewOnMap = { reportId ->
+                                focusedMapReportId = reportId
+                                selectedTabIndex = 2
+                                onClearSubmitStatus()
+                                onRefreshFirestore()
+                            }
                         )
                     }
                 }
@@ -696,43 +712,13 @@ fun CivicEyeComponent(
                     }
                 }
 
-                // 1. SELECT CATEGORY CHIPS
+                // 1. INCIDENT CATEGORY DROPDOWN MENU (STORED IN FIRESTORE)
                 item {
-                    Text(
-                        text = if (isOdia) "୧. ସମସ୍ୟା ପ୍ରକାର ବାଛନ୍ତୁ" else "1. Select Issue Category",
-                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold)
+                    CivicEyeCategoryDropdown(
+                        selectedCategory = reportCategory,
+                        onCategorySelected = { reportCategory = it },
+                        language = language
                     )
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    val categories = listOf(
-                        "Potholes" to "🕳️ Potholes",
-                        "Lighting" to "💡 Lighting / Streetlight Outage",
-                        "Water Supply" to "🚰 Water Supply / Pipeline Leak",
-                        "Drain Clog / Waterlogging" to "🌊 Waterlogging / Drain",
-                        "Garbage Heap / Waste" to "🗑️ Waste & Sanitation",
-                        "Damaged Culvert / Road" to "🚧 Damaged Road"
-                    )
-
-                    LazyRow(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        items(categories) { (catKey, catLabel) ->
-                            val isSelected = reportCategory == catKey
-                            FilterChip(
-                                selected = isSelected,
-                                onClick = {
-                                    BalasoreHapticHelper.vibrateButtonClick(context)
-                                    reportCategory = catKey
-                                },
-                                label = { Text(catLabel, fontSize = 12.sp) },
-                                colors = FilterChipDefaults.filterChipColors(
-                                    selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                                    selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
-                                )
-                            )
-                        }
-                    }
                 }
 
                 // 2. QUICK SMART PROMPTS
@@ -748,10 +734,11 @@ fun CivicEyeComponent(
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         val prompts = listOf(
-                            "Deep pothole cluster on OT Road" to ("Road Pothole" to "Deep crater on OT Road causing two-wheelers to skid during monsoon."),
-                            "Heavy waterlogging near Cinema Chhak" to ("Drain Clog / Waterlogging" to "Monsoon runoff overflowing drain onto storefronts and blocking road."),
-                            "Uncollected garbage Nuabazar Mandi" to ("Garbage Heap / Waste" to "Solid waste spillover blocking pedestrian passage."),
-                            "Streetlights dark near FM College" to ("Faulty Streetlight" to "Streetlights not turning on for last 3 nights.")
+                            "Deep pothole cluster on OT Road" to ("Pothole" to "Deep crater on OT Road causing two-wheelers to skid during monsoon."),
+                            "Heavy waterlogging near Cinema Chhak" to ("Drainage" to "Monsoon runoff overflowing drain onto storefronts and blocking road."),
+                            "Uncollected garbage Nuabazar Mandi" to ("Garbage" to "Solid waste spillover blocking pedestrian passage."),
+                            "Streetlights dark near FM College" to ("Street Light" to "Streetlights not turning on for last 3 nights."),
+                            "Pipeline water leak near Phandi Chhak" to ("Water Supply" to "Main WATCO pipeline leaking potable water onto road.")
                         )
                         prompts.forEach { (label, details) ->
                             Surface(
@@ -827,19 +814,12 @@ fun CivicEyeComponent(
                     }
                 }
 
-                // 5. DESCRIPTION TEXT FIELD
+                // 5. DESCRIPTION TEXT FIELD WITH VOICE-TO-TEXT INPUT
                 item {
-                    OutlinedTextField(
+                    CivicEyeVoiceDescriptionField(
                         value = issueDescription,
                         onValueChange = { issueDescription = it },
-                        label = { Text(if (isOdia) "ସମ୍ପୂର୍ଣ୍ଣ ବିବରଣୀ" else "Detailed Description *") },
-                        placeholder = { Text("Describe road dimensions, flooding depth, safety hazards for pedestrians or vehicles...") },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .heightIn(min = 100.dp)
-                            .testTag("civic_eye_input_desc"),
-                        shape = RoundedCornerShape(12.dp),
-                        maxLines = 5
+                        language = language
                     )
                 }
 
@@ -910,11 +890,11 @@ fun CivicEyeComponent(
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = if (isOdia) "ଫଟୋ ପ୍ରମାଣ (୧ଟି ଫଟୋ ସଂଲଗ୍ନ କରନ୍ତୁ)" else "Photo Evidence (Attach 1 Photo)",
+                                text = if (isOdia) "ଫଟୋ ଅପଲୋଡ୍ (Firestore ସଂରକ୍ଷଣ)" else stringResource(R.string.civic_eye_photo_upload_title),
                                 style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold)
                             )
                             Text(
-                                text = if (isOdia) "ଖାଲଖମା କିମ୍ବା ନାଳ ସମସ୍ୟାର ଫଟୋ କ୍ୟାମେରାରେ ଉଠାନ୍ତୁ" else "Capture a clear photo of the pothole or drainage issue before submitting",
+                                text = if (isOdia) "ଖାଲଖମା, ଆବର୍ଜନା କିମ୍ବା ନାଳ ସମସ୍ୟାର ଫଟୋ କ୍ୟାମେରା କିମ୍ବା ଗ୍ୟାଲେରୀରୁ ଯୋଡ଼ନ୍ତୁ" else stringResource(R.string.civic_eye_photo_upload_desc),
                                 fontSize = 11.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -945,12 +925,38 @@ fun CivicEyeComponent(
                                 .padding(bottom = 8.dp)
                                 .testTag("civic_eye_camera_permission_banner")
                         ) {
-                            Text(
-                                text = cameraPermissionDeniedMessage ?: "",
-                                fontSize = 11.5.sp,
-                                color = MaterialTheme.colorScheme.onErrorContainer,
-                                modifier = Modifier.padding(10.dp)
-                            )
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 10.dp, vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Text(
+                                    text = cameraPermissionDeniedMessage ?: "",
+                                    fontSize = 11.5.sp,
+                                    color = MaterialTheme.colorScheme.onErrorContainer,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                TextButton(
+                                    onClick = {
+                                        val settingsIntent = Intent(
+                                            Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                                            Uri.fromParts("package", context.packageName, null)
+                                        ).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
+                                        runCatching { context.startActivity(settingsIntent) }
+                                    },
+                                    modifier = Modifier
+                                        .heightIn(min = 48.dp)
+                                        .testTag("civic_eye_open_camera_settings_btn")
+                                ) {
+                                    Text(
+                                        text = stringResource(R.string.civic_eye_camera_open_settings),
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.error
+                                    )
+                                }
+                            }
                         }
                     }
 
@@ -962,18 +968,24 @@ fun CivicEyeComponent(
                                 .testTag("civic_eye_attached_photo_card")
                         ) {
                             Column {
-                                Box(modifier = Modifier.fillMaxWidth().height(180.dp)) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(190.dp)
+                                        .clickable { showFullPhotoPreview = true }
+                                        .testTag("civic_eye_photo_preview_box")
+                                ) {
                                     if (attachedPhotoBitmap != null) {
                                         androidx.compose.foundation.Image(
                                             bitmap = attachedPhotoBitmap!!.asImageBitmap(),
-                                            contentDescription = "Attached civic issue photo",
+                                            contentDescription = stringResource(R.string.civic_eye_camera_preview_title),
                                             modifier = Modifier.fillMaxSize(),
                                             contentScale = ContentScale.Crop
                                         )
                                     } else {
                                         AsyncImage(
                                             model = attachedPhotoUri,
-                                            contentDescription = "Attached civic issue photo",
+                                            contentDescription = stringResource(R.string.civic_eye_camera_preview_title),
                                             modifier = Modifier.fillMaxSize(),
                                             contentScale = ContentScale.Crop
                                         )
@@ -1012,12 +1024,63 @@ fun CivicEyeComponent(
                                             } else if (attachedPhotoBase64 != null) {
                                                 "$photoLocationLabel • ${stringResource(R.string.civic_eye_photo_ready_firestore)}"
                                             } else {
-                                                photoLocationLabel
+                                                "$photoLocationLabel • ${stringResource(R.string.civic_eye_camera_tap_to_zoom)}"
                                             },
                                             color = Color.White,
                                             fontSize = 10.5.sp,
                                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                                         )
+                                    }
+                                }
+
+                                if (showFullPhotoPreview) {
+                                    Dialog(onDismissRequest = { showFullPhotoPreview = false }) {
+                                        Card(
+                                            shape = RoundedCornerShape(16.dp),
+                                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+                                        ) {
+                                            Column(modifier = Modifier.padding(12.dp)) {
+                                                Row(
+                                                    modifier = Modifier.fillMaxWidth(),
+                                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
+                                                    Text(
+                                                        text = stringResource(R.string.civic_eye_camera_preview_title),
+                                                        style = MaterialTheme.typography.titleSmall,
+                                                        fontWeight = FontWeight.Bold
+                                                    )
+                                                    IconButton(
+                                                        onClick = { showFullPhotoPreview = false },
+                                                        modifier = Modifier.size(48.dp)
+                                                    ) {
+                                                        Icon(Icons.Default.Close, contentDescription = "Close preview")
+                                                    }
+                                                }
+                                                Box(
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .heightIn(min = 240.dp, max = 420.dp)
+                                                        .clip(RoundedCornerShape(12.dp))
+                                                ) {
+                                                    if (attachedPhotoBitmap != null) {
+                                                        androidx.compose.foundation.Image(
+                                                            bitmap = attachedPhotoBitmap!!.asImageBitmap(),
+                                                            contentDescription = stringResource(R.string.civic_eye_camera_preview_title),
+                                                            modifier = Modifier.fillMaxSize(),
+                                                            contentScale = ContentScale.Fit
+                                                        )
+                                                    } else {
+                                                        AsyncImage(
+                                                            model = attachedPhotoUri,
+                                                            contentDescription = stringResource(R.string.civic_eye_camera_preview_title),
+                                                            modifier = Modifier.fillMaxSize(),
+                                                            contentScale = ContentScale.Fit
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                        }
                                     }
                                 }
 
@@ -1420,7 +1483,7 @@ fun CivicEyeComponent(
                                 Text(
                                     text = when (status) {
                                         "SYNC_QUEUE" -> "⏳ Sync Queue (${queuedSyncReports.size})"
-                                        "PENDING" -> "Submitted"
+                                        "PENDING" -> "Pending"
                                         "IN_PROGRESS" -> "In Progress"
                                         "RESOLVED" -> "Resolved"
                                         else -> "All Status"
@@ -1505,19 +1568,32 @@ fun CivicEyeComponent(
                                 report = report,
                                 onAdvanceStatus = { onAdvanceStatus(report.id) },
                                 onDelete = { onDeleteReport(report.id) },
-                                onUpvote = { onUpvoteReport(report.id) }
+                                onUpvote = { onUpvoteReport(report.id) },
+                                onViewOnMap = {
+                                    focusedMapReportId = report.id
+                                    selectedTabIndex = 2
+                                }
+                            )
+                        }
+                        item(key = "civic_eye_admob_banner") {
+                            com.example.ui.components.AdMobBannerCard(
+                                adUnitId = com.example.data.admob.AdMobManager.AD_UNIT_BANNER_CIVIC_EYE
                             )
                         }
                     }
                 }
             }
         } else {
-            // TAB 2: INTERACTIVE MAP PIN VIEW
+            // TAB 2: INTERACTIVE OSMDROID INCIDENT MAP VIEW
             CivicEyeMapPinView(
                 reports = allCombinedReports,
                 language = language,
+                focusedReportId = focusedMapReportId,
+                onFocusedReportHandled = { focusedMapReportId = null },
                 onUpvoteReport = onUpvoteReport,
                 onAdvanceStatus = onAdvanceStatus,
+                onReportNewIssue = { selectedTabIndex = 0 },
+                onRefreshReports = onRefreshFirestore,
                 modifier = Modifier.fillMaxSize()
             )
         }
@@ -1569,7 +1645,8 @@ private fun CivicReportCardItem(
     report: CivicReportEntity,
     onAdvanceStatus: () -> Unit,
     onDelete: () -> Unit,
-    onUpvote: () -> Unit
+    onUpvote: () -> Unit,
+    onViewOnMap: () -> Unit
 ) {
     val context = LocalContext.current
     var upvoteCount by remember(report.id) { mutableIntStateOf(report.upvotesCount) }
@@ -1668,7 +1745,7 @@ private fun CivicReportCardItem(
                             text = when (report.status.uppercase()) {
                                 "RESOLVED" -> "RESOLVED"
                                 "IN_PROGRESS" -> "IN PROGRESS"
-                                else -> "SUBMITTED"
+                                else -> "PENDING"
                             },
                             fontSize = 10.sp,
                             fontWeight = FontWeight.Bold,
@@ -1678,7 +1755,23 @@ private fun CivicReportCardItem(
                 }
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(6.dp))
+
+            // CATEGORY CHIP + TITLE
+            Surface(
+                shape = RoundedCornerShape(6.dp),
+                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f)
+            ) {
+                Text(
+                    text = normalizeCivicEyeCategory(report.category),
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                    modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp)
+                )
+            }
+
+            Spacer(modifier = Modifier.height(6.dp))
 
             // TITLE
             Text(
@@ -1687,6 +1780,14 @@ private fun CivicReportCardItem(
                     fontWeight = FontWeight.Bold,
                     fontSize = 15.sp
                 )
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // REAL-TIME FIRESTORE STATUS INDICATOR (Pending -> In Progress -> Resolved)
+            CivicReportStatusProgressIndicator(
+                status = report.status,
+                isSyncedWithFirestore = !report.isQueuedForSync
             )
 
             Spacer(modifier = Modifier.height(4.dp))
@@ -1840,6 +1941,33 @@ private fun CivicReportCardItem(
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = Color(0xFF0284C7)
+                            )
+                        }
+                    }
+
+                    // VIEW ON OSMDROID MAP
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = Color(0xFFE0F2FE),
+                        border = BorderStroke(1.dp, Color(0xFF7DD3FC)),
+                        modifier = Modifier
+                            .clickable {
+                                BalasoreHapticHelper.vibrateButtonClick(context)
+                                onViewOnMap()
+                            }
+                            .testTag("civic_report_map_btn_${report.id}")
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(Icons.Default.Place, contentDescription = "View on Map", tint = Color(0xFF0369A1), modifier = Modifier.size(13.dp))
+                            Spacer(modifier = Modifier.width(3.dp))
+                            Text(
+                                text = "Map",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF0369A1)
                             )
                         }
                     }

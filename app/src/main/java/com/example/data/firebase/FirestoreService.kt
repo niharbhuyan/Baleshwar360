@@ -16,6 +16,9 @@ import com.google.firebase.firestore.FirebaseFirestoreException
 import com.google.firebase.firestore.SetOptions
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
@@ -941,6 +944,77 @@ class FirestoreService(
         } catch (e: Exception) {
             handleFirestoreError(e, OperationType.LIST, "user_reports")
             emptyList()
+        }
+    }
+
+    /**
+     * Real-time Firestore listener for 'user_reports' so Civic Eye status indicators
+     * ('Pending', 'In Progress', 'Resolved') automatically refresh as incident statuses change.
+     */
+    fun observeUserReports(limitCount: Long = 50): Flow<List<FirestoreUserReport>> = callbackFlow {
+        val db = firestore
+        if (db == null) {
+            trySend(emptyList())
+            close()
+            return@callbackFlow
+        }
+
+        val registration = db.collection("user_reports")
+            .limit(limitCount)
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) {
+                    handleFirestoreError(error, OperationType.LIST, "user_reports")
+                    return@addSnapshotListener
+                }
+                val reports = snapshot?.documents?.mapNotNull { doc ->
+                    doc.data?.let { FirestoreUserReport.fromFirestoreMap(it) }
+                }?.sortedByDescending { it.reportedTimestamp }.orEmpty()
+                trySend(reports)
+            }
+
+        awaitClose {
+            registration.remove()
+        }
+    }
+
+    /**
+     * Updates the status & resolution notes of an existing Civic Eye incident in Firestore 'user_reports'.
+     * Maps local 'PENDING' to Firestore rule-compliant 'SUBMITTED' and preserves immutable fields.
+     */
+    suspend fun updateUserReportStatus(
+        reportId: String,
+        newStatus: String,
+        resolutionNotes: String
+    ): Result<Unit> = withContext(Dispatchers.IO) {
+        val path = "user_reports/$reportId"
+        try {
+            val db = getSignedInFirestore()
+                ?: return@withContext Result.failure(
+                    IllegalStateException("Sign in with Google to update Civic Eye incident status in Firestore.")
+                )
+            val firestoreStatus = when (newStatus.trim().uppercase()) {
+                "RESOLVED" -> "RESOLVED"
+                "IN_PROGRESS", "IN PROGRESS" -> "IN_PROGRESS"
+                "REJECTED" -> "REJECTED"
+                else -> "SUBMITTED"
+            }
+            val now = System.currentTimeMillis()
+            val updates = mapOf<String, Any>(
+                "status" to firestoreStatus,
+                "lastUpdatedTimestamp" to now,
+                "resolutionNotes" to resolutionNotes.take(1000)
+            )
+            db.collection("user_reports")
+                .document(reportId)
+                .update(updates)
+                .await()
+            Log.d("FirestoreService", "Updated Firestore 'user_reports/$reportId' status to $firestoreStatus")
+            Result.success(Unit)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            handleFirestoreError(e, OperationType.UPDATE, path)
+            Result.failure(e)
         }
     }
 

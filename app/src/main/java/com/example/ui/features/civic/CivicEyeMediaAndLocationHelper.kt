@@ -3,14 +3,18 @@ package com.example.ui.features.civic
 import android.Manifest
 import android.annotation.SuppressLint
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Matrix
 import android.location.Geocoder
 import android.location.Location
 import android.location.LocationManager
+import android.media.ExifInterface
 import android.net.Uri
 import android.os.Build
+import android.provider.MediaStore
 import android.util.Base64
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
@@ -60,6 +64,13 @@ object CivicEyeMediaAndLocationHelper {
         return fine || coarse
     }
 
+    fun hasCameraCaptureSupport(context: Context): Boolean {
+        val hasHardware = context.packageManager.hasSystemFeature(PackageManager.FEATURE_CAMERA_ANY)
+        val intent = Intent(MediaStore.ACTION_IMAGE_CAPTURE)
+        val hasHandler = intent.resolveActivity(context.packageManager) != null
+        return hasHardware || hasHandler
+    }
+
     /**
      * Creates a durable photo output file inside `filesDir/civic_eye_photos/` (backed by
      * `file_paths.xml`) and returns `(File, contentUri)` for `ActivityResultContracts.TakePicture`.
@@ -100,7 +111,7 @@ object CivicEyeMediaAndLocationHelper {
                 sampleSize *= 2
             }
             val opts = BitmapFactory.Options().apply { inSampleSize = sampleSize }
-            if (file != null && file.exists()) {
+            val rawBitmap = if (file != null && file.exists()) {
                 BitmapFactory.decodeFile(file.absolutePath, opts)
             } else if (uri != null) {
                 context.contentResolver.openInputStream(uri)?.use {
@@ -108,8 +119,56 @@ object CivicEyeMediaAndLocationHelper {
                 }
             } else {
                 null
-            }
+            } ?: return@runCatching null
+
+            applyExifOrientation(context, rawBitmap, file, uri)
         }.getOrNull()
+    }
+
+    /**
+     * Reads the JPEG EXIF orientation tag and rotates the decoded bitmap upright so portrait
+     * device camera photos display correctly in previews and Firestore attachments.
+     */
+    private fun applyExifOrientation(
+        context: Context,
+        bitmap: Bitmap,
+        file: File?,
+        uri: Uri?
+    ): Bitmap {
+        val orientation = runCatching {
+            when {
+                file != null && file.exists() ->
+                    ExifInterface(file.absolutePath).getAttributeInt(
+                        ExifInterface.TAG_ORIENTATION,
+                        ExifInterface.ORIENTATION_NORMAL
+                    )
+                uri != null ->
+                    context.contentResolver.openInputStream(uri)?.use { stream ->
+                        ExifInterface(stream).getAttributeInt(
+                            ExifInterface.TAG_ORIENTATION,
+                            ExifInterface.ORIENTATION_NORMAL
+                        )
+                    } ?: ExifInterface.ORIENTATION_NORMAL
+                else -> ExifInterface.ORIENTATION_NORMAL
+            }
+        }.getOrDefault(ExifInterface.ORIENTATION_NORMAL)
+
+        val degrees = when (orientation) {
+            ExifInterface.ORIENTATION_ROTATE_90 -> 90f
+            ExifInterface.ORIENTATION_ROTATE_180 -> 180f
+            ExifInterface.ORIENTATION_ROTATE_270 -> 270f
+            else -> 0f
+        }
+        if (degrees == 0f) return bitmap
+
+        return runCatching {
+            val matrix = Matrix().apply { postRotate(degrees) }
+            val rotated = Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
+            if (rotated !== bitmap) {
+                bitmap.recycle()
+            }
+            rotated
+        }.getOrDefault(bitmap)
     }
 
     /**

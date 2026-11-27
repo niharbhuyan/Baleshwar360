@@ -2388,7 +2388,11 @@ fun AppSettingsSheet(
     subscribedNewsCategories: Set<String> = setOf("Politics", "Sports", "Defense", "Tourism", "Civic"),
     onToggleNewsCategorySubscription: (String) -> Unit = {},
     onTestCategoryPushAlert: (String) -> Unit = {},
-    onOpenTideReminderSettings: () -> Unit = {}
+    onOpenTideReminderSettings: () -> Unit = {},
+    isCivicProximityAlertsEnabled: Boolean = false,
+    civicProximityRadiusMeters: Int = 1000,
+    onToggleCivicProximityAlerts: (Boolean) -> Unit = {},
+    onSelectCivicProximityRadius: (Int) -> Unit = {}
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val localTidalSummary = androidx.compose.runtime.remember(context) {
@@ -2566,6 +2570,15 @@ fun AppSettingsSheet(
                     }
                 }
             }
+
+            // Nearby 'Civic Eye' Neighborhood Proximity Alerts Toggle Card
+            com.example.ui.features.civic.CivicProximitySettingsCard(
+                isEnabled = isCivicProximityAlertsEnabled,
+                radiusMeters = civicProximityRadiusMeters,
+                language = language,
+                onToggleEnabled = onToggleCivicProximityAlerts,
+                onRadiusSelected = onSelectCivicProximityRadius
+            )
 
             // Chandipur Beach 'High Tide' Coastal Safety Push Notification Toggle Card (Based on Local Tidal Data)
             Card(

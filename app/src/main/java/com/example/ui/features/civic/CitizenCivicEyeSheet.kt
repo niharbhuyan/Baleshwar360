@@ -107,6 +107,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -608,26 +609,44 @@ fun CitizenCivicEyeSheet(
         }
     }
 
+    var pendingCameraPhotoUriString by rememberSaveable { mutableStateOf<String?>(null) }
+    var pendingCameraPhotoPath by rememberSaveable { mutableStateOf<String?>(null) }
+
     val takePictureLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.TakePicturePreview()
-    ) { bitmap ->
-        if (bitmap != null) {
-            try {
-                val file = File(context.filesDir, "civic_eye_${System.currentTimeMillis()}.jpg")
-                FileOutputStream(file).use { out ->
-                    bitmap.compress(Bitmap.CompressFormat.JPEG, 92, out)
-                }
-                attachedPhotoUri = Uri.fromFile(file).toString()
-                hasPhotoAttached = true
-                isGpsLocked = true
-                val coords = wardGeoCoordinates[selectedLocation] ?: Triple(21.4925, 86.9312, selectedLocation)
-                currentLatitude = coords.first
-                currentLongitude = coords.second
-                geoAddressString = coords.third
-                Toast.makeText(context, "📸 Photo snapped & tagged with GPS for $selectedLocation", Toast.LENGTH_SHORT).show()
-            } catch (e: Exception) {
-                Toast.makeText(context, "Failed to save photo: ${e.message}", Toast.LENGTH_SHORT).show()
+        contract = ActivityResultContracts.TakePicture()
+    ) { saved ->
+        val capturedUri = pendingCameraPhotoUriString
+        val capturedPath = pendingCameraPhotoPath
+        if (saved && !capturedUri.isNullOrBlank()) {
+            attachedPhotoUri = capturedUri
+            hasPhotoAttached = true
+            isGpsLocked = true
+            val coords = wardGeoCoordinates[selectedLocation] ?: Triple(21.4925, 86.9312, selectedLocation)
+            currentLatitude = coords.first
+            currentLongitude = coords.second
+            geoAddressString = coords.third
+            Toast.makeText(context, "📸 Full-res photo captured & tagged for $selectedLocation", Toast.LENGTH_SHORT).show()
+        } else {
+            capturedPath?.let { runCatching { File(it).delete() } }
+        }
+        pendingCameraPhotoUriString = null
+        pendingCameraPhotoPath = null
+    }
+
+    val launchFullResCameraCapture: () -> Unit = {
+        val output = CivicEyeMediaAndLocationHelper.createDurableCameraPhotoOutput(context)
+        if (output != null) {
+            pendingCameraPhotoPath = output.first.absolutePath
+            pendingCameraPhotoUriString = output.second.toString()
+            val launched = runCatching { takePictureLauncher.launch(output.second) }.isSuccess
+            if (!launched) {
+                runCatching { output.first.delete() }
+                pendingCameraPhotoPath = null
+                pendingCameraPhotoUriString = null
+                Toast.makeText(context, "No camera app available. Choose a photo from Gallery instead.", Toast.LENGTH_LONG).show()
             }
+        } else {
+            Toast.makeText(context, "Could not prepare camera capture file.", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -635,7 +654,7 @@ fun CitizenCivicEyeSheet(
         contract = ActivityResultContracts.RequestPermission()
     ) { isGranted ->
         if (isGranted) {
-            takePictureLauncher.launch(null)
+            launchFullResCameraCapture()
         } else {
             Toast.makeText(context, "Camera permission required to capture civic issue photos", Toast.LENGTH_SHORT).show()
         }
@@ -2194,7 +2213,7 @@ fun CitizenCivicEyeSheet(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
-                                // Camera Snapshot Button
+                                // Camera Snapshot Button (Full-res FileProvider TakePicture)
                                 Button(
                                     onClick = {
                                         val hasCamPerm = ContextCompat.checkSelfPermission(
@@ -2202,21 +2221,22 @@ fun CitizenCivicEyeSheet(
                                             Manifest.permission.CAMERA
                                         ) == PackageManager.PERMISSION_GRANTED
                                         if (hasCamPerm) {
-                                            takePictureLauncher.launch(null)
+                                            launchFullResCameraCapture()
                                         } else {
                                             cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
                                         }
                                     },
                                     modifier = Modifier
                                         .weight(1.1f)
+                                        .heightIn(min = 48.dp)
                                         .testTag("snap_camera_photo_btn"),
                                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0284C7)),
                                     shape = RoundedCornerShape(8.dp),
                                     contentPadding = PaddingValues(horizontal = 6.dp, vertical = 6.dp)
                                 ) {
-                                    Icon(imageVector = Icons.Default.PhotoCamera, contentDescription = "Camera Snap", modifier = Modifier.size(14.dp))
+                                    Icon(imageVector = Icons.Default.PhotoCamera, contentDescription = "Capture photo with camera", modifier = Modifier.size(16.dp))
                                     Spacer(modifier = Modifier.width(4.dp))
-                                    Text("Snap Camera", fontSize = 10.5.sp, fontWeight = FontWeight.Bold)
+                                    Text(if (attachedPhotoUri != null) "Retake" else "Camera", fontSize = 11.sp, fontWeight = FontWeight.Bold)
                                 }
 
                                 // Device Photo Picker
@@ -2228,13 +2248,14 @@ fun CitizenCivicEyeSheet(
                                     },
                                     modifier = Modifier
                                         .weight(1.0f)
+                                        .heightIn(min = 48.dp)
                                         .testTag("pick_gallery_photo_btn"),
                                     shape = RoundedCornerShape(8.dp),
                                     contentPadding = PaddingValues(horizontal = 6.dp, vertical = 6.dp)
                                 ) {
-                                    Icon(imageVector = Icons.Default.CameraAlt, contentDescription = "Gallery", modifier = Modifier.size(13.dp))
+                                    Icon(imageVector = Icons.Default.CameraAlt, contentDescription = "Choose from Gallery", modifier = Modifier.size(15.dp))
                                     Spacer(modifier = Modifier.width(4.dp))
-                                    Text("Gallery", fontSize = 10.5.sp, fontWeight = FontWeight.SemiBold)
+                                    Text("Gallery", fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
                                 }
 
                                 // Quick Presets for fast testing/offline

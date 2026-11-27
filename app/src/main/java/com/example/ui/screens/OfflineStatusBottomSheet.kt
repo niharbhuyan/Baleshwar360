@@ -288,6 +288,12 @@ fun OfflineStatusBottomSheet(
                 )
             }
 
+            Spacer(modifier = Modifier.height(16.dp))
+
+            com.example.ui.features.coastal.BalasoreOfflineWeatherTideChartCard(
+                initialMode = com.example.ui.features.coastal.OfflineTrendChartMode.TEMPERATURE
+            )
+
             Spacer(modifier = Modifier.height(18.dp))
 
             // Sync Status & Action

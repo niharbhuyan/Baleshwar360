@@ -238,12 +238,7 @@ fun AdMobVerificationCard(
 
                 Spacer(modifier = Modifier.height(4.dp))
 
-                val adUnits = listOf(
-                    "Essentials" to AdMobManager.AD_UNIT_BANNER_ESSENTIALS,
-                    "News" to AdMobManager.AD_UNIT_BANNER_NEWS,
-                    "Weather" to AdMobManager.AD_UNIT_BANNER_WEATHER,
-                    "Tourism" to AdMobManager.AD_UNIT_BANNER_TOURISM
-                )
+                val adUnits = AdMobManager.PRODUCTION_AD_UNITS
 
                 adUnits.forEach { (label, unitId) ->
                     Row(

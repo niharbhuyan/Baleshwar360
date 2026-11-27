@@ -371,6 +371,7 @@ class MainActivity : ComponentActivity() {
                     try {
                         com.example.data.notification.TideAndWeatherNotificationManager.createNotificationChannels(appCtx)
                         com.example.data.notification.TideAndWeatherNotificationManager.schedulePeriodicTideAndWeatherChecks(appCtx, intervalMinutes = 15)
+                        com.example.data.notification.BalasoreSevereWeatherAlertWorker.schedulePeriodicWeatherAlertCheck(appCtx, repeatIntervalMinutes = 60)
                         com.example.data.notification.ChandipurTidalTelemetryWorker.schedulePeriodic(appCtx, intervalMinutes = 15)
                         com.example.data.service.ChandipurSafeWalkService.startService(appCtx)
                         com.example.data.service.ChandipurLunarTideService.schedulePreHighTideAlerts(appCtx)
@@ -380,6 +381,9 @@ class MainActivity : ComponentActivity() {
                         com.example.data.notification.DailyNewsDigestManager.createNotificationChannel(appCtx)
                         if (com.example.data.notification.DailyNewsDigestManager.isDigestEnabled(appCtx)) {
                             com.example.data.notification.DailyNewsDigestManager.scheduleDaily8AmDigest(appCtx)
+                        }
+                        if (com.example.data.notification.CivicProximityAlertManager.isEnabled(appCtx)) {
+                            com.example.data.notification.CivicProximityAlertManager.scheduleProximityMonitor(appCtx)
                         }
                     } catch (t: Throwable) {
                         Log.w("MainActivity", "TideAndWeatherNotificationManager init notice: ${t.message}")
@@ -472,7 +476,14 @@ class MainActivity : ComponentActivity() {
             return
         }
 
-        if (intent.action == "com.example.action.REPORT_CIVIC_ISSUE" || featureSheet == "CITIZEN_CIVIC_EYE") {
+        if (intent.action == "com.example.action.REPORT_CIVIC_ISSUE" ||
+            featureSheet == "CITIZEN_CIVIC_EYE" ||
+            intent.getBooleanExtra(
+                com.example.data.notification.CivicIssueNotificationHelper.EXTRA_OPEN_CIVIC_EYE,
+                false
+            )
+        ) {
+            viewModel.fetchFirestoreUserReports()
             viewModel.openFeatureSheet(UniqueFeatureSheetType.CITIZEN_CIVIC_EYE)
             return
         }
@@ -3328,6 +3339,38 @@ fun BalasoreApp(
                         onClose = { viewModel.closeFeatureSheet() }
                     )
                 }
+                UniqueFeatureSheetType.CIVIC_EYE_LAYERS_MAP -> {
+                    com.example.ui.screens.BalasoreCivicLayersMapScreen(
+                        localReports = uiState.myCivicReports,
+                        firestoreReports = uiState.firestoreUserReports,
+                        language = uiState.language,
+                        onRefreshReports = { viewModel.fetchFirestoreUserReports() },
+                        onUpvoteReport = { reportId -> viewModel.upvoteCivicReport(reportId) },
+                        onReportNewIssue = {
+                            viewModel.openFeatureSheet(UniqueFeatureSheetType.CITIZEN_CIVIC_EYE)
+                        },
+                        onOpenHistory = {
+                            viewModel.openFeatureSheet(UniqueFeatureSheetType.CIVIC_EYE_HISTORY)
+                        },
+                        onClose = { viewModel.closeFeatureSheet() }
+                    )
+                }
+                UniqueFeatureSheetType.CIVIC_EYE_HISTORY -> {
+                    com.example.ui.screens.CivicEyeHistoryScreen(
+                        localReports = uiState.myCivicReports,
+                        firestoreReports = uiState.firestoreUserReports,
+                        language = uiState.language,
+                        onRefreshReports = { viewModel.fetchFirestoreUserReports() },
+                        onUpvoteReport = { reportId -> viewModel.upvoteCivicReport(reportId) },
+                        onOpenLayersMap = {
+                            viewModel.openFeatureSheet(UniqueFeatureSheetType.CIVIC_EYE_LAYERS_MAP)
+                        },
+                        onReportNewIssue = {
+                            viewModel.openFeatureSheet(UniqueFeatureSheetType.CITIZEN_CIVIC_EYE)
+                        },
+                        onClose = { viewModel.closeFeatureSheet() }
+                    )
+                }
                 UniqueFeatureSheetType.HISTORICAL_D3_WEATHER_TIDAL_TRENDS -> {
                     ModalBottomSheet(
                         onDismissRequest = { viewModel.closeFeatureSheet() },
@@ -3583,7 +3626,11 @@ fun BalasoreApp(
                 onOpenTideReminderSettings = {
                     showSettingsSheet = false
                     viewModel.openFeatureSheet(UniqueFeatureSheetType.CHANDIPUR_TIDE_REMINDER_SETTINGS)
-                }
+                },
+                isCivicProximityAlertsEnabled = uiState.isCivicProximityAlertsEnabled,
+                civicProximityRadiusMeters = uiState.civicProximityRadiusMeters,
+                onToggleCivicProximityAlerts = { viewModel.setCivicProximityAlertsEnabled(it) },
+                onSelectCivicProximityRadius = { viewModel.setCivicProximityRadiusMeters(it) }
             )
         }
     }

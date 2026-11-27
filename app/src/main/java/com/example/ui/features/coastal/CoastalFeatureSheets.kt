@@ -117,9 +117,17 @@ fun ChandipurOfflineTideDashboardSheet(
         LazyColumn(
             modifier = Modifier
                 .fillMaxWidth()
-                .heightIn(max = 460.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+                .heightIn(max = 540.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
+            item(key = "offline_weather_tide_trends_chart") {
+                BalasoreOfflineWeatherTideChartCard(
+                    tideSchedule = entries,
+                    language = language,
+                    initialMode = OfflineTrendChartMode.TIDAL
+                )
+            }
+
             items(entries, key = { it.id }) { tide ->
                 val isSafe = tide.safeWalkStatus.contains("SAFE", ignoreCase = true)
                 val badgeColor = if (isSafe) EmeraldGreen else Color(0xFFDC2626)

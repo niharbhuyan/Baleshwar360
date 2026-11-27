@@ -1012,6 +1012,30 @@ fun SpecialFeaturesScreen(
                 borderColor = Color(0xFF86EFAC)
             ),
             SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.CIVIC_EYE_LAYERS_MAP,
+                titleEn = "Civic Eye Layers Map (Balasore)",
+                titleOd = "ସିଭିକ୍ ଆଇ ଲେୟାର ମ୍ୟାପ୍ (ବାଲେଶ୍ୱର)",
+                category = "Emergency & Transit",
+                iconEmoji = "📍",
+                descriptionEn = "Interactive OSMDroid map of Balasore displaying Civic Eye pins with independent ON/OFF layer toggles for Potholes, Sanitation, Drainage, Water Supply & Street Lights.",
+                descriptionOd = "ରାସ୍ତା ଖାଲ, ସ୍ୱଚ୍ଛତା, ଡ୍ରେନେଜ୍, ପାନୀୟ ଜଳ ଓ ଷ୍ଟ୍ରିଟ୍ ଲାଇଟ୍ ଲେୟାର ଅନ୍/ଅଫ୍ କରି ବାଲେଶ୍ୱର ମ୍ୟାପ୍‌ରେ ସିଭିକ୍ ଆଇ ରିପୋର୍ଟ ଦେଖନ୍ତୁ।",
+                tagText = "OSMDROID LAYERS",
+                primaryColor = Color(0xFFFFF7ED),
+                borderColor = Color(0xFFFDBA74)
+            ),
+            SpecialFeatureItem(
+                sheetType = UniqueFeatureSheetType.CIVIC_EYE_HISTORY,
+                titleEn = "Civic Eye Incident History",
+                titleOd = "ସିଭିକ୍ ଆଇ ରିପୋର୍ଟ ଇତିହାସ",
+                category = "Emergency & Transit",
+                iconEmoji = "🕒",
+                descriptionEn = "Browse a chronological timeline of all reported Civic Eye incidents with exact timestamps, live status badges, search, and resolution details.",
+                descriptionOd = "ସମସ୍ତ ଦାଖଲ ସିଭିକ୍ ଆଇ ଅଭିଯୋଗକୁ ସମୟ, ସ୍ଥିତି ସୂଚକ ଓ ବିବରଣୀ ସହ କ୍ରମାନୁସାରେ ଦେଖନ୍ତୁ।",
+                tagText = "CHRONOLOGICAL LOG",
+                primaryColor = Color(0xFFF0FDFA),
+                borderColor = Color(0xFF5EEAD4)
+            ),
+            SpecialFeatureItem(
                 sheetType = UniqueFeatureSheetType.CITIZEN_CONTRIBUTION_LEADERBOARD,
                 titleEn = "Citizen Contribution Leaderboard",
                 titleOd = "ନାଗରିକ ଯୋଗଦାନ ମାନ୍ୟତା ଲିଡରବୋର୍ଡ",

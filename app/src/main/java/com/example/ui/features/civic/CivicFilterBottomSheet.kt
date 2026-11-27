@@ -261,9 +261,9 @@ fun CivicFilterBottomSheet(
 
                 Spacer(modifier = Modifier.height(18.dp))
 
-                // 3. URGENCY FILTER
+                // 3. SEVERITY FILTER (Low, Medium, Critical)
                 Text(
-                    text = if (isOdia) "ଜରୁରୀ ସ୍ତର (Urgency Level)" else "Urgency Level",
+                    text = if (isOdia) "ତୀବ୍ରତା ସ୍ତର (Severity Level)" else "Severity Level",
                     style = MaterialTheme.typography.titleSmall.copy(
                         fontWeight = FontWeight.Bold,
                         fontSize = 13.5.sp
@@ -280,12 +280,13 @@ fun CivicFilterBottomSheet(
                         "ALL" to (if (isOdia) "ସବୁ" else "All"),
                         "LOW" to (if (isOdia) "🟢 ସାଧାରଣ" else "🟢 Low"),
                         "MEDIUM" to (if (isOdia) "🟡 ମଧ୍ୟମ" else "🟡 Medium"),
-                        "HIGH" to (if (isOdia) "🟠 ଉଚ୍ଚ" else "🟠 High"),
-                        "EMERGENCY" to (if (isOdia) "🔴 ଜରୁରୀ" else "🔴 Critical")
+                        "CRITICAL" to (if (isOdia) "🔴 ଜରୁରୀ" else "🔴 Critical")
                     )
 
                     urgencyList.forEach { (urgencyKey, label) ->
-                        val isSelected = selectedUrgency == urgencyKey
+                        val isSelected = selectedUrgency.equals(urgencyKey, ignoreCase = true) ||
+                            (urgencyKey == "CRITICAL" && (selectedUrgency.equals("EMERGENCY", ignoreCase = true) ||
+                                selectedUrgency.equals("HIGH", ignoreCase = true)))
                         Surface(
                             shape = RoundedCornerShape(8.dp),
                             color = if (isSelected) Color(0xFF0284C7).copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),

@@ -209,3 +209,9 @@ tasks.withType<Test> {
     }
 }
 
+tasks.configureEach {
+    if (name.startsWith("merge") && name.contains("Dex", ignoreCase = true)) {
+        outputs.doNotCacheIf("Avoid tar-packing large merged DEX outputs into local build cache") { true }
+    }
+}
+

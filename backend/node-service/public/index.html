@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Baleshwar 360 — Live Balasore News, Weather &amp; Tourism Dashboard</title>
+  <style>
+    :root {
+      --bg: #f4f7fb;
+      --surface: #ffffff;
+      --text: #0f172a;
+      --muted: #475569;
+      --border: #e2e8f0;
+      --primary: #0284c7;
+      --primary-soft: #e0f2fe;
+      --accent: #0d9488;
+      --warn: #d97706;
+      --danger: #dc2626;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+    }
+    header {
+      background: linear-gradient(135deg, #0369a1 0%, #0284c7 60%, #0d9488 100%);
+      color: #fff;
+      padding: 24px 20px;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      box-shadow: 0 2px 10px rgba(15, 23, 42, 0.12);
+    }
+    .header-inner {
+      max-width: 1040px;
+      margin: 0 auto;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .header-inner h1 { margin: 0; font-size: 1.35rem; }
+    .header-inner p { margin: 2px 0 0; font-size: 0.85rem; opacity: 0.9; }
+    button.refresh-btn {
+      background: rgba(255,255,255,0.18);
+      border: 1px solid rgba(255,255,255,0.35);
+      color: #fff;
+      border-radius: 10px;
+      padding: 10px 16px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    button.refresh-btn:hover { background: rgba(255,255,255,0.28); }
+    main {
+      max-width: 1040px;
+      margin: 20px auto 48px;
+      padding: 0 16px;
+      display: grid;
+      gap: 20px;
+    }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 18px 20px;
+      box-shadow: 0 2px 6px rgba(15, 23, 42, 0.04);
+    }
+    .section-title {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      margin: 0 0 12px;
+    }
+    .section-title h2 { margin: 0; font-size: 1.1rem; }
+    .badge {
+      font-size: 0.75rem;
+      font-weight: 700;
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: var(--primary-soft);
+      color: var(--primary);
+    }
+    .badge.warn { background: #fef3c7; color: #b45309; }
+    .badge.danger { background: #fee2e2; color: var(--danger); }
+    .weather-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 12px;
+      margin-top: 10px;
+    }
+    .metric {
+      background: #f8fafc;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 12px;
+    }
+    .metric-label { font-size: 0.75rem; color: var(--muted); }
+    .metric-value { font-size: 1.4rem; font-weight: 800; margin-top: 4px; }
+    .alert-box {
+      margin-top: 14px;
+      padding: 12px 14px;
+      border-radius: 12px;
+      border-left: 4px solid var(--accent);
+      background: #f0fdfa;
+      font-size: 0.9rem;
+    }
+    .alert-box.severe { border-left-color: var(--danger); background: #fef2f2; }
+    .scroll-list {
+      max-height: 420px;
+      overflow-y: auto;
+      display: grid;
+      gap: 10px;
+      padding-right: 4px;
+    }
+    .news-item {
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 12px 14px;
+      background: #fcfdff;
+    }
+    .news-item a {
+      color: var(--text);
+      font-weight: 700;
+      text-decoration: none;
+    }
+    .news-item a:hover { color: var(--primary); text-decoration: underline; }
+    .news-meta {
+      margin-top: 6px;
+      font-size: 0.78rem;
+      color: var(--muted);
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .chips {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 12px;
+    }
+    .chip {
+      border: 1px solid var(--border);
+      background: #fff;
+      color: var(--text);
+      padding: 8px 14px;
+      border-radius: 999px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .chip.active {
+      background: var(--primary);
+      border-color: var(--primary);
+      color: #fff;
+    }
+    .locations-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 12px;
+    }
+    .loc-card {
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 12px 14px;
+      background: #fff;
+    }
+    .loc-card h3 { margin: 6px 0 4px; font-size: 0.95rem; }
+    .loc-card p { margin: 0 0 8px; font-size: 0.82rem; color: var(--muted); }
+    .coords { font-size: 0.75rem; color: var(--primary); font-weight: 600; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="header-inner">
+      <div>
+        <h1>Baleshwar 360 — Live District Dashboard</h1>
+        <p>Real-Time Balasore Weather, District News Wire &amp; Tourist Locations</p>
+      </div>
+      <button class="refresh-btn" id="refreshBtn" type="button">Refresh Live Feed</button>
+    </div>
+  </header>
+
+  <main>
+    <section class="card" aria-label="Balasore Real-Time Weather">
+      <div class="section-title">
+        <h2>Balasore Live Weather</h2>
+        <span class="badge" id="weatherProvider">Loading…</span>
+      </div>
+      <div class="weather-grid" id="weatherMetrics"></div>
+      <div class="alert-box" id="weatherAlert">Checking IMD / Open-Meteo coastal weather alerts…</div>
+    </section>
+
+    <section class="card" aria-label="Balasore Real-Time News Feed">
+      <div class="section-title">
+        <h2>Balasore Real-Time News</h2>
+        <span class="badge" id="newsProvider">Loading…</span>
+      </div>
+      <div class="scroll-list" id="newsFeed"></div>
+    </section>
+
+    <section class="card" aria-label="Balasore Tourist Locations">
+      <div class="section-title">
+        <h2>Balasore Tourist Locations</h2>
+        <span class="badge" id="locationCount">All</span>
+      </div>
+      <div class="chips" id="categoryChips">
+        <button class="chip active" data-cat="ALL">All</button>
+        <button class="chip" data-cat="BEACH">Beaches</button>
+        <button class="chip" data-cat="TEMPLE">Temples</button>
+        <button class="chip" data-cat="NATURE">Nature</button>
+        <button class="chip" data-cat="HERITAGE">Heritage</button>
+      </div>
+      <div class="locations-grid" id="locationsGrid"></div>
+    </section>
+  </main>
+
+  <script>
+    function escapeText(value) {
+      const div = document.createElement('div');
+      div.textContent = value == null ? '' : String(value);
+      return div.innerHTML;
+    }
+
+    async function loadDashboard() {
+      const res = await fetch('/api/dashboard/balasore');
+      const data = await res.json();
+
+      const w = data.weather || {};
+      document.getElementById('weatherProvider').textContent = w.provider || 'Public API';
+      document.getElementById('weatherMetrics').innerHTML = [
+        ['Temperature', `${w.temperatureC ?? '--'}°C`],
+        ['Feels Like', `${w.feelsLikeC ?? '--'}°C`],
+        ['Humidity', `${w.humidityPercent ?? '--'}%`],
+        ['Wind Speed', `${w.windSpeedKmh ?? '--'} km/h`],
+        ['Condition', w.condition || 'Coastal Breeze'],
+      ].map(([label, val]) =>
+        `<div class="metric"><div class="metric-label">${escapeText(label)}</div><div class="metric-value">${escapeText(val)}</div></div>`
+      ).join('');
+
+      const alertBox = document.getElementById('weatherAlert');
+      const alertInfo = w.alert || {};
+      alertBox.className = alertInfo.isSevere ? 'alert-box severe' : 'alert-box';
+      alertBox.textContent = `${alertInfo.title || 'Weather Status'}: ${alertInfo.advisory || ''}`;
+
+      const n = data.news || {};
+      document.getElementById('newsProvider').textContent = `${n.provider || 'RSS'} (${n.count || 0})`;
+      const feedEl = document.getElementById('newsFeed');
+      feedEl.innerHTML = (n.articles || []).map((art) => `
+        <article class="news-item">
+          <a href="${escapeText(art.url || '#')}" target="_blank" rel="noopener noreferrer">${escapeText(art.title)}</a>
+          <div class="news-meta">
+            <span>${escapeText(art.category || 'Local News')}</span>
+            <span>• ${escapeText(art.source || 'Balasore Wire')}</span>
+            <span>• ${escapeText(art.publishedAt || '')}</span>
+          </div>
+        </article>
+      `).join('') || '<p>No articles available right now.</p>';
+    }
+
+    async function loadLocations(category = 'ALL') {
+      const res = await fetch(`/api/tourism/locations?category=${encodeURIComponent(category)}`);
+      const data = await res.json();
+      document.getElementById('locationCount').textContent = `${data.count || 0} Places`;
+      document.getElementById('locationsGrid').innerHTML = (data.locations || []).map((loc) => `
+        <div class="loc-card">
+          <span class="badge">${escapeText(loc.category)}</span>
+          <h3>${escapeText(loc.name)}</h3>
+          <p>${escapeText(loc.shortDescription)}</p>
+          <div class="coords">${Number(loc.latitude).toFixed(4)}° N, ${Number(loc.longitude).toFixed(4)}° E • ★ ${escapeText(loc.rating)}</div>
+        </div>
+      `).join('');
+    }
+
+    document.getElementById('refreshBtn').addEventListener('click', loadDashboard);
+    document.getElementById('categoryChips').addEventListener('click', (e) => {
+      const btn = e.target.closest('button[data-cat]');
+      if (!btn) return;
+      document.querySelectorAll('#categoryChips .chip').forEach((c) => c.classList.remove('active'));
+      btn.classList.add('active');
+      loadLocations(btn.dataset.cat);
+    });
+
+    loadDashboard();
+    loadLocations('ALL');
+  </script>
+</body>
+</html>

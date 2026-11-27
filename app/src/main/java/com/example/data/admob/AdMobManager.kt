@@ -16,15 +16,26 @@ object AdMobManager {
     private const val TAG = "AdMobManager"
 
     // Official user AdMob IDs
-    const val ADMOB_APP_ID = "ca-app-pub-4880243637225183~4956380952"
+    const val ADMOB_APP_ID = "ca-app-pub-4880243637225183~4742987253"
     const val PUBLISHER_ID = "pub-4880243637225183"
     const val APP_ADS_TXT_RECORD = "google.com, pub-4880243637225183, DIRECT, f08c47fec0942fa0"
 
-    // Official user Ad Units
-    const val AD_UNIT_BANNER_ESSENTIALS = "ca-app-pub-4880243637225183/2374449648"
-    const val AD_UNIT_BANNER_NEWS = "ca-app-pub-4880243637225183/9229687948"
-    const val AD_UNIT_BANNER_WEATHER = "ca-app-pub-4880243637225183/3401067188"
-    const val AD_UNIT_BANNER_TOURISM = "ca-app-pub-4880243637225183/7631122085"
+    // Official user Ad Units (App ID: ca-app-pub-4880243637225183~4742987253)
+    const val AD_UNIT_BANNER_ESSENTIALS = "ca-app-pub-4880243637225183/5617085220"
+    const val AD_UNIT_BANNER_NEWS = "ca-app-pub-4880243637225183/5208736161"
+    const val AD_UNIT_BANNER_WEATHER = "ca-app-pub-4880243637225183/5669056116"
+    const val AD_UNIT_BANNER_TOURISM = "ca-app-pub-4880243637225183/9503204396"
+    const val AD_UNIT_BANNER_CIVIC_EYE = "ca-app-pub-4880243637225183/5972308440"
+    const val AD_UNIT_BANNER_MAP = "ca-app-pub-4880243637225183/8857492089"
+
+    val PRODUCTION_AD_UNITS: List<Pair<String, String>> = listOf(
+        "Essentials" to AD_UNIT_BANNER_ESSENTIALS,
+        "News" to AD_UNIT_BANNER_NEWS,
+        "Weather" to AD_UNIT_BANNER_WEATHER,
+        "Tourism" to AD_UNIT_BANNER_TOURISM,
+        "Civic Eye" to AD_UNIT_BANNER_CIVIC_EYE,
+        "Maps" to AD_UNIT_BANNER_MAP
+    )
 
     // Standard Google test ad unit ID for banners (prevents test policy violations in test builds)
     const val TEST_BANNER_AD_UNIT_ID = "ca-app-pub-3940256099942544/6300978111"
@@ -40,6 +51,8 @@ object AdMobManager {
             "news" -> AD_UNIT_BANNER_NEWS
             "weather" -> AD_UNIT_BANNER_WEATHER
             "tourism" -> AD_UNIT_BANNER_TOURISM
+            "civic_eye", "civic" -> AD_UNIT_BANNER_CIVIC_EYE
+            "map", "maps" -> AD_UNIT_BANNER_MAP
             else -> AD_UNIT_BANNER_ESSENTIALS
         }
     }

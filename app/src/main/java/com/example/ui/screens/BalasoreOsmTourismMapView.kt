@@ -216,10 +216,15 @@ fun BalasoreOsmTourismMapView(
     }
 
     val filteredSpots = remember(selectedCategory) {
-        if (selectedCategory == "ALL") {
-            BALASORE_TOURIST_LOCATIONS
-        } else {
-            BALASORE_TOURIST_LOCATIONS.filter { it.categoryGroup == selectedCategory }
+        when (selectedCategory) {
+            "ALL" -> BALASORE_TOURIST_LOCATIONS
+            "HERITAGE" -> BALASORE_TOURIST_LOCATIONS.filter {
+                it.categoryGroup == "HERITAGE" ||
+                    it.categoryEn.contains("Heritage", ignoreCase = true) ||
+                    it.categoryEn.contains("Fort", ignoreCase = true) ||
+                    it.historicalSignificance.contains("century", ignoreCase = true)
+            }
+            else -> BALASORE_TOURIST_LOCATIONS.filter { it.categoryGroup == selectedCategory }
         }
     }
 
@@ -895,7 +900,8 @@ fun BalasoreOsmTourismMapView(
                             )
                         }
                     }
-                } else if (showTourismLayer) {
+                }
+                if (showTourismLayer) {
                     LazyRow(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -904,10 +910,11 @@ fun BalasoreOsmTourismMapView(
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         val categories = listOf(
-                            "ALL" to (if (language == AppLanguage.ODIA) "ସମସ୍ତ ସ୍ଥାନ (${BALASORE_TOURIST_LOCATIONS.size})" else "All Spots (${BALASORE_TOURIST_LOCATIONS.size})"),
-                            "BEACH" to (if (language == AppLanguage.ODIA) "ବେଳାଭୂମି" else "Beaches"),
-                            "TEMPLE" to (if (language == AppLanguage.ODIA) "ମନ୍ଦିର ଓ ଐତିହ୍ୟ" else "Temples & Heritage"),
-                            "NATURE" to (if (language == AppLanguage.ODIA) "ବନ୍ୟପ୍ରାଣୀ ଓ ଦୁର୍ଗ" else "Wildlife & Forts")
+                            "ALL" to (if (language == AppLanguage.ODIA) "ସମସ୍ତ ସ୍ଥାନ (${BALASORE_TOURIST_LOCATIONS.size})" else "All Attractions (${BALASORE_TOURIST_LOCATIONS.size})"),
+                            "BEACH" to (if (language == AppLanguage.ODIA) "🌊 ବେଳାଭୂମି" else "🌊 Beaches"),
+                            "TEMPLE" to (if (language == AppLanguage.ODIA) "🛕 ମନ୍ଦିର" else "🛕 Temples"),
+                            "NATURE" to (if (language == AppLanguage.ODIA) "🌿 ବନ୍ୟପ୍ରାଣୀ ଓ ପ୍ରକୃତି" else "🌿 Nature & Wildlife"),
+                            "HERITAGE" to (if (language == AppLanguage.ODIA) "🏛️ ଐତିହ୍ୟ ଓ ଦୁର୍ଗ" else "🏛️ Heritage & Forts")
                         )
 
                         items(categories) { (key, label) ->

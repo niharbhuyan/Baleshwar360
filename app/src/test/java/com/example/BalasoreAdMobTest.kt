@@ -10,7 +10,7 @@ class BalasoreAdMobTest {
 
     @Test
     fun `verify AdMob App ID matches user configuration`() {
-        assertEquals("ca-app-pub-4880243637225183~4956380952", AdMobManager.ADMOB_APP_ID)
+        assertEquals("ca-app-pub-4880243637225183~4742987253", AdMobManager.ADMOB_APP_ID)
         assertEquals("pub-4880243637225183", AdMobManager.PUBLISHER_ID)
         assertEquals("google.com, pub-4880243637225183, DIRECT, f08c47fec0942fa0", AdMobManager.APP_ADS_TXT_RECORD)
     }
@@ -54,14 +54,19 @@ class BalasoreAdMobTest {
 
     @Test
     fun `verify production ad unit IDs match user configuration`() {
-        assertEquals("ca-app-pub-4880243637225183/2374449648", AdMobManager.AD_UNIT_BANNER_ESSENTIALS)
-        assertEquals("ca-app-pub-4880243637225183/9229687948", AdMobManager.AD_UNIT_BANNER_NEWS)
-        assertEquals("ca-app-pub-4880243637225183/3401067188", AdMobManager.AD_UNIT_BANNER_WEATHER)
-        assertEquals("ca-app-pub-4880243637225183/7631122085", AdMobManager.AD_UNIT_BANNER_TOURISM)
+        assertEquals("ca-app-pub-4880243637225183/5617085220", AdMobManager.AD_UNIT_BANNER_ESSENTIALS)
+        assertEquals("ca-app-pub-4880243637225183/5208736161", AdMobManager.AD_UNIT_BANNER_NEWS)
+        assertEquals("ca-app-pub-4880243637225183/5669056116", AdMobManager.AD_UNIT_BANNER_WEATHER)
+        assertEquals("ca-app-pub-4880243637225183/9503204396", AdMobManager.AD_UNIT_BANNER_TOURISM)
+        assertEquals("ca-app-pub-4880243637225183/5972308440", AdMobManager.AD_UNIT_BANNER_CIVIC_EYE)
+        assertEquals("ca-app-pub-4880243637225183/8857492089", AdMobManager.AD_UNIT_BANNER_MAP)
+        assertEquals(6, AdMobManager.PRODUCTION_AD_UNITS.size)
 
         assertEquals(AdMobManager.AD_UNIT_BANNER_ESSENTIALS, AdMobManager.getScreenAdUnitId("essentials"))
         assertEquals(AdMobManager.AD_UNIT_BANNER_NEWS, AdMobManager.getScreenAdUnitId("news"))
         assertEquals(AdMobManager.AD_UNIT_BANNER_WEATHER, AdMobManager.getScreenAdUnitId("weather"))
         assertEquals(AdMobManager.AD_UNIT_BANNER_TOURISM, AdMobManager.getScreenAdUnitId("tourism"))
+        assertEquals(AdMobManager.AD_UNIT_BANNER_CIVIC_EYE, AdMobManager.getScreenAdUnitId("civic_eye"))
+        assertEquals(AdMobManager.AD_UNIT_BANNER_MAP, AdMobManager.getScreenAdUnitId("map"))
     }
 }

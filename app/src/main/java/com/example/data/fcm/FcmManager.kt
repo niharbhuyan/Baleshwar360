@@ -30,6 +30,9 @@ object FcmManager {
     private const val KEY_CHANDIPUR_HIGH_TIDE_ALERTS = "topic_chandipur_high_tide_alerts"
     private const val KEY_FLOOD_ALERTS = "topic_flood_alerts"
     private const val KEY_TOURISM_HOTSPOTS = "topic_tourism_hotspots"
+    private const val KEY_CIVIC_REPORT_UPDATES = "topic_civic_report_updates"
+    private const val KEY_TRACKED_CIVIC_REPORT_IDS = "tracked_civic_report_ids"
+    private const val KEY_TRACKED_CIVIC_USER_ID = "tracked_civic_user_id"
 
     const val TOPIC_WEATHER_ALERTS = "balasore_weather_alerts"
     const val TOPIC_DEFENSE_ADVISORIES = "balasore_defense_advisories"
@@ -38,6 +41,7 @@ object FcmManager {
     const val TOPIC_CHANDIPUR_HIGH_TIDE = "chandipur_high_tide_alerts"
     const val TOPIC_EMERGENCY_FLOOD_ALERTS = "balasore_flood_alerts"
     const val TOPIC_TOURISM_HOTSPOTS = "balasore_tourism_hotspots"
+    const val TOPIC_CIVIC_REPORT_UPDATES = "balasore_civic_report_updates"
 
     private val _fcmToken = MutableStateFlow<String?>(null)
     val fcmToken: StateFlow<String?> = _fcmToken.asStateFlow()
@@ -62,6 +66,9 @@ object FcmManager {
 
     private val _tourismHotspotsEnabled = MutableStateFlow(true)
     val tourismHotspotsEnabled: StateFlow<Boolean> = _tourismHotspotsEnabled.asStateFlow()
+
+    private val _civicReportUpdatesEnabled = MutableStateFlow(true)
+    val civicReportUpdatesEnabled: StateFlow<Boolean> = _civicReportUpdatesEnabled.asStateFlow()
 
     @Volatile
     private var isFirebaseReady: Boolean = false
@@ -112,6 +119,7 @@ object FcmManager {
         _chandipurHighTideAlertsEnabled.value = highTidePref
         _floodAlertsEnabled.value = prefs.getBoolean(KEY_FLOOD_ALERTS, true)
         _tourismHotspotsEnabled.value = prefs.getBoolean(KEY_TOURISM_HOTSPOTS, true)
+        _civicReportUpdatesEnabled.value = prefs.getBoolean(KEY_CIVIC_REPORT_UPDATES, true)
 
         isFirebaseReady = isFirebaseConfigured(context)
 
@@ -150,6 +158,9 @@ object FcmManager {
             }
             if (_tourismHotspotsEnabled.value) {
                 subscribeToTopic(TOPIC_TOURISM_HOTSPOTS)
+            }
+            if (_civicReportUpdatesEnabled.value) {
+                resubscribeTrackedCivicReports(context)
             }
         } catch (e: Exception) {
             Log.w(TAG, "Non-blocking FCM initialization notice: ${e.message}")
@@ -293,6 +304,85 @@ object FcmManager {
             subscribeToTopic(TOPIC_TOURISM_HOTSPOTS)
         } else {
             unsubscribeFromTopic(TOPIC_TOURISM_HOTSPOTS)
+        }
+    }
+
+    fun isCivicReportUpdatesEnabled(context: Context): Boolean {
+        return getPrefs(context).getBoolean(KEY_CIVIC_REPORT_UPDATES, true)
+    }
+
+    fun setCivicReportUpdatesEnabled(context: Context, enabled: Boolean) {
+        _civicReportUpdatesEnabled.value = enabled
+        getPrefs(context).edit().putBoolean(KEY_CIVIC_REPORT_UPDATES, enabled).apply()
+        if (enabled) {
+            resubscribeTrackedCivicReports(context)
+        } else {
+            unsubscribeFromTopic(TOPIC_CIVIC_REPORT_UPDATES)
+            getTrackedCivicReportIds(context).forEach { id ->
+                unsubscribeFromTopic(civicReportTopicName(id))
+            }
+        }
+    }
+
+    fun sanitizeTopicSegment(raw: String): String {
+        return raw.trim()
+            .replace(Regex("[^a-zA-Z0-9\\-_.~%]"), "_")
+            .take(64)
+            .ifBlank { "unknown" }
+    }
+
+    fun civicReportTopicName(reportId: String): String =
+        "civic_report_${sanitizeTopicSegment(reportId)}"
+
+    fun civicUserTopicName(userId: String): String =
+        "civic_user_${sanitizeTopicSegment(userId)}"
+
+    fun getTrackedCivicReportIds(context: Context): Set<String> {
+        return getPrefs(context)
+            .getStringSet(KEY_TRACKED_CIVIC_REPORT_IDS, emptySet())
+            ?.toSet()
+            ?: emptySet()
+    }
+
+    /**
+     * Subscribes the user's device to FCM status change notifications for a specific Civic Eye report
+     * and optionally their user-scoped Civic Eye topic.
+     */
+    fun subscribeToCivicReportUpdates(
+        context: Context,
+        reportId: String,
+        userId: String? = null
+    ) {
+        val trimmedId = reportId.trim()
+        if (trimmedId.isBlank()) return
+        val prefs = getPrefs(context)
+        val updated = getTrackedCivicReportIds(context).toMutableSet().apply {
+            add(trimmedId)
+        }
+        val editor = prefs.edit().putStringSet(KEY_TRACKED_CIVIC_REPORT_IDS, updated)
+        if (!userId.isNullOrBlank()) {
+            editor.putString(KEY_TRACKED_CIVIC_USER_ID, userId.trim())
+        }
+        editor.apply()
+
+        if (isCivicReportUpdatesEnabled(context)) {
+            subscribeToTopic(TOPIC_CIVIC_REPORT_UPDATES)
+            subscribeToTopic(civicReportTopicName(trimmedId))
+            if (!userId.isNullOrBlank()) {
+                subscribeToTopic(civicUserTopicName(userId))
+            }
+        }
+    }
+
+    fun resubscribeTrackedCivicReports(context: Context) {
+        if (!isCivicReportUpdatesEnabled(context)) return
+        subscribeToTopic(TOPIC_CIVIC_REPORT_UPDATES)
+        getTrackedCivicReportIds(context).forEach { reportId ->
+            subscribeToTopic(civicReportTopicName(reportId))
+        }
+        val trackedUserId = getPrefs(context).getString(KEY_TRACKED_CIVIC_USER_ID, null)
+        if (!trackedUserId.isNullOrBlank()) {
+            subscribeToTopic(civicUserTopicName(trackedUserId))
         }
     }
 

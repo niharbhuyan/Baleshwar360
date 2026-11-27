@@ -36,6 +36,7 @@ class BalasoreFirebaseMessagingService : FirebaseMessagingService() {
         if (FcmManager.isTourismHotspotsEnabled(applicationContext)) {
             FcmManager.subscribeToTopic(FcmManager.TOPIC_TOURISM_HOTSPOTS)
         }
+        FcmManager.resubscribeTrackedCivicReports(applicationContext)
     }
 
     override fun onMessageReceived(remoteMessage: RemoteMessage) {
@@ -52,6 +53,36 @@ class BalasoreFirebaseMessagingService : FirebaseMessagingService() {
         val articleId = data["article_id"]
 
         when {
+            type.contains("CIVIC", ignoreCase = true) ||
+                    type.contains("REPORT_STATUS", ignoreCase = true) ||
+                    data.containsKey("report_id") ||
+                    data.containsKey("new_status") -> {
+                val reportId = data["report_id"] ?: data["civic_report_id"] ?: "BLS-CIVIC"
+                val previousStatus = data["previous_status"] ?: data["old_status"]
+                val newStatus = data["new_status"] ?: data["status"] ?: "IN_PROGRESS"
+                val reportTitle = data["report_title"] ?: title
+                val resolutionNotes = data["resolution_notes"] ?: data["remark"] ?: body
+
+                updateRoomCivicReportStatus(
+                    reportId = reportId,
+                    newStatus = newStatus,
+                    resolutionNotes = resolutionNotes
+                )
+
+                if (FcmManager.isCivicReportUpdatesEnabled(applicationContext)) {
+                    com.example.data.notification.CivicIssueNotificationHelper.showStatusChangeNotification(
+                        context = applicationContext,
+                        reportId = reportId,
+                        title = reportTitle,
+                        newStatus = newStatus,
+                        remark = resolutionNotes,
+                        previousStatus = previousStatus
+                    )
+                } else {
+                    Log.d(TAG, "Civic Eye report status notification skipped (opt-out active)")
+                }
+            }
+
             type.contains("TRANSPORT", ignoreCase = true) ||
                     type.contains("TRAIN", ignoreCase = true) ||
                     type.contains("BUS", ignoreCase = true) ||
@@ -247,6 +278,36 @@ class BalasoreFirebaseMessagingService : FirebaseMessagingService() {
                         articleId = articleId
                     )
                 }
+            }
+        }
+    }
+
+    private fun updateRoomCivicReportStatus(
+        reportId: String,
+        newStatus: String,
+        resolutionNotes: String
+    ) {
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                val db = AppDatabase.getInstance(applicationContext)
+                val existing = db.civicReportDao().getAllReportsSync().find { it.id == reportId }
+                if (existing != null) {
+                    val normalizedLocalStatus = when (newStatus.trim().uppercase()) {
+                        "RESOLVED" -> "RESOLVED"
+                        "IN_PROGRESS", "IN PROGRESS" -> "IN_PROGRESS"
+                        "REJECTED" -> "REJECTED"
+                        else -> "PENDING"
+                    }
+                    db.civicReportDao().insertOrUpdateReport(
+                        existing.copy(
+                            status = normalizedLocalStatus,
+                            resolutionNotes = resolutionNotes.ifBlank { existing.resolutionNotes },
+                            lastUpdatedTimestamp = System.currentTimeMillis()
+                        )
+                    )
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error updating Room civic report status from FCM", e)
             }
         }
     }

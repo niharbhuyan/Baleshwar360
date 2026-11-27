@@ -1574,6 +1574,13 @@ fun TourismScreen(
                 }
             )
         }
+
+        // 8. Sponsored Tourism Banner Ad
+        item {
+            com.example.ui.components.AdMobBannerCard(
+                adUnitId = com.example.data.admob.AdMobManager.AD_UNIT_BANNER_TOURISM
+            )
+        }
     }
     }
 
@@ -2627,6 +2634,13 @@ fun WeatherScreen(
                     Text("${day.highTempC}° / ${day.lowTempC}°C", fontWeight = FontWeight.Bold, color = OceanBlue)
                 }
             }
+        }
+
+        // Sponsored Weather Banner Ad
+        item {
+            com.example.ui.components.AdMobBannerCard(
+                adUnitId = com.example.data.admob.AdMobManager.AD_UNIT_BANNER_WEATHER
+            )
         }
     }
 }

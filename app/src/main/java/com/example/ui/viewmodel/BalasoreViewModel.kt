@@ -432,6 +432,9 @@ data class BalasoreUiState(
     val walkWindowAdvanceMinutes: Int = 30,
     // Chandipur Beach 'High Tide' Coastal Safety Push Notification Toggle (Settings)
     val isChandipurHighTideAlertsEnabled: Boolean = true,
+    // Nearby 'Civic Eye' Neighborhood Proximity Notification Settings
+    val isCivicProximityAlertsEnabled: Boolean = false,
+    val civicProximityRadiusMeters: Int = 1000,
     // Adaptive Sync (<20% Battery Auto-Throttle) & Personalized News Category Subscriptions
     val isAdaptiveSyncEnabled: Boolean = true,
     val subscribedNewsCategories: Set<String> = setOf("Politics", "Sports", "Defense", "Tourism", "Civic"),
@@ -667,6 +670,10 @@ enum class UniqueFeatureSheetType {
     HISTORICAL_LANDMARK_AUDIO_GUIDE,
     // Offline OSMDroid Civic Issues Map & Proximity Radar
     CIVIC_ISSUES_MAP,
+    // Dedicated OSMDroid Balasore Civic Eye Incident Layers Map (toggle Potholes, Sanitation, Drainage, Water, Lights)
+    CIVIC_EYE_LAYERS_MAP,
+    // Chronological scrollable history list of all Civic Eye incidents with timestamps and status indicators
+    CIVIC_EYE_HISTORY,
     // Balasore Municipality All 31 Administrative Wards Directory & Sanitation Hub
     MUNICIPAL_WARDS_DIRECTORY,
     // Administrative Moderator Panel (Add, Edit & Remove Local News, Weather & Tourism Hotspots)
@@ -737,6 +744,8 @@ class BalasoreViewModel(
     private var newsSearchQueryDao: NewsSearchQueryDao? = null
     var firestoreService: FirestoreService? = null
         private set
+    private var firestoreUserReportsJob: kotlinx.coroutines.Job? = null
+    private val lastKnownFirestoreReportStatuses = mutableMapOf<String, String>()
     private var appContext: Context? = null
     private val apiService: BalasoreApiService by lazy { BalasoreApiService.create() }
     private val weatherApiService: WeatherApiService by lazy { WeatherApiService.create() }
@@ -981,6 +990,8 @@ class BalasoreViewModel(
                 val savedLang = com.example.ui.components.AppLanguagePreferencesManager.getSavedLanguage(appCtx)
                 val batterySaverEnabled = com.example.data.sync.SyncManager.isBatterySavingModeEnabled(appCtx)
                 val highTideAlertsEnabled = com.example.data.fcm.FcmManager.isChandipurHighTideAlertsEnabled(appCtx)
+                val civicProximityEnabled = com.example.data.notification.CivicProximityAlertManager.isEnabled(appCtx)
+                val civicProximityRadius = com.example.data.notification.CivicProximityAlertManager.getRadiusMeters(appCtx)
                 val parsedMode = savedTheme?.let {
                     runCatching { ThemeMode.valueOf(it) }.getOrNull()
                 }
@@ -989,6 +1000,8 @@ class BalasoreViewModel(
                     themeMode = parsedMode ?: _uiState.value.themeMode,
                     isBatterySavingModeEnabled = batterySaverEnabled,
                     isChandipurHighTideAlertsEnabled = highTideAlertsEnabled,
+                    isCivicProximityAlertsEnabled = civicProximityEnabled,
+                    civicProximityRadiusMeters = civicProximityRadius,
                     newsAutoUpdateIntervalSeconds = if (batterySaverEnabled) 1800 else _uiState.value.newsAutoUpdateIntervalSeconds
                 )
             } catch (_: Exception) {}
@@ -1198,6 +1211,7 @@ class BalasoreViewModel(
                 civicReportDao = cDao
                 val fsService = FirestoreService(appCtx)
                 firestoreService = fsService
+                startObservingFirestoreUserReports(appCtx)
                 val cRepo = CivicReportRepository(cDao, fsService)
                 civicReportRepo = cRepo
                 launch {
@@ -1453,6 +1467,80 @@ class BalasoreViewModel(
         }
     }
 
+    /**
+     * Subscribes to live Firestore `user_reports` snapshots so Civic Eye status indicators
+     * ('Pending', 'In Progress', 'Resolved') refresh automatically and notify the citizen
+     * whenever one of their tracked reports changes status in Firestore.
+     */
+    fun startObservingFirestoreUserReports(context: Context? = appContext) {
+        val service = firestoreService ?: return
+        firestoreUserReportsJob?.cancel()
+        firestoreUserReportsJob = viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            try {
+                service.observeUserReports().collect { remoteReports ->
+                    val currentUid = try {
+                        com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid
+                    } catch (_: Exception) {
+                        null
+                    }
+                    val trackedIds = context?.let {
+                        com.example.data.fcm.FcmManager.getTrackedCivicReportIds(it)
+                    }.orEmpty()
+
+                    remoteReports.forEach { report ->
+                        val prevStatus = lastKnownFirestoreReportStatuses[report.id]
+                        if (prevStatus != null && !prevStatus.equals(report.status, ignoreCase = true)) {
+                            val isOwnedOrTracked = (!currentUid.isNullOrBlank() && report.userId == currentUid) ||
+                                trackedIds.contains(report.id)
+                            if (context != null && isOwnedOrTracked &&
+                                com.example.data.fcm.FcmManager.isCivicReportUpdatesEnabled(context)
+                            ) {
+                                com.example.data.notification.CivicIssueNotificationHelper.showStatusChangeNotification(
+                                    context = context,
+                                    reportId = report.id,
+                                    title = report.title,
+                                    newStatus = report.status,
+                                    remark = report.resolutionNotes.orEmpty(),
+                                    previousStatus = prevStatus
+                                )
+                            }
+                            // Keep local Room mirror synchronized with the remote Firestore status
+                            try {
+                                val existingLocal = civicReportDao?.getAllReportsSync()?.firstOrNull { it.id == report.id }
+                                if (existingLocal != null) {
+                                    val localStatus = when (report.status.uppercase()) {
+                                        "RESOLVED" -> "RESOLVED"
+                                        "IN_PROGRESS" -> "IN_PROGRESS"
+                                        else -> "PENDING"
+                                    }
+                                    civicReportDao?.insertOrUpdateReport(
+                                        existingLocal.copy(
+                                            status = localStatus,
+                                            lastUpdatedTimestamp = report.lastUpdatedTimestamp,
+                                            resolutionNotes = report.resolutionNotes?.takeIf { it.isNotBlank() }
+                                                ?: existingLocal.resolutionNotes
+                                        )
+                                    )
+                                }
+                            } catch (_: Throwable) {
+                            }
+                        }
+                        lastKnownFirestoreReportStatuses[report.id] = report.status
+                    }
+
+                    _uiState.value = _uiState.value.copy(
+                        firestoreUserReports = remoteReports,
+                        isFirestoreReportsLoading = false
+                    )
+                }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                android.util.Log.w("BalasoreViewModel", "Firestore user_reports observer notice: ${e.message}")
+            }
+        }
+    }
+
     fun clearCivicEyeSubmitStatus() {
         _uiState.value = _uiState.value.copy(civicEyeSubmitStatus = CivicEyeSubmitStatus.Idle)
     }
@@ -1501,16 +1589,7 @@ class BalasoreViewModel(
             return
         }
 
-        val normalizedCategory = when {
-            category.contains("Pothole", ignoreCase = true) -> "pothole"
-            category.contains("Drain", ignoreCase = true) -> "drainage"
-            category.contains("Waterlog", ignoreCase = true) -> "waterlogging"
-            category.contains("Road", ignoreCase = true) -> "road"
-            category.contains("Garbage", ignoreCase = true) || category.contains("Waste", ignoreCase = true) -> "garbage"
-            category.contains("Light", ignoreCase = true) -> "electricity"
-            category.contains("Water", ignoreCase = true) || category.contains("Supply", ignoreCase = true) -> "water"
-            else -> "other"
-        }
+        val canonicalCategory = com.example.ui.features.civic.normalizeCivicEyeCategory(category)
         val safeUrgency = urgency.uppercase().let {
             if (it in listOf("LOW", "MEDIUM", "HIGH", "EMERGENCY")) it else "MEDIUM"
         }
@@ -1519,8 +1598,8 @@ class BalasoreViewModel(
             id = cloudReportId,
             userId = userId,
             userName = userName.ifBlank { "Baleswari Citizen" },
-            title = title.ifBlank { "$category in $wardLocation" },
-            category = normalizedCategory,
+            title = title.ifBlank { "$canonicalCategory in $wardLocation" },
+            category = canonicalCategory,
             description = description.ifBlank { "Reported via Civic Eye" },
             wardLocation = wardLocation,
             status = "SUBMITTED",
@@ -1541,9 +1620,18 @@ class BalasoreViewModel(
             try {
                 val result = firestoreService?.submitUserReport(cloudReport)
                 if (result != null && result.isSuccess) {
+                    val savedId = result.getOrDefault(cloudReportId)
+                    lastKnownFirestoreReportStatuses[savedId] = "SUBMITTED"
+                    appContext?.let { ctx ->
+                        com.example.data.fcm.FcmManager.subscribeToCivicReportUpdates(
+                            context = ctx,
+                            reportId = savedId,
+                            userId = userId
+                        )
+                    }
                     submitCivicReport(
                         title = title,
-                        category = category,
+                        category = canonicalCategory,
                         wardLocation = wardLocation,
                         description = description,
                         urgency = safeUrgency,
@@ -1553,12 +1641,12 @@ class BalasoreViewModel(
                         longitude = cloudReport.longitude,
                         geoAddress = cloudReport.geoAddress,
                         queueForSyncWhenOnline = false,
-                        customReportId = result.getOrDefault(cloudReportId)
+                        customReportId = savedId
                     )
                     fetchFirestoreUserReports()
                     _uiState.value = _uiState.value.copy(
                         civicEyeSubmitStatus = CivicEyeSubmitStatus.SyncedToFirestore(
-                            reportId = result.getOrDefault(cloudReportId),
+                            reportId = savedId,
                             latitude = cloudReport.latitude,
                             longitude = cloudReport.longitude,
                             hasPhoto = effectivePhotoAttached
@@ -1614,19 +1702,28 @@ class BalasoreViewModel(
 
     fun advanceCivicReportStatus(reportId: String) {
         val now = System.currentTimeMillis()
+        var resolvedNextStatus: String? = null
+        var resolvedNotes: String? = null
+        var resolvedTitle: String? = null
+        var resolvedPrevStatus: String? = null
+
         val advanceBlock: (List<CivicReportEntity>) -> List<CivicReportEntity> = { list ->
             list.map { report ->
                 if (report.id == reportId) {
-                    val nextStatus = when (report.status) {
-                        "PENDING" -> "IN_PROGRESS"
+                    val nextStatus = when (report.status.uppercase()) {
+                        "PENDING", "SUBMITTED" -> "IN_PROGRESS"
                         "IN_PROGRESS" -> "RESOLVED"
                         else -> "RESOLVED"
                     }
                     val notes = when (nextStatus) {
                         "IN_PROGRESS" -> "Field inspection completed by ${report.assignedDepartment}. Repair crew dispatched to ${report.wardLocation}."
                         "RESOLVED" -> "Work completed and verified by Ward Junior Engineer. Issue closed successfully in municipal registry."
-                        else -> report.resolutionNotes
+                        else -> report.resolutionNotes ?: "Updated via Civic Eye."
                     }
+                    resolvedPrevStatus = report.status
+                    resolvedNextStatus = nextStatus
+                    resolvedNotes = notes
+                    resolvedTitle = report.title
                     report.copy(status = nextStatus, lastUpdatedTimestamp = now, resolutionNotes = notes)
                 } else {
                     report
@@ -1634,13 +1731,66 @@ class BalasoreViewModel(
             }
         }
 
-        _uiState.value = _uiState.value.copy(myCivicReports = advanceBlock(_uiState.value.myCivicReports))
+        val updatedFirestoreList = _uiState.value.firestoreUserReports.map { report ->
+            if (report.id == reportId) {
+                val nextStatus = when (report.status.uppercase()) {
+                    "PENDING", "SUBMITTED" -> "IN_PROGRESS"
+                    "IN_PROGRESS" -> "RESOLVED"
+                    else -> "RESOLVED"
+                }
+                val notes = when (nextStatus) {
+                    "IN_PROGRESS" -> "Field inspection completed. Repair crew dispatched to ${report.wardLocation}."
+                    "RESOLVED" -> "Work completed and verified by Balasore Municipal Ward Engineer."
+                    else -> report.resolutionNotes
+                }
+                if (resolvedNextStatus == null) {
+                    resolvedPrevStatus = report.status
+                    resolvedNextStatus = nextStatus
+                    resolvedNotes = notes
+                    resolvedTitle = report.title
+                }
+                report.copy(status = nextStatus, lastUpdatedTimestamp = now, resolutionNotes = notes)
+            } else {
+                report
+            }
+        }
+
+        _uiState.value = _uiState.value.copy(
+            myCivicReports = advanceBlock(_uiState.value.myCivicReports),
+            firestoreUserReports = updatedFirestoreList
+        )
+
+        val targetStatus = resolvedNextStatus
+        val targetNotes = resolvedNotes ?: "Status updated in Balasore Civic Eye."
+        if (targetStatus != null) {
+            appContext?.let { ctx ->
+                if (com.example.data.fcm.FcmManager.isCivicReportUpdatesEnabled(ctx)) {
+                    com.example.data.notification.CivicIssueNotificationHelper.showStatusChangeNotification(
+                        context = ctx,
+                        reportId = reportId,
+                        title = resolvedTitle ?: "Civic Eye Report",
+                        newStatus = targetStatus,
+                        remark = targetNotes,
+                        previousStatus = resolvedPrevStatus
+                    )
+                }
+            }
+        }
 
         try {
             viewModelScope.launch {
                 try {
                     civicReportRepo?.progressReportStatus(reportId)
                 } catch (_: Throwable) {}
+                if (targetStatus != null) {
+                    try {
+                        firestoreService?.updateUserReportStatus(
+                            reportId = reportId,
+                            newStatus = targetStatus,
+                            resolutionNotes = targetNotes
+                        )
+                    } catch (_: Throwable) {}
+                }
             }
         } catch (_: Throwable) {}
     }
@@ -2762,6 +2912,42 @@ class BalasoreViewModel(
                 bypassToggleCheck = true
             )
         }
+    }
+
+    /**
+     * Toggles proximity-based notifications for nearby 'Civic Eye' incidents in App Settings.
+     * Persists user preference and schedules or cancels the periodic neighborhood proximity monitor.
+     */
+    fun setCivicProximityAlertsEnabled(enabled: Boolean) {
+        appContext?.let { ctx ->
+            com.example.data.notification.CivicProximityAlertManager.setEnabled(ctx, enabled)
+        }
+        val radiusLabel = com.example.data.notification.CivicProximityAlertManager.formatRadiusLabel(
+            _uiState.value.civicProximityRadiusMeters
+        )
+        _uiState.value = _uiState.value.copy(
+            isCivicProximityAlertsEnabled = enabled,
+            lastSyncStatusMessage = if (enabled) {
+                "Nearby Civic Eye proximity alerts enabled ($radiusLabel neighborhood radius)"
+            } else {
+                "Nearby Civic Eye proximity alerts turned off"
+            }
+        )
+    }
+
+    /**
+     * Updates the neighborhood alert radius (in meters) for nearby 'Civic Eye' proximity notifications.
+     */
+    fun setCivicProximityRadiusMeters(radiusMeters: Int) {
+        val safeRadius = radiusMeters.coerceIn(250, 10000)
+        appContext?.let { ctx ->
+            com.example.data.notification.CivicProximityAlertManager.setRadiusMeters(ctx, safeRadius)
+        }
+        val radiusLabel = com.example.data.notification.CivicProximityAlertManager.formatRadiusLabel(safeRadius)
+        _uiState.value = _uiState.value.copy(
+            civicProximityRadiusMeters = safeRadius,
+            lastSyncStatusMessage = "Civic Eye proximity alert radius set to $radiusLabel"
+        )
     }
 
     fun setAdaptiveSyncEnabled(enabled: Boolean) {

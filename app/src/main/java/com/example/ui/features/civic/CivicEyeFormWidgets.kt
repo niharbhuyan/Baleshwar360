@@ -52,7 +52,8 @@ fun CivicEyeSubmitStatusBanner(
     status: CivicEyeSubmitStatus,
     isOdia: Boolean,
     onViewFeed: () -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    onViewOnMap: ((String) -> Unit)? = null
 ) {
     when (status) {
         is CivicEyeSubmitStatus.SyncedToFirestore -> {
@@ -69,32 +70,55 @@ fun CivicEyeSubmitStatusBanner(
                     .fillMaxWidth()
                     .testTag("civic_eye_submit_success_banner")
             ) {
-                Row(
-                    modifier = Modifier.padding(14.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        Icons.Default.CloudDone,
-                        contentDescription = "Saved to Firestore",
-                        tint = Color(0xFF16A34A),
-                        modifier = Modifier.size(24.dp)
-                    )
-                    Spacer(modifier = Modifier.width(10.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = if (isOdia) "Firestore ରେ ସଫଳତାର ସହ ସେଭ୍ ହୋଇଛି!" else "Incident Saved to Firestore!",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 14.sp,
-                            color = Color(0xFF15803D)
+                Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            Icons.Default.CloudDone,
+                            contentDescription = "Saved to Firestore",
+                            tint = Color(0xFF16A34A),
+                            modifier = Modifier.size(24.dp)
                         )
-                        Text(
-                            text = "ID: ${status.reportId}$coordSummary${if (status.hasPhoto) " • Photo attached" else ""}",
-                            fontSize = 11.5.sp,
-                            color = Color(0xFF166534)
-                        )
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = if (isOdia) "Firestore ରେ ସଫଳତାର ସହ ସେଭ୍ ହୋଇଛି!" else "Incident Saved to Firestore!",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 14.sp,
+                                color = Color(0xFF15803D)
+                            )
+                            Text(
+                                text = "ID: ${status.reportId}$coordSummary${if (status.hasPhoto) " • Photo attached" else ""}",
+                                fontSize = 11.5.sp,
+                                color = Color(0xFF166534)
+                            )
+                        }
                     }
-                    TextButton(onClick = onViewFeed) {
-                        Text("View Feed", fontSize = 12.sp, color = Color(0xFF15803D), fontWeight = FontWeight.Bold)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        if (onViewOnMap != null) {
+                            TextButton(
+                                onClick = { onViewOnMap(status.reportId) },
+                                modifier = Modifier
+                                    .heightIn(min = 48.dp)
+                                    .testTag("civic_eye_banner_view_map_btn")
+                            ) {
+                                Text(
+                                    text = stringResource(R.string.civic_osm_map_view_on_map),
+                                    fontSize = 12.sp,
+                                    color = Color(0xFF0284C7),
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                        TextButton(
+                            onClick = onViewFeed,
+                            modifier = Modifier.heightIn(min = 48.dp)
+                        ) {
+                            Text("View Feed", fontSize = 12.sp, color = Color(0xFF15803D), fontWeight = FontWeight.Bold)
+                        }
                     }
                 }
             }
@@ -108,32 +132,55 @@ fun CivicEyeSubmitStatusBanner(
                     .fillMaxWidth()
                     .testTag("civic_eye_submit_offline_banner")
             ) {
-                Row(
-                    modifier = Modifier.padding(14.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        Icons.Default.CloudQueue,
-                        contentDescription = "Queued offline",
-                        tint = Color(0xFFD97706),
-                        modifier = Modifier.size(24.dp)
-                    )
-                    Spacer(modifier = Modifier.width(10.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "Saved Locally (${status.reportId})",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 13.5.sp,
-                            color = Color(0xFF92400E)
+                Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            Icons.Default.CloudQueue,
+                            contentDescription = "Queued offline",
+                            tint = Color(0xFFD97706),
+                            modifier = Modifier.size(24.dp)
                         )
-                        Text(
-                            text = status.message,
-                            fontSize = 11.5.sp,
-                            color = Color(0xFF92400E)
-                        )
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Saved Locally (${status.reportId})",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 13.5.sp,
+                                color = Color(0xFF92400E)
+                            )
+                            Text(
+                                text = status.message,
+                                fontSize = 11.5.sp,
+                                color = Color(0xFF92400E)
+                            )
+                        }
                     }
-                    TextButton(onClick = onDismiss) {
-                        Text("Dismiss", fontSize = 12.sp, color = Color(0xFF92400E))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        if (onViewOnMap != null) {
+                            TextButton(
+                                onClick = { onViewOnMap(status.reportId) },
+                                modifier = Modifier
+                                    .heightIn(min = 48.dp)
+                                    .testTag("civic_eye_offline_banner_view_map_btn")
+                            ) {
+                                Text(
+                                    text = stringResource(R.string.civic_osm_map_view_on_map),
+                                    fontSize = 12.sp,
+                                    color = Color(0xFF0284C7),
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                        TextButton(
+                            onClick = onDismiss,
+                            modifier = Modifier.heightIn(min = 48.dp)
+                        ) {
+                            Text("Dismiss", fontSize = 12.sp, color = Color(0xFF92400E))
+                        }
                     }
                 }
             }

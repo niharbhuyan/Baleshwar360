@@ -123,6 +123,42 @@ fun BalasoreQuickHubSheet(
                 }
             ),
             QuickHubSubMenuItem(
+                id = "civic_eye_layers_map",
+                category = QuickHubMenuCategory.CIVIC_NEWS,
+                titleEn = "Civic Eye Layers Map",
+                titleOd = "ସିଭିକ୍ ଆଇ ଲେୟାର ମ୍ୟାପ୍",
+                subtitleEn = "Toggle Potholes, Sanitation & Drainage",
+                subtitleOd = "ରାସ୍ତା ଖାଲ ଓ ସ୍ୱଚ୍ଛତା ମ୍ୟାପ୍ ଲେୟାର",
+                badgeEn = "OSM LAYERS",
+                icon = Icons.Default.Layers,
+                iconTint = Color(0xFF0284C7),
+                lightBg = Color(0xFFE0F2FE),
+                lightBorder = Color(0xFF7DD3FC),
+                testTag = "quick_hub_civic_layers_map_btn",
+                onClickAction = {
+                    onDismiss()
+                    onOpenFeatureSheet(UniqueFeatureSheetType.CIVIC_EYE_LAYERS_MAP)
+                }
+            ),
+            QuickHubSubMenuItem(
+                id = "civic_eye_history",
+                category = QuickHubMenuCategory.CIVIC_NEWS,
+                titleEn = "Civic Eye History",
+                titleOd = "ସିଭିକ୍ ଆଇ ରିପୋର୍ଟ ଇତିହାସ",
+                subtitleEn = "Chronological log, timestamps & statuses",
+                subtitleOd = "ସମୟ ଓ ସ୍ଥିତି ସହ ସମସ୍ତ ଅଭିଯୋଗ ତାଲିକା",
+                badgeEn = "TIMELINE",
+                icon = Icons.Default.History,
+                iconTint = Color(0xFF0F766E),
+                lightBg = Color(0xFFCCFBF1),
+                lightBorder = Color(0xFF5EEAD4),
+                testTag = "quick_hub_civic_history_btn",
+                onClickAction = {
+                    onDismiss()
+                    onOpenFeatureSheet(UniqueFeatureSheetType.CIVIC_EYE_HISTORY)
+                }
+            ),
+            QuickHubSubMenuItem(
                 id = "community_forum",
                 category = QuickHubMenuCategory.CIVIC_NEWS,
                 titleEn = "Community Forum",
