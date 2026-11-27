@@ -176,4 +176,25 @@
     <string name="civic_history_today">Today</string>
     <string name="civic_history_yesterday">Yesterday</string>
     <string name="civic_layers_map_history_cd">Open chronological Civic Eye incident history list</string>
+    <string name="civic_drawer_title">Civic Eye Layer Filters</string>
+    <string name="civic_drawer_subtitle">Toggle incident categories on the Balasore map</string>
+    <string name="civic_drawer_open_cd">Open Civic Eye layer filter drawer</string>
+    <string name="civic_drawer_close_cd">Close layer filter drawer</string>
+    <string name="civic_drawer_apply_btn">Apply &amp; View Map</string>
+    <string name="civic_drawer_active_summary">Showing %1$d of %2$d incidents</string>
+    <string name="civic_drawer_layers_section">Incident Categories</string>
+    <string name="civic_drawer_severity_section">Severity Filter</string>
+    <string name="weather_five_day_title">5-Day Temperature Forecast</string>
+    <string name="weather_five_day_subtitle">Balasore • Tap or scrub chart to inspect daily highs &amp; lows</string>
+    <string name="weather_five_day_high_label">5-Day High</string>
+    <string name="weather_five_day_low_label">5-Day Low</string>
+    <string name="weather_five_day_avg_label">5-Day Avg</string>
+    <string name="weather_five_day_legend_high">High Temp</string>
+    <string name="weather_five_day_legend_low">Low Temp</string>
+    <string name="weather_five_day_rain_label">Rain</string>
+    <string name="weather_five_day_humidity_label">Humidity</string>
+    <string name="weather_five_day_wind_label">Wind</string>
+    <string name="weather_five_day_refresh_cd">Refresh 5-day temperature forecast</string>
+    <string name="weather_five_day_open_full_cd">Open full weather forecast</string>
+    <string name="weather_five_day_toggle_unit_cd">Toggle Celsius or Fahrenheit</string>
 </resources>

@@ -74,9 +74,9 @@ enum class CivicIncidentLayer(
         icon = Icons.Default.Opacity
     ),
     STREET_LIGHTS(
-        labelEn = "Street Lights",
+        labelEn = "Lighting",
         labelOd = "ଷ୍ଟ୍ରିଟ୍ ଲାଇଟ୍",
-        subtitleEn = "Dark poles, faulty LED lamps & electrical faults",
+        subtitleEn = "Dark poles, faulty streetlights & electrical faults",
         glyph = "L",
         accentColor = Color(0xFF7C3AED),
         androidPinColor = AndroidColor.rgb(124, 58, 237),

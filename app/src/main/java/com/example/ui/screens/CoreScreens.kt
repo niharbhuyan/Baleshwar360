@@ -138,6 +138,7 @@ import com.example.util.BalasoreHapticHelper
 import com.example.data.repository.BalasoreRepository
 import com.example.ui.components.BALASORE_TOURIST_LOCATIONS
 import com.example.ui.components.BalasoreExploreMapSection
+import com.example.ui.components.BalasoreFiveDayForecastWeatherWidget
 import com.example.ui.components.BalasoreOpenWeatherSummaryWidget
 import com.example.ui.components.BalasoreSevenDayWeatherTrendsRechartsCard
 import com.example.ui.components.BaleshwarEventCalendarCard
@@ -724,6 +725,21 @@ fun TourismScreen(
                     onRefresh = onRefreshOpenWeather,
                     onOpenDetails = onNavigateToWeather,
                     modifier = Modifier.testTag("home_mini_weather_warning_card")
+                )
+
+                BalasoreFiveDayForecastWeatherWidget(
+                    openWeatherForecast = openWeatherSevenDayForecast,
+                    fallbackForecastDays = forecastDays,
+                    currentWeather = weather,
+                    language = language,
+                    isFahrenheit = isFahrenheit,
+                    onToggleTempUnit = onToggleTempUnit,
+                    onRefresh = {
+                        onRefreshOpenWeather()
+                        onRefreshWeather()
+                    },
+                    onOpenFullWeather = onNavigateToWeather,
+                    modifier = Modifier.testTag("home_five_day_forecast_chart_widget")
                 )
 
                 com.example.ui.components.LocalWeatherDashboard(
@@ -2450,6 +2466,24 @@ fun WeatherScreen(
                 onRefresh = { onRefreshOpenWeather() },
                 onOpenDetails = { onOpenFeatureSheet(UniqueFeatureSheetType.OPEN_WEATHER_MAP) },
                 modifier = Modifier.padding(horizontal = 0.dp)
+            )
+        }
+
+        // 0B. 5-Day Temperature Forecast Summary Chart Widget
+        item {
+            BalasoreFiveDayForecastWeatherWidget(
+                openWeatherForecast = openWeatherSevenDayForecast,
+                fallbackForecastDays = forecastDays,
+                currentWeather = weather,
+                language = language,
+                isFahrenheit = isFahrenheit,
+                onToggleTempUnit = { onToggleUnit() },
+                onRefresh = {
+                    onRefreshOpenWeather()
+                    onRefreshWeather()
+                },
+                onOpenFullWeather = { onOpenFeatureSheet(UniqueFeatureSheetType.OPEN_WEATHER_MAP) },
+                modifier = Modifier.testTag("weather_tab_five_day_forecast_chart_widget")
             )
         }
 

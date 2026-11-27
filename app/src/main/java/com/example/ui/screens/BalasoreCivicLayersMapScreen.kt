@@ -49,31 +49,31 @@ import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.ThumbUp
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SmallFloatingActionButton
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.minimumInteractiveComponentSize
-import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -81,7 +81,9 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -157,7 +159,8 @@ fun BalasoreCivicLayersMapScreen(
     }
     // Optional severity filter (null = All, or LOW / MEDIUM / CRITICAL)
     var selectedSeverity by remember { mutableStateOf<CivicSeverityLevel?>(null) }
-    var showLayersSheet by remember { mutableStateOf(false) }
+    val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
+    val drawerScope = rememberCoroutineScope()
     var selectedPinId by remember { mutableStateOf<String?>(null) }
     var mapViewRef by remember { mutableStateOf<MapView?>(null) }
     var hasAutoFitted by remember { mutableStateOf(false) }
@@ -275,7 +278,7 @@ fun BalasoreCivicLayersMapScreen(
 
     BackHandler {
         when {
-            showLayersSheet -> showLayersSheet = false
+            drawerState.isOpen -> drawerScope.launch { drawerState.close() }
             selectedPinId != null -> selectedPinId = null
             else -> onClose()
         }
@@ -310,10 +313,39 @@ fun BalasoreCivicLayersMapScreen(
         }
     }
 
-    Scaffold(
-        modifier = modifier
-            .fillMaxSize()
-            .testTag("civic_layers_map_screen"),
+    ModalNavigationDrawer(
+        drawerState = drawerState,
+        gesturesEnabled = drawerState.isOpen,
+        drawerContent = {
+            CivicMapLayerFilterDrawerContent(
+                enabledLayers = enabledLayers,
+                countsByLayer = countsByLayer,
+                visibleCount = visiblePins.size,
+                totalCount = allPins.size,
+                isOdia = isOdia,
+                onToggleLayer = toggleLayer,
+                onShowAllLayers = {
+                    BalasoreHapticHelper.vibrateButtonClick(context)
+                    enabledLayers = CivicIncidentLayer.entries.toSet()
+                },
+                onHideAllLayers = {
+                    BalasoreHapticHelper.vibrateButtonClick(context)
+                    enabledLayers = emptySet()
+                },
+                onCloseDrawer = { drawerScope.launch { drawerState.close() } },
+                selectedSeverity = selectedSeverity,
+                countsBySeverity = countsBySeverity,
+                onSelectSeverity = { severity ->
+                    BalasoreHapticHelper.vibrateButtonClick(context)
+                    selectedSeverity = severity
+                }
+            )
+        }
+    ) {
+        Scaffold(
+            modifier = modifier
+                .fillMaxSize()
+                .testTag("civic_layers_map_screen"),
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
             TopAppBar(
@@ -375,7 +407,7 @@ fun BalasoreCivicLayersMapScreen(
                     IconButton(
                         onClick = {
                             BalasoreHapticHelper.vibrateButtonClick(context)
-                            showLayersSheet = true
+                            drawerScope.launch { drawerState.open() }
                         },
                         modifier = Modifier
                             .minimumInteractiveComponentSize()
@@ -392,8 +424,8 @@ fun BalasoreCivicLayersMapScreen(
                             }
                         ) {
                             Icon(
-                                imageVector = Icons.Default.Layers,
-                                contentDescription = stringResource(R.string.civic_layers_map_toggle_layers_cd)
+                                imageVector = Icons.Default.Tune,
+                                contentDescription = stringResource(R.string.civic_drawer_open_cd)
                             )
                         }
                     }
@@ -909,137 +941,6 @@ fun BalasoreCivicLayersMapScreen(
             }
         }
     }
-
-    // Dedicated Incident Layers Toggle ModalBottomSheet (with Material 3 Switches)
-    if (showLayersSheet) {
-        ModalBottomSheet(
-            onDismissRequest = { showLayersSheet = false },
-            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .navigationBarsPadding()
-                    .padding(horizontal = 20.dp, vertical = 8.dp)
-                    .testTag("civic_layers_control_sheet"),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = if (isOdia) "ସିଭିକ୍ ଆଇ ଲେୟାର ନିୟନ୍ତ୍ରଣ" else stringResource(R.string.civic_layers_sheet_title),
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            text = stringResource(R.string.civic_layers_sheet_subtitle),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                        TextButton(
-                            onClick = { enabledLayers = CivicIncidentLayer.entries.toSet() },
-                            modifier = Modifier.testTag("civic_layers_enable_all_btn")
-                        ) {
-                            Text(stringResource(R.string.civic_layers_map_show_all))
-                        }
-                        TextButton(
-                            onClick = { enabledLayers = emptySet() },
-                            modifier = Modifier.testTag("civic_layers_hide_all_btn")
-                        ) {
-                            Text(stringResource(R.string.civic_layers_map_hide_all))
-                        }
-                    }
-                }
-
-                HorizontalDivider()
-
-                CivicIncidentLayer.entries.forEach { layer ->
-                    val isChecked = layer in enabledLayers
-                    val count = countsByLayer[layer] ?: 0
-                    Surface(
-                        shape = RoundedCornerShape(14.dp),
-                        color = if (isChecked) {
-                            layer.accentColor.copy(alpha = 0.10f)
-                        } else {
-                            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
-                        },
-                        border = BorderStroke(
-                            1.dp,
-                            if (isChecked) layer.accentColor.copy(alpha = 0.55f)
-                            else MaterialTheme.colorScheme.outlineVariant
-                        ),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 14.dp, vertical = 10.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(38.dp)
-                                    .clip(CircleShape)
-                                    .background(layer.accentColor),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    imageVector = layer.icon,
-                                    contentDescription = layer.labelEn,
-                                    tint = Color.White,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                            }
-                            Column(modifier = Modifier.weight(1f)) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                                ) {
-                                    Text(
-                                        text = if (isOdia) layer.labelOd else layer.labelEn,
-                                        style = MaterialTheme.typography.titleSmall,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                    Surface(
-                                        shape = RoundedCornerShape(999.dp),
-                                        color = layer.accentColor.copy(alpha = 0.16f)
-                                    ) {
-                                        Text(
-                                            text = "$count",
-                                            fontSize = 11.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = layer.accentColor,
-                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
-                                        )
-                                    }
-                                }
-                                Text(
-                                    text = layer.subtitleEn,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                            }
-                            Switch(
-                                checked = isChecked,
-                                onCheckedChange = { toggleLayer(layer) },
-                                modifier = Modifier.testTag("civic_layer_switch_${layer.name.lowercase(Locale.US)}")
-                            )
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(8.dp))
-            }
-        }
     }
 }
 
